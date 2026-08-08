@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     /// <summary>Ticks peer ages, which change with no event to hang off.</summary>
     private DispatcherTimer? _partyClock;
 
+    /// <summary>Drives the ping pulse, and only runs while a ping is alive.</summary>
+    private DispatcherTimer? _pingClock;
+
     // Parameterless ctor exists only for the XAML previewer.
     public MainWindow() : this(new AppSettings())
     {
@@ -119,6 +122,7 @@ public partial class MainWindow : Window
         };
 
         _canvas.SmoothMovement = _settings.SmoothCameraMovement;
+        Audio.PingSound.Enabled = _settings.PingSound;
 
         ExitFilterBox.ItemsSource = Enum.GetValues<ExitFilter>().Select(f => f.Label()).ToArray();
         ExitFilterBox.SelectedIndex = (int)_settings.ExitFilter;
@@ -244,6 +248,7 @@ public partial class MainWindow : Window
         FontSize = _settings.FontSize;
 
         _canvas.SmoothMovement = _settings.SmoothCameraMovement;
+        Audio.PingSound.Enabled = _settings.PingSound;
         _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
         _session.Waypoints.Arrival = _settings.WaypointArrival;
 
@@ -323,6 +328,20 @@ public partial class MainWindow : Window
         });
 
         _partyClock.Start();
+
+        // Pings animate, so they need frames rather than events. Only runs while something is on
+        // screen; an idle map should not be repainting twenty times a second forever.
+        _pingClock = new DispatcherTimer(TimeSpan.FromMilliseconds(50), DispatcherPriority.Render, OnPingTick);
+        _pingClock.Stop();
+
+        _session.PingAdded += (_, ping) => Post(() =>
+        {
+            Audio.PingSound.Play();
+
+            StatusText.Text = $"{ping.Name} pinged the map.";
+            _pingClock.Start();
+            _canvas.InvalidateVisual();
+        });
 
         // Findable before anything has been tried. Most routers will open the port on request and
         // this never becomes relevant, but when it does the answer should already be on screen
@@ -475,6 +494,15 @@ public partial class MainWindow : Window
         return count == 0
             ? "No markers set."
             : $"{count} marker{(count == 1 ? "" : "s")} to visit before the exit.";
+    }
+
+    private void OnPingTick(object? sender, EventArgs e)
+    {
+        _session.Pings.Expire();
+        _canvas.InvalidateVisual();
+
+        if (!_session.Pings.Any)
+            _pingClock?.Stop();
     }
 
     private void UpdateWaypointControls()
@@ -872,8 +900,18 @@ public partial class MainWindow : Window
         return string.Join(Environment.NewLine, lines);
     }
 
-    private void OnMapClicked(object? sender, MapPoint position)
+    private void OnMapClicked(object? sender, MapClick click)
     {
+        var position = click.Position;
+
+        // Shift-click pings, whatever else is going on. It is the one action you might want in a
+        // hurry, so it should not depend on being in the right mode first.
+        if (click.IsShift)
+        {
+            _session.SendPing(position);
+            return;
+        }
+
         // While placing, a click is a marker and nothing else. Selecting an exit out from under
         // someone laying out a route would be maddening.
         if (_session.Waypoints.IsPlacing)
@@ -900,6 +938,7 @@ public partial class MainWindow : Window
         _canvas.AddOverlay(_session.Waypoints);
         _canvas.AddOverlay(_session.ExtractLine);
         _canvas.AddOverlay(_session.Peers);
+        _canvas.AddOverlay(_session.Pings);
         _canvas.AddOverlay(_session.Player);
 
         try

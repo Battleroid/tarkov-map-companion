@@ -127,6 +127,70 @@ public sealed class PartySession : IDisposable
     /// <summary>Human-readable progress and problems.</summary>
     public event EventHandler<string>? Status;
 
+    /// <summary>Raised for every ping, including our own, so one code path draws them all.</summary>
+    public event EventHandler<PeerPosition>? PingReceived;
+
+    /// <summary>
+    /// Marks a spot for the squad.
+    /// </summary>
+    /// <remarks>
+    /// Shown locally whether or not a session is running. Alone, it is a scratch mark that clears
+    /// itself; in a session it is also passed to everyone else. Doing nothing when solo would be a
+    /// click that silently accomplishes nothing.
+    /// </remarks>
+    public void SendPing(string map, GamePosition position)
+    {
+        var ping = new PeerPosition
+        {
+            Name = _selfName,
+            Map = map,
+            X = position.X,
+            Y = position.Y,
+            Z = position.Z,
+        };
+
+        PingReceived?.Invoke(this, ping);
+
+        if (!IsActive)
+            return;
+
+        if (State == PartyState.Hosting)
+        {
+            _ = RelayPingAsync(ping, from: null);
+            return;
+        }
+
+        Send(new PartyMessage { Kind = PartyMessageKind.Ping, Position = ping });
+    }
+
+    /// <summary>Passes a ping to every connected peer except whoever sent it.</summary>
+    private async Task RelayPingAsync(PeerPosition ping, HostedClient? from)
+    {
+        HostedClient[] clients;
+        lock (_gate)
+            clients = _clients.ToArray();
+
+        if (_key is not { } key)
+            return;
+
+        var message = new PartyMessage { Kind = PartyMessageKind.Ping, Position = ping };
+
+        foreach (var client in clients)
+        {
+            if (ReferenceEquals(client, from))
+                continue;
+
+            try
+            {
+                await PartyProtocol.WriteAsync(client.Stream, key, message).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"could not send a ping to {client.Name}: {ex.Message}");
+            }
+        }
+    }
+
     public IReadOnlyList<PartyPeer> Peers
     {
         get { lock (_gate) return _peers.Values.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToArray(); }
@@ -306,6 +370,17 @@ public sealed class PartySession : IDisposable
                 var message = await PartyProtocol.ReadAsync(stream, key, cancellationToken).ConfigureAwait(false);
                 if (message is null)
                     break;
+
+                if (message.Kind == PartyMessageKind.Ping && message.Position is { } ping)
+                {
+                    // Named from the connection, not the payload, so nobody can ping as somebody
+                    // else.
+                    ping.Name = name;
+
+                    PingReceived?.Invoke(this, ping);
+                    await RelayPingAsync(ping, hosted).ConfigureAwait(false);
+                    continue;
+                }
 
                 if (message.Kind != PartyMessageKind.Position || message.Position is null)
                     continue;
@@ -499,6 +574,12 @@ public sealed class PartySession : IDisposable
                 if (message is null)
                     break;
 
+                if (message.Kind == PartyMessageKind.Ping && message.Position is { } ping)
+                {
+                    PingReceived?.Invoke(this, ping);
+                    continue;
+                }
+
                 if (message.Kind != PartyMessageKind.Roster || message.Roster is null)
                     continue;
 
@@ -586,10 +667,18 @@ public sealed class PartySession : IDisposable
 
     private void SendSelf()
     {
-        if (_upstream?.Connected != true || _key is not { } key || _selfPosition is null)
+        if (_selfPosition is null)
             return;
 
-        var message = new PartyMessage { Kind = PartyMessageKind.Position, Position = _selfPosition };
+        Send(new PartyMessage { Kind = PartyMessageKind.Position, Position = _selfPosition });
+    }
+
+    /// <summary>Sends to the host, off the calling thread and without letting a failure escape.</summary>
+    private void Send(PartyMessage message)
+    {
+        if (_upstream?.Connected != true || _key is not { } key)
+            return;
+
         var stream = _upstream.GetStream();
 
         _ = Task.Run(async () =>
@@ -602,7 +691,7 @@ public sealed class PartySession : IDisposable
             }
             catch (Exception ex)
             {
-                Log.Warn($"could not send position to the host: {ex.Message}");
+                Log.Warn($"could not send {message.Kind} to the host: {ex.Message}");
             }
         });
     }
@@ -615,6 +704,12 @@ public sealed class PartySession : IDisposable
     {
         get { lock (_gate) return _generation; }
     }
+
+    /// <summary>Test seams for writing a frame by hand, to check the host does not trust it.</summary>
+    internal NetworkStream? UpstreamStreamForTests => _upstream?.GetStream();
+
+    /// <inheritdoc cref="UpstreamStreamForTests"/>
+    internal byte[]? KeyForTests => _key;
 
     private void UpdateSelf() => SetPeer(_selfName, _selfPosition, isSelf: true, CurrentGeneration);
 

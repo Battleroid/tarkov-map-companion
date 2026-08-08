@@ -213,6 +213,12 @@ public sealed class AppSettings
     /// </remarks>
     public int PartyPort { get; set; } = Party.PartySession.DefaultPort;
 
+    /// <summary>
+    /// Make a noise when a ping lands. On by default: a ping you only notice by looking at the map
+    /// is half a feature, since the point is to get your attention while you are in the game.
+    /// </summary>
+    public bool PingSound { get; set; } = true;
+
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>

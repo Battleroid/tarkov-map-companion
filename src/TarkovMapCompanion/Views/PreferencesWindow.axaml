@@ -104,6 +104,10 @@
                            Width="140" FormatString="0" />
           </StackPanel>
           <SelectableTextBlock Name="PartyPortHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+
+          <CheckBox Name="PingSoundBox" Content="Play a sound when someone pings" Margin="0,6,0,0" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Shift-click the map to ping a spot. It lasts 30 seconds and everyone in the session sees it." />
         </StackPanel>
 
         <!-- Route markers -->

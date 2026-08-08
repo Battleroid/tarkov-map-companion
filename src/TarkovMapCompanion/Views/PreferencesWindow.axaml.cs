@@ -70,6 +70,8 @@ public partial class PreferencesWindow : Window
         PartyPortBox.Value = _settings.PartyPort;
         UpdatePartyPortHint();
 
+        PingSoundBox.IsChecked = _settings.PingSound;
+
         ArrivalRadiusSlider.Value = _settings.WaypointArrivalRadiusMeters;
         UpdateArrivalRadiusLabel();
 
@@ -120,6 +122,16 @@ public partial class PreferencesWindow : Window
         {
             _settings.PlayerName = PlayerNameBox.Text ?? "";
             UpdatePlayerNameHint();
+        });
+
+        PingSoundBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.PingSound = PingSoundBox.IsChecked ?? false;
+            Audio.PingSound.Enabled = _settings.PingSound;
+
+            // Play it on the way on, so "what does it sound like" is answered by ticking the box.
+            if (_settings.PingSound)
+                Audio.PingSound.Play();
         });
 
         PartyPortBox.ValueChanged += (_, _) => Apply(() =>

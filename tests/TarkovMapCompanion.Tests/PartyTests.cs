@@ -580,6 +580,90 @@ public sealed class PartySessionTests
     }
 
     [Fact]
+    public async Task APingFromAGuestReachesTheHostAndEveryOtherGuest()
+    {
+        using var host = new PartySession();
+        using var bravo = new PartySession();
+        using var charlie = new PartySession();
+
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
+        await bravo.JoinAsync(host.Code!, "Bravo");
+        await charlie.JoinAsync(host.Code!, "Charlie");
+
+        await Eventually(() => host.Peers.Count == 3);
+
+        var atHost = new List<PeerPosition>();
+        var atCharlie = new List<PeerPosition>();
+        var atBravo = new List<PeerPosition>();
+
+        host.PingReceived += (_, p) => { lock (atHost) atHost.Add(p); };
+        charlie.PingReceived += (_, p) => { lock (atCharlie) atCharlie.Add(p); };
+        bravo.PingReceived += (_, p) => { lock (atBravo) atBravo.Add(p); };
+
+        bravo.SendPing("customs", At(250, -80));
+
+        Assert.True(await Eventually(() => { lock (atHost) return atHost.Count == 1; }), "the host missed it");
+        Assert.True(await Eventually(() => { lock (atCharlie) return atCharlie.Count == 1; }), "Charlie missed it");
+
+        lock (atHost)
+        {
+            Assert.Equal("Bravo", atHost[0].Name);
+            Assert.Equal("customs", atHost[0].Map);
+            Assert.Equal(250, atHost[0].X);
+            Assert.Equal(-80, atHost[0].Z);
+        }
+
+        // Bravo sees its own ping immediately and is not sent a copy back.
+        lock (atBravo)
+            Assert.Single(atBravo);
+    }
+
+    [Fact]
+    public async Task APingCannotBeSentUnderSomebodyElsesName()
+    {
+        // The name is stamped from the connection, not taken from the payload.
+        using var host = new PartySession();
+        using var guest = new PartySession();
+
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
+        await guest.JoinAsync(host.Code!, "Guest");
+        await Eventually(() => host.Peers.Count == 2);
+
+        var seen = new List<PeerPosition>();
+        host.PingReceived += (_, p) => { lock (seen) seen.Add(p); };
+
+        // Reach past SendPing to forge the name on the wire.
+        await PartyProtocol.WriteAsync(
+            guest.UpstreamStreamForTests!,
+            guest.KeyForTests!,
+            new PartyMessage
+            {
+                Kind = PartyMessageKind.Ping,
+                Position = new PeerPosition { Name = "Host", Map = "customs", X = 1, Z = 2 },
+            });
+
+        Assert.True(await Eventually(() => { lock (seen) return seen.Count == 1; }));
+
+        lock (seen)
+            Assert.Equal("Guest", seen[0].Name);
+    }
+
+    [Fact]
+    public void APingIsShownLocallyEvenWithNoSession()
+    {
+        // Alone it is a scratch mark that clears itself. A click that silently does nothing would
+        // be worse than either behaviour.
+        using var session = new PartySession();
+
+        var seen = new List<PeerPosition>();
+        session.PingReceived += (_, p) => seen.Add(p);
+
+        session.SendPing("customs", At(10, 20));
+
+        Assert.Single(seen);
+    }
+
+    [Fact]
     public async Task AnUnreachableHostFailsInsteadOfHanging()
     {
         using var guest = new PartySession();

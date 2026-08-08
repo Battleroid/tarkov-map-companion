@@ -98,8 +98,12 @@ public sealed class MapCanvas : Control
     /// <summary>Raised after a user gesture changes the view, so focus modes can disengage.</summary>
     public event EventHandler? UserInteracted;
 
-    /// <summary>Raised on a click that was not the end of a drag, with the base-space position.</summary>
-    public event EventHandler<MapPoint>? Clicked;
+    /// <summary>Raised on a click that was not the end of a drag.</summary>
+    /// <remarks>
+    /// Carries the modifier keys, because a plain click and a modified one mean different things
+    /// on the map: selecting an exit versus pinging a spot.
+    /// </remarks>
+    public event EventHandler<MapClick>? Clicked;
 
     /// <summary>Raised as the pointer moves, with the base-space position, or null when it leaves.</summary>
     public event EventHandler<MapPoint?>? PointerMovedOverMap;
@@ -327,7 +331,7 @@ public sealed class MapCanvas : Control
         if (_dragOrigin is not null && !_dragMoved)
         {
             var position = e.GetPosition(this);
-            Clicked?.Invoke(this, Viewport.ToBase(position.X, position.Y));
+            Clicked?.Invoke(this, new MapClick(Viewport.ToBase(position.X, position.Y), e.KeyModifiers));
         }
 
         _dragOrigin = null;
@@ -434,6 +438,12 @@ public sealed class MapCanvas : Control
             }
         }
     }
+}
+
+/// <summary>A click on the map, with whatever was held down at the time.</summary>
+public readonly record struct MapClick(MapPoint Position, KeyModifiers Modifiers)
+{
+    public bool IsShift => Modifiers.HasFlag(KeyModifiers.Shift);
 }
 
 /// <summary>Something drawn on top of the base imagery: heatmap, POIs, the player marker.</summary>

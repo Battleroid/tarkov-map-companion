@@ -119,6 +119,11 @@ Anyone who pastes it into **Join** appears on your map, and you on theirs. Peopl
 through a raid and get everybody's current positions straight away, and you can stop and restart a
 session at any point if something goes wrong.
 
+**Shift-click to ping.** Marks a spot for the whole squad, with a pulse, your name, and a countdown.
+It lasts 30 seconds and clears itself, so nothing has to be tidied up mid-raid, and it makes a noise
+so a teammate notices while they are looking at the game rather than the map. Turn the sound off in
+**Settings** if you would rather. Pings work solo too, as a scratch mark that expires on its own.
+
 Teammates are only drawn when they are on the same map as you — a position from another raid means
 nothing in this one's coordinates. They stay in the roster, labelled with where they actually are.
 Every marker also carries its age and fades as it gets older, because peers only report when they
@@ -160,7 +165,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 331 tests
+dotnet test              # 334 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

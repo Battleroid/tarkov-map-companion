@@ -27,6 +27,8 @@ public static class PartyTest
         using var session = new PartySession();
 
         session.Status += (_, message) => Console.WriteLine($"  {message}");
+        session.PingReceived += (_, ping) =>
+            Console.WriteLine($"  PING from {ping.Name} at {ping.X:F0},{ping.Z:F0} on {ping.Map}");
         session.Changed += (_, _) =>
         {
             var peers = session.Peers;
@@ -88,6 +90,10 @@ public static class PartyTest
             // A slow walk east, so movement is visible on the other end.
             session.Publish("customs", new Maps.GamePosition(step * 10, 2, -100), (step * 15) % 360);
             step++;
+
+            // And a ping every fourth update, to exercise the relay across processes.
+            if (step % 4 == 0)
+                session.SendPing("customs", new Maps.GamePosition(step * 10, 2, -60));
         }
 
         return 0;

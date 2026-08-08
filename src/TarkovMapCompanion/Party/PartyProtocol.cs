@@ -15,6 +15,13 @@ public enum PartyMessageKind
 
     /// <summary>The host's complete picture of the squad, sent to everyone whenever it changes.</summary>
     Roster,
+
+    /// <summary>
+    /// A "look here" mark. An event rather than state, so it is passed straight along and never
+    /// joins the roster -- somebody arriving later should not be shown a ping from before they
+    /// were there, pointing at something that has long since moved.
+    /// </summary>
+    Ping,
 }
 
 /// <summary>Where one member of the squad was, and how long ago.</summary>

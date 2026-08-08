@@ -65,10 +65,12 @@ public sealed class MapSession : IDisposable
         };
 
         Peers = new PeerOverlay();
+        Pings = new PingOverlay();
         Party = new PartySession();
 
         Party.Changed += (_, _) => Peers.SetPeers(Party.Peers);
         Party.Status += (_, message) => Status?.Invoke(this, message);
+        Party.PingReceived += (_, ping) => OnPingReceived(ping);
 
         Player = new PlayerOverlay { TrailLength = settings.HistoryTrailLength };
 
@@ -114,6 +116,19 @@ public sealed class MapSession : IDisposable
 
     /// <summary>The rest of the squad, drawn on the map.</summary>
     public PeerOverlay Peers { get; }
+
+    /// <summary>Short-lived "look here" marks, from the squad or from yourself.</summary>
+    public PingOverlay Pings { get; }
+
+    /// <summary>Raised when a ping lands, so the window can make a noise and start repainting.</summary>
+    public event EventHandler<MapPing>? PingAdded;
+
+    /// <summary>Drops a ping at a point on the map, and shares it if a session is running.</summary>
+    public void SendPing(MapPoint basePoint)
+    {
+        var (x, z) = CurrentMap.Projection.ToGame(basePoint);
+        Party.SendPing(CurrentMap.NormalizedName, new GamePosition(x, 0, z));
+    }
 
     /// <summary>Raised when the route changes, whether by the user or by reaching a marker.</summary>
     public event EventHandler? WaypointsChanged;
@@ -342,6 +357,11 @@ public sealed class MapSession : IDisposable
         // who are somewhere else.
         Peers.Map = map;
 
+        // Pings are points in the old map's coordinates and are short-lived by nature; carrying
+        // them across would put marks somewhere arbitrary.
+        Pings.Map = map;
+        Pings.Clear();
+
         Player.Map = map;
         RebuildPois();
 
@@ -443,6 +463,29 @@ public sealed class MapSession : IDisposable
         var deleted = results.Count(r => r.Deleted);
         if (deleted > 0)
             Status?.Invoke(this, $"Removed {deleted} old screenshot{(deleted == 1 ? "" : "s")} to the Recycle Bin");
+    }
+
+    /// <summary>
+    /// Turns an incoming ping into something drawable, colored to match whoever sent it.
+    /// </summary>
+    /// <remarks>
+    /// Runs on a socket thread for a peer's ping and on the UI thread for our own; the overlay is
+    /// locked and the window marshals the event, so both are fine.
+    /// </remarks>
+    private void OnPingReceived(PeerPosition ping)
+    {
+        var mine = string.Equals(ping.Name, Party.SelfName, StringComparison.OrdinalIgnoreCase);
+
+        var placed = new MapPing
+        {
+            Name = ping.Name,
+            Map = ping.Map,
+            Position = new GamePosition(ping.X, ping.Y, ping.Z),
+            Color = mine ? Rendering.MarkerPalette.Player : Peers.ColorFor(ping.Name),
+        };
+
+        Pings.Add(placed);
+        PingAdded?.Invoke(this, placed);
     }
 
     private bool ShouldReadExits() =>
