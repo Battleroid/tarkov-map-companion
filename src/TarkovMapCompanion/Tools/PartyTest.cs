@@ -47,7 +47,11 @@ public static class PartyTest
         {
             Console.WriteLine($"hosting as {name}...");
 
-            if (!await session.HostAsync(name, CancellationToken.None, useRouter: !local).ConfigureAwait(false))
+            // The real default port when testing for real, an OS-chosen one on loopback so two
+            // harnesses on the same machine do not collide.
+            var port = local ? 0 : PartySession.DefaultPort;
+
+            if (!await session.HostAsync(name, port, CancellationToken.None, useRouter: !local).ConfigureAwait(false))
             {
                 Console.WriteLine();
                 Console.WriteLine("Hosting failed. Either UPnP is off on the router, or the connection is");
@@ -58,6 +62,15 @@ public static class PartyTest
 
             Console.WriteLine();
             Console.WriteLine($"  CODE: {session.Code}");
+            Console.WriteLine();
+            Console.WriteLine($"  listening on TCP {session.ListenPort}, this PC is {session.LocalAddress}");
+            Console.WriteLine($"  router opened the port: {session.RouterOpenedPort}");
+
+            if (!session.RouterOpenedPort)
+            {
+                Console.WriteLine($"  -> forward TCP {session.ListenPort} to {session.LocalAddress} in your router");
+                Console.WriteLine("  -> only the host needs this; joiners open nothing");
+            }
             Console.WriteLine();
             Console.WriteLine("Join it from another machine with:");
             Console.WriteLine($"  TarkovMapCompanion --party-test join {session.Code} Friend");

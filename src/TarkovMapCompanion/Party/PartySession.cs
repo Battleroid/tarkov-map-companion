@@ -67,7 +67,7 @@ public sealed class PartyPeer
 public sealed class PartySession : IDisposable
 {
     /// <summary>Arbitrary, memorable, and outside the ranges anything common sits in.</summary>
-    private const int PreferredPort = 24601;
+    public const int DefaultPort = 24601;
 
     private readonly object _gate = new();
     private readonly Dictionary<string, PartyPeer> _peers = new(StringComparer.OrdinalIgnoreCase);
@@ -100,6 +100,22 @@ public sealed class PartySession : IDisposable
     /// <summary>The code to hand out. Only set while hosting.</summary>
     public string? Code { get; private set; }
 
+    /// <summary>
+    /// The port actually being listened on, and this machine's address on the LAN.
+    /// </summary>
+    /// <remarks>
+    /// Reported rather than assumed. The preferred port can be taken, in which case the listener
+    /// moves and any port forward pointed at the old number silently stops working -- so whatever
+    /// the UI tells someone to forward has to be read back from the socket, not from a constant.
+    /// </remarks>
+    public int ListenPort { get; private set; }
+
+    /// <summary>Null when it could not be determined.</summary>
+    public string? LocalAddress { get; private set; }
+
+    /// <summary>False when the router refused, so the user has to forward the port themselves.</summary>
+    public bool RouterOpenedPort { get; private set; }
+
     /// <summary>Our own name as the host knows it, which may be suffixed to avoid a clash.</summary>
     public string SelfName => _selfName;
 
@@ -123,8 +139,13 @@ public sealed class PartySession : IDisposable
     /// <c>--party-test</c> harness exercise the real sockets and the real protocol without needing
     /// a router, a public address, or a second machine.
     /// </param>
+    /// <param name="port">
+    /// The port to listen on. Zero lets the OS pick a free one, which is right when nothing depends
+    /// on the number staying the same -- tests, and the loopback harness.
+    /// </param>
     public async Task<bool> HostAsync(
         string displayName,
+        int port = 0,
         CancellationToken cancellationToken = default,
         bool useRouter = true)
     {
@@ -140,7 +161,11 @@ public sealed class PartySession : IDisposable
 
         try
         {
-            var port = StartListener();
+            port = StartListener(port);
+
+            ListenPort = port;
+            LocalAddress = PortMapper.LocalAddress()?.ToString();
+            RouterOpenedPort = false;
 
             PortMapping? mapping;
 
@@ -170,6 +195,7 @@ public sealed class PartySession : IDisposable
             }
 
             Code = SessionCode.Format(mapping.ExternalAddress, mapping.Port, secret);
+            RouterOpenedPort = mapping.Mapped;
             State = PartyState.Hosting;
 
             UpdateSelf();
@@ -183,6 +209,19 @@ public sealed class PartySession : IDisposable
             Raise();
             return true;
         }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+        {
+            Leave();
+            State = PartyState.Failed;
+
+            Status?.Invoke(
+                this,
+                $"Port {port} is already in use. Another copy of the app is probably hosting; "
+                + "close it, or pick a different party port in Settings.");
+
+            Raise();
+            return false;
+        }
         catch (Exception ex)
         {
             Log.Error("could not start hosting", ex);
@@ -194,22 +233,22 @@ public sealed class PartySession : IDisposable
         }
     }
 
-    private int StartListener()
+    /// <summary>
+    /// Opens the listener on exactly <paramref name="port"/>, or any free port when it is zero.
+    /// </summary>
+    /// <remarks>
+    /// It used to fall back to a free port when the requested one was taken. That is fine when the
+    /// router opens the port for us, since the code carries whatever we ended up with -- but it
+    /// quietly destroys a manual port forward, which is pinned to one number. The symptom is a
+    /// session that looks perfectly healthy and that nobody can join, with nothing on screen
+    /// suggesting why. Better to refuse and say so.
+    /// </remarks>
+    private int StartListener(int port)
     {
-        try
-        {
-            _listener = new TcpListener(IPAddress.Any, PreferredPort);
-            _listener.Start();
-            return PreferredPort;
-        }
-        catch (SocketException)
-        {
-            // Something already has the preferred port; any free one works, since the code carries
-            // whichever we end up with.
-            _listener = new TcpListener(IPAddress.Any, 0);
-            _listener.Start();
-            return ((IPEndPoint)_listener.LocalEndpoint).Port;
-        }
+        _listener = new TcpListener(IPAddress.Any, port);
+        _listener.Start();
+
+        return ((IPEndPoint)_listener.LocalEndpoint).Port;
     }
 
     private async Task AcceptLoopAsync(CancellationToken cancellationToken)

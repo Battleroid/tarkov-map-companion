@@ -128,9 +128,15 @@ you end up trusting an angle nobody is covering.
 There is no server. The code contains the host's address and a shared key, so the squad connects
 directly and the traffic is encrypted with a key nobody else has. Everyone dials the host, which
 means only one person needs to be reachable from outside their router — and the host does not even
-have to be playing. If the app cannot open a port automatically, it will still give you a code, and
-you either forward `TCP 24601` or let somebody else host. `--party-test` tells you which case you
-are in.
+have to be playing.
+
+**If you have to forward a port**, it is one: **`TCP 24601`, inbound, to the hosting PC**. Only the
+host needs it; people joining you open nothing. The party panel prints the exact port and your PC's
+address on the network when the router will not do it for itself, and the same line is in
+**Settings** before you ever need it. The port is configurable there if 24601 clashes with
+something, and hosting refuses to start rather than quietly moving to another port — a forward
+pinned to a number that has silently changed is the worst kind of broken. `--party-test` tells you
+which case you are in.
 
 > **Worth thinking about before you use it.** Position sharing keeps the app's "never touches the
 > game" property, but it does change who knows what. With your own squad it is hard to object to —
@@ -154,7 +160,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 327 tests
+dotnet test              # 331 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

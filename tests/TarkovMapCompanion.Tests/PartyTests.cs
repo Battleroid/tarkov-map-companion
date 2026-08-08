@@ -231,7 +231,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         using var guest = new PartySession();
 
-        Assert.True(await host.HostAsync("Host", CancellationToken.None, useRouter: false));
+        Assert.True(await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false));
         Assert.NotNull(host.Code);
 
         Assert.True(await guest.JoinAsync(host.Code, "Guest"));
@@ -249,7 +249,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         using var guest = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
 
         await Eventually(() => guest.Peers.Count == 2);
@@ -280,7 +280,7 @@ public sealed class PartySessionTests
         using var first = new PartySession();
         using var late = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await first.JoinAsync(host.Code!, "First");
 
         await Eventually(() => host.Peers.Count == 2);
@@ -307,7 +307,7 @@ public sealed class PartySessionTests
         using var a = new PartySession();
         using var b = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await a.JoinAsync(host.Code!, "Twin");
         await Eventually(() => host.Peers.Count == 2);
 
@@ -323,7 +323,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         using var intruder = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
 
         // Same endpoint, different secret: reachable, but unable to say anything the host will read.
         Assert.True(SessionCode.TryParse(host.Code, out var endPoint, out _));
@@ -344,7 +344,7 @@ public sealed class PartySessionTests
         // from any state rather than only the ones somebody thought of.
         using var host = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         var first = host.Code;
 
         host.Leave();
@@ -353,7 +353,7 @@ public sealed class PartySessionTests
         Assert.Null(host.Code);
         Assert.Empty(host.Peers);
 
-        Assert.True(await host.HostAsync("Host", CancellationToken.None, useRouter: false));
+        Assert.True(await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false));
         Assert.NotNull(host.Code);
         Assert.NotEqual(first, host.Code);
 
@@ -367,7 +367,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         var guest = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
 
         await Eventually(() => host.Peers.Count == 2);
@@ -383,7 +383,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         using var guest = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
 
         await Eventually(() => guest.Peers.Count == 2);
@@ -412,7 +412,7 @@ public sealed class PartySessionTests
         // test at all.
         using var session = new PartySession();
 
-        await session.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await session.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
 
         var stale = session.CurrentGeneration;
         session.Leave();
@@ -424,7 +424,7 @@ public sealed class PartySessionTests
         Assert.Empty(session.Peers);
 
         // And an update from the session that is actually current still lands.
-        await session.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await session.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
 
         session.ApplyRoster(
             [new PeerPosition { Name = "Real", Map = "customs", X = 1, Z = 2, AgeSeconds = 0 }],
@@ -439,7 +439,7 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         using var guest = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
 
         await Eventually(() => host.Peers.Count == 2);
@@ -471,14 +471,14 @@ public sealed class PartySessionTests
         using var host = new PartySession();
         var guest = new PartySession();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
         await Eventually(() => host.Peers.Count == 2);
 
         host.Leave();
         guest.Dispose();
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
 
         Assert.DoesNotContain(host.Peers, p => p.Name == "Guest");
         Assert.All(host.Peers, p => Assert.True(p.IsSelf));
@@ -498,7 +498,7 @@ public sealed class PartySessionTests
 
         host.Changed += (_, _) => overlay.SetPeers(host.Peers);
 
-        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
         await guest.JoinAsync(host.Code!, "Guest");
         await Eventually(() => host.Peers.Count == 2);
 
@@ -508,6 +508,75 @@ public sealed class PartySessionTests
         host.Leave();
 
         Assert.Empty(overlay.Drawable);
+    }
+
+    [Fact]
+    public async Task HostingReportsWhatWouldNeedForwarding()
+    {
+        // The UI tells the user which port to forward, so the port has to be read back from the
+        // socket rather than assumed: the preferred one can be taken, and a forward pointed at the
+        // wrong number fails in a way nobody can diagnose.
+        using var host = new PartySession();
+
+        await host.HostAsync("Host", 0, CancellationToken.None, useRouter: false);
+
+        Assert.True(host.ListenPort > 0);
+        Assert.True(SessionCode.TryParse(host.Code, out var endPoint, out _));
+        Assert.Equal(host.ListenPort, endPoint.Port);
+    }
+
+    [Fact]
+    public async Task APortAlreadyInUseFailsInsteadOfQuietlyMovingElsewhere()
+    {
+        // It used to fall back to any free port. That is invisible when the router opens the port
+        // for us, but it silently breaks a manual forward, which is pinned to one number -- the
+        // session looks healthy and nobody can join. Seen for real: a second copy of the app
+        // wandered off 24601 while the first was still hosting on it.
+        var blocker = new System.Net.Sockets.TcpListener(IPAddress.Any, 0);
+        blocker.Start();
+
+        var taken = ((IPEndPoint)blocker.LocalEndpoint).Port;
+
+        try
+        {
+            using var host = new PartySession();
+
+            Assert.False(await host.HostAsync("Host", taken, CancellationToken.None, useRouter: false));
+            Assert.Equal(PartyState.Failed, host.State);
+            Assert.Null(host.Code);
+        }
+        finally
+        {
+            blocker.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task AnExplicitPortIsHonouredExactly()
+    {
+        using var host = new PartySession();
+
+        // Ask the OS for a free one, then insist on it, so the test cannot collide with anything.
+        var probe = new System.Net.Sockets.TcpListener(IPAddress.Any, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+
+        Assert.True(await host.HostAsync("Host", port, CancellationToken.None, useRouter: false));
+        Assert.Equal(port, host.ListenPort);
+    }
+
+    [Fact]
+    public void TheLocalAddressIsTheOneTheRouterWouldSee()
+    {
+        var address = PortMapper.LocalAddress();
+
+        // Legitimately null on a machine with no route to the internet.
+        if (address is null)
+            return;
+
+        Assert.Equal(System.Net.Sockets.AddressFamily.InterNetwork, address.AddressFamily);
+        Assert.NotEqual(IPAddress.Loopback, address);
     }
 
     [Fact]

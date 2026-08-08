@@ -203,6 +203,16 @@ public sealed class AppSettings
     /// </summary>
     public string PlayerName { get; set; } = "";
 
+    /// <summary>
+    /// The port hosting listens on.
+    /// </summary>
+    /// <remarks>
+    /// Fixed rather than picked at random, because a manual port forward is pinned to one number.
+    /// If it is taken, hosting refuses and says so instead of quietly moving somewhere the forward
+    /// does not point.
+    /// </remarks>
+    public int PartyPort { get; set; } = Party.PartySession.DefaultPort;
+
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>
@@ -246,6 +256,9 @@ public sealed class AppSettings
         // A radius under a few meters could never trigger from screenshots taken seconds apart,
         // and one in the hundreds would retire the whole route from the spawn.
         WaypointArrivalRadiusMeters = Math.Clamp(WaypointArrivalRadiusMeters, 5.0, 500.0);
+
+        // Above the well-known range, below the ephemeral range Windows hands out on its own.
+        PartyPort = Math.Clamp(PartyPort, 1024, 49151);
         HeatmapRadiusMeters = Math.Clamp(HeatmapRadiusMeters, 1.0, 500.0);
         HeatmapOpacity = Math.Clamp(HeatmapOpacity, 0.0, 1.0);
         HistoryTrailLength = Math.Clamp(HistoryTrailLength, 0, 500);

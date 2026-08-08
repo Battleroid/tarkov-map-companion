@@ -67,6 +67,9 @@ public partial class PreferencesWindow : Window
         PlayerNameBox.Text = _settings.PlayerName;
         UpdatePlayerNameHint();
 
+        PartyPortBox.Value = _settings.PartyPort;
+        UpdatePartyPortHint();
+
         ArrivalRadiusSlider.Value = _settings.WaypointArrivalRadiusMeters;
         UpdateArrivalRadiusLabel();
 
@@ -117,6 +120,12 @@ public partial class PreferencesWindow : Window
         {
             _settings.PlayerName = PlayerNameBox.Text ?? "";
             UpdatePlayerNameHint();
+        });
+
+        PartyPortBox.ValueChanged += (_, _) => Apply(() =>
+        {
+            _settings.PartyPort = (int)(PartyPortBox.Value ?? _settings.PartyPort);
+            UpdatePartyPortHint();
         });
 
         ArrivalMarkThenRemove.IsCheckedChanged += (_, _) => ApplyArrivalMode();
@@ -361,6 +370,18 @@ public partial class PreferencesWindow : Window
         PlayerNameHint.Text = string.IsNullOrWhiteSpace(_settings.PlayerName)
             ? $"Your squad will see \"{Environment.UserName}\", your Windows username."
             : $"Your squad will see \"{Party.PartyProtocol.CleanName(_settings.PlayerName)}\".";
+
+    /// <summary>
+    /// Names the exact forward, so nobody has to work out which address is theirs.
+    /// </summary>
+    private void UpdatePartyPortHint()
+    {
+        var lan = Party.PortMapper.LocalAddress();
+
+        PartyPortHint.Text = lan is null
+            ? $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to this PC."
+            : $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to {lan} (this PC).";
+    }
 
     private void UpdateArrivalRadiusLabel() =>
         ArrivalRadiusLabel.Text =

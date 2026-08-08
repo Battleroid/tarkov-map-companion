@@ -323,6 +323,15 @@ public partial class MainWindow : Window
         });
 
         _partyClock.Start();
+
+        // Findable before anything has been tried. Most routers will open the port on request and
+        // this never becomes relevant, but when it does the answer should already be on screen
+        // rather than something to go and look up.
+        var lan = Party.PortMapper.LocalAddress();
+
+        PartyIdleHint.Text = lan is null
+            ? $"Hosting will open a port automatically if your router allows it. If not, you will need to forward TCP {_settings.PartyPort} to this PC."
+            : $"Hosting will open a port automatically if your router allows it. If not, forward TCP {_settings.PartyPort} to {lan} (this PC).";
     }
 
     private async Task StartHostingAsync()
@@ -331,7 +340,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await _session.Party.HostAsync(DisplayName());
+            await _session.Party.HostAsync(DisplayName(), _settings.PartyPort);
         }
         finally
         {
@@ -366,6 +375,12 @@ public partial class MainWindow : Window
     private string DisplayName() =>
         string.IsNullOrWhiteSpace(_settings.PlayerName) ? Environment.UserName : _settings.PlayerName;
 
+    /// <summary>The port and address to forward to, spelled out rather than left to be looked up.</summary>
+    private string ForwardingAdvice(int port) =>
+        _session.Party.LocalAddress is { } address
+            ? $"Forward TCP {port} to {address} (this PC) in your router, then try again."
+            : $"Forward TCP {port} to this PC in your router, then try again.";
+
     private void UpdatePartyPanel()
     {
         var party = _session.Party;
@@ -377,6 +392,23 @@ public partial class MainWindow : Window
 
         if (party.Code is { } code)
             PartyCodeText.Text = code;
+
+        // Shown while hosting works but the router would not open the port, which is the case
+        // where everything looks fine right up until nobody can connect.
+        var needsForward = party.State == PartyState.Hosting && !party.RouterOpenedPort;
+
+        PartyForwardPanel.IsVisible = needsForward;
+        if (needsForward)
+            PartyForwardText.Text = ForwardingAdvice(party.ListenPort);
+
+        PartyFailedPanel.IsVisible = party.State == PartyState.Failed && party.ListenPort > 0;
+        if (PartyFailedPanel.IsVisible)
+        {
+            PartyFailedText.Text =
+                "Could not open a port automatically. "
+                + ForwardingAdvice(party.ListenPort)
+                + " Failing that, have someone else host.";
+        }
 
         LeavePartyButton.Content = party.State == PartyState.Hosting ? "Stop session" : "Leave session";
 

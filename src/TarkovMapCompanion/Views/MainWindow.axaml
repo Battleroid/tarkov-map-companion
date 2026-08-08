@@ -146,6 +146,8 @@
                   <Button Name="JoinPartyButton" Content="Join" FontSize="11" Padding="8,3" />
                 </StackPanel>
                 <TextBox Name="JoinCodeBox" Watermark="Paste a session code" FontSize="11" />
+                <SelectableTextBlock Name="PartyIdleHint" Classes="secondary" FontSize="11"
+                                     TextWrapping="Wrap" />
               </StackPanel>
 
               <StackPanel Name="PartyActivePanel" Spacing="6" IsVisible="False">
@@ -157,6 +159,23 @@
                     <Button Name="CopyCodeButton" Content="Copy" FontSize="11" Padding="7,2" />
                   </StackPanel>
                 </StackPanel>
+
+                <!-- Only shown when the router did not open the port itself, which is exactly
+                     when somebody needs to know what to forward. -->
+                <Border Name="PartyForwardPanel" IsVisible="False"
+                        Padding="7,5"
+                        Background="{DynamicResource SurfacePanelBrush}"
+                        BorderBrush="{DynamicResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusSmall}">
+                  <StackPanel Spacing="3">
+                    <TextBlock Text="Port forwarding needed" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource WarningBrush}" />
+                    <SelectableTextBlock Name="PartyForwardText" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                               Text="Only the host needs this. People joining you do not have to open anything." />
+                  </StackPanel>
+                </Border>
 
                 <ItemsControl Name="PartyRoster">
                   <ItemsControl.ItemTemplate>
@@ -175,6 +194,17 @@
                 <Button Name="LeavePartyButton" Content="Stop session" FontSize="11" Padding="8,3"
                         HorizontalAlignment="Left" />
               </StackPanel>
+
+              <!-- Same information before anything has been tried, so it is findable rather than
+                   only appearing once something has already gone wrong. -->
+              <Border Name="PartyFailedPanel" IsVisible="False"
+                      Padding="7,5"
+                      Background="{DynamicResource SurfacePanelBrush}"
+                      BorderBrush="{DynamicResource DangerBrush}"
+                      BorderThickness="1"
+                      CornerRadius="{DynamicResource RadiusSmall}">
+                <SelectableTextBlock Name="PartyFailedText" FontSize="11" TextWrapping="Wrap" />
+              </Border>
 
               <TextBlock Name="PartyHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
                          Text="Shares only your own position, and only with people you give the code to." />

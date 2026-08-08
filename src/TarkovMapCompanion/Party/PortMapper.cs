@@ -169,6 +169,31 @@ public sealed class PortMapper : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// This machine's address on the local network, for telling the user what to forward to.
+    /// </summary>
+    /// <remarks>
+    /// Found by asking the OS which source address it would use to reach the internet, rather than
+    /// by picking one off the interface list. On a machine with a VPN, Hyper-V or WSL the list is
+    /// full of addresses that look plausible and would send someone editing router settings for
+    /// half an hour to no effect.
+    /// </remarks>
+    public static IPAddress? LocalAddress()
+    {
+        try
+        {
+            // Connecting a UDP socket sends no packets; it only resolves the route.
+            using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            probe.Connect("8.8.8.8", 53);
+
+            return (probe.LocalEndPoint as IPEndPoint)?.Address;
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Which of this machine's addresses the router can actually reach.</summary>
     private static IPAddress? LocalAddressFor(Uri gateway)
     {

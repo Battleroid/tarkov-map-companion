@@ -97,6 +97,13 @@
                      Text="The name your squad sees when you share positions. Local only: there are no accounts, and nothing checks it." />
           <TextBox Name="PlayerNameBox" Watermark="Your name" MaxLength="16" />
           <TextBlock Name="PlayerNameHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+            <TextBlock Text="Port" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="PartyPortBox" Minimum="1024" Maximum="49151" Increment="1"
+                           Width="140" FormatString="0" />
+          </StackPanel>
+          <SelectableTextBlock Name="PartyPortHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
         <!-- Route markers -->
