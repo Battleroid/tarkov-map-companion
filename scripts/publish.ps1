@@ -2,15 +2,27 @@
 # Output: <repo>\publish\TarkovMapCompanion.exe
 #
 #   scripts\publish.ps1
+#   scripts\publish.ps1 -Version v0.3.2
+param([string]$Version)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $proj = Join-Path $root "src\TarkovMapCompanion\TarkovMapCompanion.csproj"
 $out  = Join-Path $root "publish"
 
+# Stamp the version from the tag. Left off, the build carries whatever is checked into the csproj,
+# and then the About window and the crash log name a build nobody released.
+$versionArgs = @()
+if ($Version) {
+    $numeric = ($Version -replace '^v', '') -replace '[-+].*$', ''
+    if ($numeric -notmatch '^\d+(\.\d+){0,3}$') { throw "'$Version' has no version number I can build with" }
+    $versionArgs = @("-p:Version=$numeric", "-p:InformationalVersion=$Version")
+}
+
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 
 Write-Host "Publishing self-contained single-file win-x64 build..." -ForegroundColor Cyan
 dotnet publish $proj -c Release -r win-x64 --self-contained true `
+  @versionArgs `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:EnableCompressionInSingleFile=true `

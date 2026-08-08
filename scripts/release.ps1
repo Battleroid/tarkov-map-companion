@@ -21,8 +21,8 @@ Write-Host "Running tests..." -ForegroundColor Cyan
 dotnet test (Join-Path $root "TarkovMapCompanion.sln") -c Release
 if ($LASTEXITCODE -ne 0) { throw "tests failed; not releasing" }
 
-# 2) build the self-contained single-file app
-& (Join-Path $PSScriptRoot "publish.ps1")
+# 2) build the self-contained single-file app, stamped with the version being released
+& (Join-Path $PSScriptRoot "publish.ps1") -Version $Version
 
 # 3) name it after the version, which is what the release asset is called
 $asset = Join-Path $root ("TarkovMapCompanion-{0}-win-x64.exe" -f $Version)

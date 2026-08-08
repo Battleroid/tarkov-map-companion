@@ -8,7 +8,14 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 
-    <Version>0.1.0</Version>
+    <!--
+      Fallback for local builds only. Release builds override this from the git tag
+      (see .github/workflows/release.yml), so do not rely on it to identify a shipped binary.
+    -->
+    <Version>0.3.2</Version>
+
+    <!-- The SDK otherwise appends "+<commit sha>", which the About window would show verbatim. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Tarkov Map Companion</Product>
     <Company>casey</Company>
     <Description>Reads position and heading out of Escape from Tarkov screenshot filenames and plots them on community maps. Does not interact with the game.</Description>

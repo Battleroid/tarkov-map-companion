@@ -28,16 +28,33 @@ jobs:
         shell: pwsh
         run: |
           $v = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.ref_name }}' }
+
+          # The assembly version has to be bare numbers, so strip the leading v and any
+          # pre-release suffix. Fail loudly rather than shipping a binary that lies about
+          # which build it is.
+          $numeric = ($v -replace '^v', '') -replace '[-+].*$', ''
+          if ($numeric -notmatch '^\d+(\.\d+){0,3}$') {
+            throw "tag '$v' does not contain a version number I can build with"
+          }
+
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "numeric=$numeric" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "building $v as assembly version $numeric"
 
       # Never ship a build whose tests did not pass.
       - name: Test
         run: dotnet test TarkovMapCompanion.sln -c Release
 
+      # The version has to be stamped in here, from the tag. Without it the binary carries
+      # whatever is checked into the csproj, and every release since the first reported itself
+      # as 0.1.0 -- in the About window and, more painfully, in the crash log, which is exactly
+      # where you need to know which build someone is running.
       - name: Publish single-file win-x64
         run: >
           dotnet publish src/TarkovMapCompanion/TarkovMapCompanion.csproj
           -c Release -r win-x64 --self-contained true
+          -p:Version=${{ steps.ver.outputs.numeric }}
+          -p:InformationalVersion=${{ steps.ver.outputs.version }}
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
