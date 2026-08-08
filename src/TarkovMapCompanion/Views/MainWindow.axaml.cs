@@ -552,6 +552,12 @@ public partial class MainWindow : Window
         if (_suppressMapSelectorEvent || MapSelector.SelectedItem is not GameMap map)
             return;
 
+        // Re-selecting the current map is not a change. Treating it as one reloads the map and
+        // wipes the floor selection, and a ComboBox will raise this event on its own when its
+        // template is reapplied, e.g. when the window is activated.
+        if (ReferenceEquals(map, _session.CurrentMap))
+            return;
+
         HideSuggestion();
 
         try

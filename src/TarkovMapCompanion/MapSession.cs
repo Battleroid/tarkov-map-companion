@@ -192,8 +192,20 @@ public sealed class MapSession : IDisposable
             : $"Folder not found: {_settings.ScreenshotFolder}");
     }
 
+    /// <summary>
+    /// Switches to a map, rebuilding its imagery and points of interest.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent: re-selecting the map already shown does nothing. Reloading it would reset the
+    /// floor selection and drop the player's trail, and the caller cannot always tell whether a
+    /// selection event reflects a real change -- a ComboBox can raise SelectionChanged while its
+    /// template is reapplied, which is enough to silently undo whichever floors were switched on.
+    /// </remarks>
     public async Task SetMapAsync(GameMap map, CancellationToken cancellationToken = default)
     {
+        if (ReferenceEquals(map, CurrentMap) && _imageSource is { IsReady: true })
+            return;
+
         CurrentMap = map;
         _settings.CurrentMap = map.NormalizedName;
 
