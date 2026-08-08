@@ -57,6 +57,12 @@ public sealed class MapSession : IDisposable
         _watcher.FixDetected += OnFixDetected;
         _watcher.Error += (_, message) => Status?.Invoke(this, message);
 
+        Waypoints = new WaypointOverlay
+        {
+            ArrivalRadiusMeters = settings.WaypointArrivalRadiusMeters,
+            Arrival = settings.WaypointArrival,
+        };
+
         Player = new PlayerOverlay { TrailLength = settings.HistoryTrailLength };
 
         // Which exits a raid offers is decided when that raid starts, so a list read in the last
@@ -92,6 +98,46 @@ public sealed class MapSession : IDisposable
     public PoiOverlay Pois { get; }
 
     public ExtractLineOverlay ExtractLine { get; }
+
+    /// <summary>The ordered route the player has drawn, if any.</summary>
+    public WaypointOverlay Waypoints { get; }
+
+    /// <summary>Raised when the route changes, whether by the user or by reaching a marker.</summary>
+    public event EventHandler? WaypointsChanged;
+
+    /// <summary>
+    /// Points the guide line at the next marker, or back at the chosen exit once the route is
+    /// done. Call after anything that could change either.
+    /// </summary>
+    public void RefreshGuideTarget() => ExtractLine.Waypoint = Waypoints.Next;
+
+    public void AddWaypoint(MapPoint basePoint)
+    {
+        var (x, z) = CurrentMap.Projection.ToGame(basePoint);
+
+        // Height is not recoverable from a map click, and nothing needs it: arrival is judged on
+        // ground distance, the same as every other distance the app reports.
+        Waypoints.Add(new GamePosition(x, 0, z), basePoint);
+
+        RefreshGuideTarget();
+        WaypointsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ClearWaypoints()
+    {
+        Waypoints.Clear();
+        RefreshGuideTarget();
+        WaypointsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RemoveLastWaypoint()
+    {
+        if (!Waypoints.RemoveLast())
+            return;
+
+        RefreshGuideTarget();
+        WaypointsChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public HeatmapOverlay Heatmap { get; }
 
@@ -274,6 +320,11 @@ public sealed class MapSession : IDisposable
         Player.Clear();
         ClearExitAvailability();
 
+        // A route is a set of points in this map's coordinates. Carried across, its pins would
+        // land somewhere arbitrary on the new one.
+        Waypoints.Map = map;
+        ClearWaypoints();
+
         Player.Map = map;
         RebuildPois();
 
@@ -303,6 +354,14 @@ public sealed class MapSession : IDisposable
 
             ExtractLine.PlayerPosition = fix.Position;
             ExtractLine.PlayerYawDegrees = fix.YawDegrees;
+
+            // Before FixApplied, so the window draws and measures against the route as it stands
+            // after this fix rather than one update behind it.
+            if (Waypoints.ApplyFix(fix.Position))
+            {
+                RefreshGuideTarget();
+                WaypointsChanged?.Invoke(this, EventArgs.Empty);
+            }
 
             FixApplied?.Invoke(this, fix);
 

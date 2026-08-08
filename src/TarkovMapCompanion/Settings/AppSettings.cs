@@ -43,6 +43,20 @@ public enum ExitFilter
     SharedOnly,
 }
 
+/// <summary>What happens to a route marker once the player reaches it.</summary>
+public enum WaypointArrival
+{
+    /// <summary>
+    /// Show it as reached for one update, then drop it. The confirmation is the point: you find out
+    /// you were counted as arriving, rather than watching a pin vanish and being left wondering
+    /// whether you got close enough or whether you had misplaced it to begin with.
+    /// </summary>
+    MarkThenRemove,
+
+    /// <summary>Drop it the moment the player is inside the radius.</summary>
+    RemoveOnArrival,
+}
+
 /// <summary>
 /// User preferences. Persisted as JSON; every member needs a sane default because a settings file
 /// written by an older build will simply be missing the newer keys.
@@ -83,6 +97,25 @@ public sealed class AppSettings
 
     /// <summary>Recenter on the player each time a new fix arrives.</summary>
     public bool FollowPlayer { get; set; } = true;
+
+    /// <summary>
+    /// Ease the camera to its destination rather than jumping, for moves the app makes on the
+    /// user's behalf: following the player, and framing an exit.
+    /// </summary>
+    /// <remarks>
+    /// Never applies to the user's own panning and zooming, which have to stay locked to the
+    /// pointer. A jump costs you your bearings -- you have to find yourself on the map again every
+    /// screenshot -- where a move you can follow does not.
+    /// </remarks>
+    public bool SmoothCameraMovement { get; set; } = true;
+
+    // ---- Route markers -----------------------------------------------------
+
+    /// <summary>How close, in meters, counts as reaching a marker.</summary>
+    public double WaypointArrivalRadiusMeters { get; set; } = 50.0;
+
+    /// <summary>What happens to a marker once it is reached.</summary>
+    public WaypointArrival WaypointArrival { get; set; } = WaypointArrival.MarkThenRemove;
 
     // ---- Extract focus -----------------------------------------------------
 
@@ -203,6 +236,10 @@ public sealed class AppSettings
         DefaultZoom = Math.Clamp(DefaultZoom, MinZoom, MaxZoom);
 
         ExtractFocusPadding = Math.Clamp(ExtractFocusPadding, 0.0, 2.0);
+
+        // A radius under a few meters could never trigger from screenshots taken seconds apart,
+        // and one in the hundreds would retire the whole route from the spawn.
+        WaypointArrivalRadiusMeters = Math.Clamp(WaypointArrivalRadiusMeters, 5.0, 500.0);
         HeatmapRadiusMeters = Math.Clamp(HeatmapRadiusMeters, 1.0, 500.0);
         HeatmapOpacity = Math.Clamp(HeatmapOpacity, 0.0, 1.0);
         HistoryTrailLength = Math.Clamp(HistoryTrailLength, 0, 500);

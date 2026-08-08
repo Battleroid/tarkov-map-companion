@@ -76,6 +76,8 @@
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="VIEW" />
           <CheckBox Name="FollowPlayerBox" Content="Recenter on the player when a new screenshot arrives" />
+          <CheckBox Name="SmoothCameraBox" Content="Glide the view to its destination instead of jumping"
+                    Margin="24,0,0,0" />
           <CheckBox Name="SuggestMapBox" Content="Offer to switch maps when a position lands off the current one" />
           <CheckBox Name="AutoSwitchBox" Content="Switch automatically instead of asking" Margin="24,0,0,0" />
 
@@ -86,6 +88,22 @@
           <Slider Name="TrailSlider" Minimum="0" Maximum="60" />
 
           <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Route markers -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="ROUTE MARKERS" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Markers you place with the Mark button. The guide line visits them in order before pointing at your chosen exit." />
+
+          <TextBlock Name="ArrivalRadiusLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
+          <Slider Name="ArrivalRadiusSlider" Minimum="5" Maximum="200" TickFrequency="5"
+                  IsSnapToTickEnabled="True" />
+
+          <RadioButton Name="ArrivalMarkThenRemove" GroupName="Arrival"
+                       Content="Show a marker as reached for one screenshot, then remove it" />
+          <RadioButton Name="ArrivalRemoveOnArrival" GroupName="Arrival"
+                       Content="Remove a marker as soon as you are inside the radius" />
         </StackPanel>
 
         <!-- Appearance -->

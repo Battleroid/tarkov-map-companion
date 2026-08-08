@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -23,12 +24,28 @@ public sealed class MapCanvas : Control
 {
     private const double WheelZoomStep = 1.15;
 
+    /// <summary>
+    /// How long a smoothed camera move takes.
+    /// </summary>
+    /// <remarks>
+    /// Short enough that the map has settled well before the next screenshot, long enough to read
+    /// as movement. The point of easing here is not decoration: when the view jumps, you have to
+    /// re-find yourself on the map every time, whereas a move you can follow keeps your sense of
+    /// which way is which.
+    /// </remarks>
+    private static readonly TimeSpan MoveDuration = TimeSpan.FromMilliseconds(320);
+
     private readonly List<IMapOverlay> _overlays = [];
 
     private IMapImageSource? _imageSource;
     private GameMap? _map;
     private Point? _dragOrigin;
     private bool _dragMoved;
+
+    private DispatcherTimer? _moveTimer;
+    private Stopwatch? _moveClock;
+    private Viewport.State _moveFrom;
+    private Viewport.State _moveTo;
 
     /// <summary>
     /// Until the user pans or zooms, the view keeps re-fitting to the whole map on every resize.
@@ -71,6 +88,13 @@ public sealed class MapCanvas : Control
     /// </summary>
     public bool ShowBaseLayer { get; set; } = true;
 
+    /// <summary>
+    /// Ease camera moves instead of jumping. Only affects moves the app makes on the user's
+    /// behalf -- following the player, framing an exit -- never their own panning and zooming,
+    /// which must stay attached to the pointer.
+    /// </summary>
+    public bool SmoothMovement { get; set; }
+
     /// <summary>Raised after a user gesture changes the view, so focus modes can disengage.</summary>
     public event EventHandler? UserInteracted;
 
@@ -82,6 +106,10 @@ public sealed class MapCanvas : Control
 
     public void SetMap(GameMap map, IMapImageSource imageSource)
     {
+        // A move still running belongs to the map we are leaving, and its destination is a point in
+        // a coordinate space that is about to stop existing.
+        StopMoving();
+
         if (_imageSource is not null)
             _imageSource.Invalidated -= OnImageSourceInvalidated;
 
@@ -105,6 +133,7 @@ public sealed class MapCanvas : Control
     /// <summary>Frames the whole map and re-arms automatic re-fitting on resize.</summary>
     public void FitAll()
     {
+        StopMoving();
         Viewport.FitAll();
         _userHasAdjustedView = false;
         InvalidateVisual();
@@ -129,20 +158,98 @@ public sealed class MapCanvas : Control
             rect = new MapRect(center.X - half, center.Y - half, center.X + half, center.Y + half);
         }
 
-        Viewport.FitToRect(rect, padding);
+        MoveTo(Viewport.StateForRect(rect, padding));
+    }
 
-        // Focus owns the view while it is on, so a window resize must not refit to the whole map.
+    /// <summary>Centers on a point at the current zoom, which is what following the player does.</summary>
+    public void CenterOn(MapPoint point) => MoveTo(Viewport.StateForCenter(point));
+
+    /// <summary>Restores a previously captured view, e.g. on leaving extract-focus mode.</summary>
+    public void RestoreView(Viewport.State state) => MoveTo(state);
+
+    /// <summary>
+    /// Moves the view to <paramref name="target"/>, easing there when smooth movement is on.
+    /// </summary>
+    private void MoveTo(Viewport.State target)
+    {
+        // Whoever is driving the view now owns it, so a resize must not refit to the whole map.
         _userHasAdjustedView = true;
+
+        if (!SmoothMovement || Bounds is { Width: <= 0 } or { Height: <= 0 })
+        {
+            StopMoving();
+            Viewport.Restore(target);
+            InvalidateVisual();
+            return;
+        }
+
+        // Ease from wherever the view is right now, not from where a previous move was aiming.
+        // Retargeting mid-flight is the normal case: screenshots arrive faster than the animation
+        // finishes when the player is moving quickly.
+        _moveFrom = Viewport.Capture();
+        _moveTo = target;
+
+        if (Close(_moveFrom, _moveTo))
+        {
+            StopMoving();
+            return;
+        }
+
+        _moveClock = Stopwatch.StartNew();
+
+        _moveTimer ??= new DispatcherTimer(
+            TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnMoveTick);
+
+        _moveTimer.Start();
+    }
+
+    private void OnMoveTick(object? sender, EventArgs e)
+    {
+        if (_moveClock is null)
+        {
+            StopMoving();
+            return;
+        }
+
+        var progress = Math.Clamp(_moveClock.Elapsed / MoveDuration, 0.0, 1.0);
+
+        // Ease out: quick to start so it feels responsive, settling rather than stopping dead.
+        var eased = 1.0 - Math.Pow(1.0 - progress, 3.0);
+
+        // Zoom is interpolated geometrically. Doing it linearly makes the first half of a large
+        // zoom change crawl and the second half lurch, because equal steps in scale are not equal
+        // steps in apparent magnification.
+        var scale = _moveFrom.Scale * Math.Pow(_moveTo.Scale / _moveFrom.Scale, eased);
+
+        Viewport.Restore(new Viewport.State(
+            new MapPoint(
+                _moveFrom.Center.X + ((_moveTo.Center.X - _moveFrom.Center.X) * eased),
+                _moveFrom.Center.Y + ((_moveTo.Center.Y - _moveFrom.Center.Y) * eased)),
+            scale));
+
+        if (progress >= 1.0)
+            StopMoving();
 
         InvalidateVisual();
     }
 
-    /// <summary>Restores a previously captured view, e.g. on leaving extract-focus mode.</summary>
-    public void RestoreView(Viewport.State state)
+    /// <summary>Ends any camera move in progress, leaving the view wherever it had reached.</summary>
+    private void StopMoving()
     {
-        Viewport.Restore(state);
-        _userHasAdjustedView = true;
-        InvalidateVisual();
+        _moveTimer?.Stop();
+        _moveClock = null;
+    }
+
+    /// <summary>Whether two views are close enough that moving between them would not be visible.</summary>
+    private bool Close(Viewport.State a, Viewport.State b)
+    {
+        // A base pixel is smaller than a screen pixel when zoomed out, so the threshold has to be
+        // expressed in screen terms or a "tiny" move at low zoom is actually a large one.
+        var dx = (a.Center.X - b.Center.X) * a.Scale;
+        var dy = (a.Center.Y - b.Center.Y) * a.Scale;
+
+        return (dx * dx) + (dy * dy) < 0.25
+               && Math.Abs(Math.Log(a.Scale / b.Scale)) < 1e-4;
     }
 
     public void AddOverlay(IMapOverlay overlay)
@@ -200,6 +307,8 @@ public sealed class MapCanvas : Control
 
             if (_dragMoved)
             {
+                // Dragging beats any move the app had started; the map must stay under the pointer.
+                StopMoving();
                 Viewport.PanByScreenDelta(dx, dy);
                 _dragOrigin = position;
                 _userHasAdjustedView = true;
@@ -242,6 +351,7 @@ public sealed class MapCanvas : Control
         var position = e.GetPosition(this);
         var factor = e.Delta.Y > 0 ? WheelZoomStep : 1.0 / WheelZoomStep;
 
+        StopMoving();
         Viewport.ZoomAt(position.X, position.Y, factor);
         _userHasAdjustedView = true;
         UserInteracted?.Invoke(this, EventArgs.Empty);

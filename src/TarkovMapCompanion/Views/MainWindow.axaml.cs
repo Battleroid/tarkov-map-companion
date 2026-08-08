@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
@@ -102,6 +103,18 @@ public partial class MainWindow : Window
         FocusToggle.IsChecked = _settings.ExtractFocusMode;
         FocusToggle.IsCheckedChanged += (_, _) => OnFocusToggled();
 
+        // Marker mode is deliberately not persisted. It is a thing you are doing right now, not a
+        // preference, and an app that reopened still armed would swallow the first map click.
+        MarkToggle.IsCheckedChanged += (_, _) => OnMarkModeToggled();
+
+        ClearMarksButton.Click += (_, _) =>
+        {
+            _session.ClearWaypoints();
+            StatusText.Text = "Markers cleared.";
+        };
+
+        _canvas.SmoothMovement = _settings.SmoothCameraMovement;
+
         ExitFilterBox.ItemsSource = Enum.GetValues<ExitFilter>().Select(f => f.Label()).ToArray();
         ExitFilterBox.SelectedIndex = (int)_settings.ExitFilter;
         ExitFilterBox.SelectionChanged += (_, _) => Apply(() =>
@@ -168,6 +181,13 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
         });
 
+        _session.WaypointsChanged += (_, _) => Post(() =>
+        {
+            UpdateWaypointControls();
+            UpdateExtractDetail();
+            _canvas.InvalidateVisual();
+        });
+
         _session.ExitAvailabilityChanged += (_, availability) => Post(() =>
         {
             UpdateExitAvailabilityBar();
@@ -211,6 +231,10 @@ public partial class MainWindow : Window
         AlwaysOnTopToggle.IsChecked = _settings.AlwaysOnTop;
         FontSize = _settings.FontSize;
 
+        _canvas.SmoothMovement = _settings.SmoothCameraMovement;
+        _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
+        _session.Waypoints.Arrival = _settings.WaypointArrival;
+
         _canvas.InvalidateVisual();
     }
 
@@ -250,6 +274,39 @@ public partial class MainWindow : Window
         }
 
         PersistSettings();
+    }
+
+    // ---- Route markers ------------------------------------------------------
+
+    private void OnMarkModeToggled()
+    {
+        var on = MarkToggle.IsChecked ?? false;
+        _session.Waypoints.IsPlacing = on;
+
+        // A crosshair is the only thing telling the user that a click means something different
+        // now, since the map itself looks identical.
+        _canvas.Cursor = new Cursor(on ? StandardCursorType.Cross : StandardCursorType.Arrow);
+
+        StatusText.Text = on
+            ? "Marker mode: click the map in the order you want to visit. Click Mark again to finish."
+            : DescribeRoute();
+    }
+
+    private string DescribeRoute()
+    {
+        var count = _session.Waypoints.Count;
+
+        return count == 0
+            ? "No markers set."
+            : $"{count} marker{(count == 1 ? "" : "s")} to visit before the exit.";
+    }
+
+    private void UpdateWaypointControls()
+    {
+        var count = _session.Waypoints.Count;
+
+        ClearMarksButton.IsVisible = count > 0;
+        ClearMarksButton.Content = $"Clear marks ({count})";
     }
 
     // ---- Exit filter --------------------------------------------------------
@@ -554,20 +611,30 @@ public partial class MainWindow : Window
             ? $"Transit to {GameMap.ToDisplayName(destination)}"
             : selected.FactionLabel;
 
-        var distance = _session.ExtractLine.DistanceMeters;
-        var bearing = _session.ExtractLine.RelativeBearingDegrees;
+        // Measured to the exit itself, not to wherever the guide line currently points. This panel
+        // is about the exit; borrowing the line's reading would put a marker's distance under the
+        // exit's name.
+        var player = _session.Player.Current;
 
-        if (distance is null)
+        if (player is null)
         {
             DetailDistance.Text = "Waiting for a screenshot to place you.";
         }
         else
         {
-            var turn = bearing is null || Math.Abs(bearing.Value) < 4
-                ? "ahead"
-                : $"{Math.Abs(bearing.Value):F0}° {(bearing < 0 ? "left" : "right")}";
+            var distance = player.Position.GroundDistanceTo(selected.Position);
+            var bearing = MapProjection.NormalizeSigned(
+                MapProjection.BearingDegrees(player.Position, selected.Position) - player.YawDegrees);
 
-            DetailDistance.Text = $"{distance:F0} m away, {turn}";
+            var turn = Math.Abs(bearing) < 4
+                ? "ahead"
+                : $"{Math.Abs(bearing):F0}° {(bearing < 0 ? "left" : "right")}";
+
+            var route = _session.Waypoints.Count is var marks and > 0
+                ? $"   (via {marks} marker{(marks == 1 ? "" : "s")})"
+                : "";
+
+            DetailDistance.Text = $"{distance:F0} m away, {turn}{route}";
         }
 
         DetailConditions.ItemsSource = selected.Details;
@@ -586,13 +653,16 @@ public partial class MainWindow : Window
         if (!FocusToggle.IsChecked.GetValueOrDefault())
             return;
 
-        if (_session.SelectedExtract is not { } target || _session.Player.Current is not { } fix)
+        // Frames whatever the guide line is pointing at, which is the next marker when a route is
+        // set and the chosen exit otherwise. Framing the exit while being routed to a marker would
+        // zoom out past everything that currently matters.
+        if (_session.ExtractLine.GuideBase is not { } target || _session.Player.Current is not { } fix)
             return;
 
         if (_canvas.Map is not { } map)
             return;
 
-        _canvas.FrameBoth(map.ToBase(fix.Position), target.Base, _settings.ExtractFocusPadding);
+        _canvas.FrameBoth(map.ToBase(fix.Position), target, _settings.ExtractFocusPadding);
     }
 
     private void OnPointerMovedOverMap(object? sender, MapPoint? position)
@@ -628,6 +698,15 @@ public partial class MainWindow : Window
 
     private void OnMapClicked(object? sender, MapPoint position)
     {
+        // While placing, a click is a marker and nothing else. Selecting an exit out from under
+        // someone laying out a route would be maddening.
+        if (_session.Waypoints.IsPlacing)
+        {
+            _session.AddWaypoint(position);
+            StatusText.Text = $"Marker {_session.Waypoints.Count} placed. Click Mark again to finish.";
+            return;
+        }
+
         var screen = _canvas.Viewport.ToScreen(position);
         var hit = _session.Pois.HitTest(_canvas.Viewport, screen.X, screen.Y);
 
@@ -642,6 +721,7 @@ public partial class MainWindow : Window
     {
         _canvas.AddOverlay(_session.Heatmap);
         _canvas.AddOverlay(_session.Pois);
+        _canvas.AddOverlay(_session.Waypoints);
         _canvas.AddOverlay(_session.ExtractLine);
         _canvas.AddOverlay(_session.Player);
 
@@ -783,10 +863,10 @@ public partial class MainWindow : Window
         RebuildExtractList();
 
         // Focus mode owns the view when it is on, so following would fight it.
-        if (FocusToggle.IsChecked.GetValueOrDefault() && _session.SelectedExtract is not null)
+        if (FocusToggle.IsChecked.GetValueOrDefault() && _session.ExtractLine.GuideBase is not null)
             ApplyExtractFocus();
         else if (FollowToggle.IsChecked.GetValueOrDefault() && _canvas.Map is { } map)
-            _canvas.Viewport.Center = map.ToBase(fix.Position);
+            _canvas.CenterOn(map.ToBase(fix.Position));
 
         _canvas.InvalidateVisual();
     }

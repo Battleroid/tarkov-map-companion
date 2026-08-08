@@ -29,11 +29,13 @@ public static class RenderTest
         // Flags, position-independent:
         //   nobase  hide the ground level, the only way to see a floor underneath it
         //   bare    imagery only, no markers or heatmap, for comparing layers cleanly
+        //   marks   lay a route of waypoints between the player and the exit
         var flags = args.Select(a => a.ToLowerInvariant()).ToHashSet();
         var includeBase = !flags.Contains("nobase");
         var bare = flags.Contains("bare");
+        var marks = flags.Contains("marks");
 
-        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare")
+        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare" or "marks")
             ? args[4].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];
 
@@ -150,15 +152,46 @@ public static class RenderTest
             {
                 overlay.Selected = target;
 
-                overlays.Add(new ExtractLineOverlay
+                var line = new ExtractLineOverlay
                 {
                     Map = map,
                     Target = target,
                     PlayerPosition = lastFix.Position,
                     PlayerYawDegrees = lastFix.YawDegrees,
-                });
+                };
 
-                Console.WriteLine($"guide      -> {target.Name}");
+                // A route laid out between the player and that exit, so the pins, the dashed
+                // route through them, the arrival ring and the precedence over the exit are all
+                // visible in one picture. The last pin is dropped right on the player to show a
+                // reached marker as well.
+                if (marks)
+                {
+                    var route = new WaypointOverlay { Map = map, ArrivalRadiusMeters = 50 };
+
+                    for (var step = 1; step <= 3; step++)
+                    {
+                        var t = step / 4.0;
+                        var x = lastFix.Position.X + ((target.Position.X - lastFix.Position.X) * t);
+                        var z = lastFix.Position.Z + ((target.Position.Z - lastFix.Position.Z) * t);
+
+                        route.Add(new GamePosition(x, 0, z), map.Projection.ToBase(x, z));
+                    }
+
+                    route.Add(lastFix.Position, map.ToBase(lastFix.Position));
+                    route.ApplyFix(lastFix.Position);
+
+                    line.Waypoint = route.Next;
+                    overlays.Add(route);
+
+                    Console.WriteLine(
+                        $"route      {route.Count} markers, next #{route.Next?.Number}, "
+                        + $"{route.Waypoints.Count(w => w.Visited)} reached");
+                }
+
+                overlays.Add(line);
+
+                Console.WriteLine(
+                    $"guide      -> {(line.Waypoint is { } next ? $"marker #{next.Number}" : target.Name)}");
             }
         }
         else

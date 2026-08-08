@@ -27,52 +27,76 @@ public sealed class ExtractLineOverlay : IMapOverlay
 
     public MapPoi? Target { get; set; }
 
+    /// <summary>
+    /// The next waypoint on the player's own route. Takes precedence over <see cref="Target"/>.
+    /// </summary>
+    /// <remarks>
+    /// A route the player drew is a statement of where they want to go next, which is strictly
+    /// more specific than the exit they eventually mean to leave by. The exit is still selected and
+    /// still drawn; the line just points at the nearer commitment until the route is done or
+    /// cleared.
+    /// </remarks>
+    public Waypoint? Waypoint { get; set; }
+
     /// <summary>Set by the session whenever a new fix arrives.</summary>
     public GamePosition? PlayerPosition { get; set; }
 
     /// <summary>Player's current facing, for the relative bearing readout.</summary>
     public double PlayerYawDegrees { get; set; }
 
+    /// <summary>Where the line actually points, waypoint first.</summary>
+    private (GamePosition Position, MapPoint Base, string? Label)? Guide =>
+        Waypoint is { } waypoint ? (waypoint.Position, waypoint.Base, $"#{waypoint.Number}")
+        : Target is { } target ? (target.Position, target.Base, null)
+        : null;
+
+    /// <summary>Base-space point being navigated to, for framing the view on it.</summary>
+    public MapPoint? GuideBase => Guide?.Base;
+
     /// <summary>Straight-line ground distance to the target in meters, or null when there is none.</summary>
     public double? DistanceMeters =>
-        Target is null || PlayerPosition is not { } player
+        Guide is not { } guide || PlayerPosition is not { } player
             ? null
-            : player.GroundDistanceTo(Target.Position);
+            : player.GroundDistanceTo(guide.Position);
 
     /// <summary>Degrees to turn to face the target: negative is left, positive is right.</summary>
     public double? RelativeBearingDegrees =>
-        Target is null || PlayerPosition is not { } player
+        Guide is not { } guide || PlayerPosition is not { } player
             ? null
-            : MapProjection.NormalizeSigned(MapProjection.BearingDegrees(player, Target.Position) - PlayerYawDegrees);
+            : MapProjection.NormalizeSigned(MapProjection.BearingDegrees(player, guide.Position) - PlayerYawDegrees);
 
     public void Draw(SKCanvas canvas, Viewport viewport)
     {
-        if (Map is not { } map || Target is not { } target || PlayerPosition is not { } player)
+        if (Map is not { } map || Guide is not { } target || PlayerPosition is not { } player)
             return;
 
         var from = viewport.ToScreen(map.ToBase(player));
         var to = viewport.ToScreen(target.Base);
+
+        // Colored by what it is pointing at, so "am I being routed to a pin or to the exit" is
+        // answerable without reading the label.
+        var color = Waypoint is null ? MarkerPalette.ExtractLine : MarkerPalette.Waypoint;
 
         using var line = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 2f,
-            Color = MarkerPalette.ExtractLine.WithAlpha(0xCC),
+            Color = color.WithAlpha(0xCC),
             PathEffect = SKPathEffect.CreateDash([8f, 6f], 0),
         };
 
         canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, line);
 
-        DrawReadout(canvas, from, to);
+        DrawReadout(canvas, from, to, target.Label, color);
     }
 
-    private void DrawReadout(SKCanvas canvas, MapPoint from, MapPoint to)
+    private void DrawReadout(SKCanvas canvas, MapPoint from, MapPoint to, string? label, SKColor color)
     {
         if (DistanceMeters is not { } distance)
             return;
 
-        var text = $"{distance:F0} m";
+        var text = label is null ? $"{distance:F0} m" : $"{label}  {distance:F0} m";
 
         if (RelativeBearingDegrees is { } bearing)
         {
@@ -100,7 +124,7 @@ public sealed class ExtractLineOverlay : IMapOverlay
             IsAntialias = true,
             Typeface = Typeface,
             TextSize = 13,
-            Color = MarkerPalette.ExtractLine,
+            Color = color,
             TextAlign = SKTextAlign.Center,
         };
 

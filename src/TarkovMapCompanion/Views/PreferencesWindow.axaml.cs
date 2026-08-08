@@ -53,6 +53,7 @@ public partial class PreferencesWindow : Window
         UpdateCullWarning();
 
         FollowPlayerBox.IsChecked = _settings.FollowPlayer;
+        SmoothCameraBox.IsChecked = _settings.SmoothCameraMovement;
         SuggestMapBox.IsChecked = _settings.SuggestMapFromPosition;
         AutoSwitchBox.IsChecked = _settings.AutoSwitchMap;
         AutoSwitchBox.IsEnabled = _settings.SuggestMapFromPosition;
@@ -62,6 +63,12 @@ public partial class PreferencesWindow : Window
 
         TrailSlider.Value = _settings.HistoryTrailLength;
         UpdateTrailLabel();
+
+        ArrivalRadiusSlider.Value = _settings.WaypointArrivalRadiusMeters;
+        UpdateArrivalRadiusLabel();
+
+        ArrivalMarkThenRemove.IsChecked = _settings.WaypointArrival == WaypointArrival.MarkThenRemove;
+        ArrivalRemoveOnArrival.IsChecked = _settings.WaypointArrival == WaypointArrival.RemoveOnArrival;
 
         UpdateRaidLengthText();
 
@@ -99,6 +106,28 @@ public partial class PreferencesWindow : Window
 
         FollowPlayerBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.FollowPlayer = FollowPlayerBox.IsChecked ?? false);
+
+        SmoothCameraBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.SmoothCameraMovement = SmoothCameraBox.IsChecked ?? false);
+
+        ArrivalMarkThenRemove.IsCheckedChanged += (_, _) => ApplyArrivalMode();
+        ArrivalRemoveOnArrival.IsCheckedChanged += (_, _) => ApplyArrivalMode();
+
+        ArrivalRadiusSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Slider.ValueProperty)
+                return;
+
+            Apply(() =>
+            {
+                _settings.WaypointArrivalRadiusMeters = Math.Round(ArrivalRadiusSlider.Value);
+
+                if (_session is not null)
+                    _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
+
+                UpdateArrivalRadiusLabel();
+            });
+        };
 
         SuggestMapBox.IsCheckedChanged += (_, _) => Apply(() =>
         {
@@ -307,6 +336,20 @@ public partial class PreferencesWindow : Window
             : $"Trail: last {_settings.HistoryTrailLength} positions";
 
     private void UpdateFontLabel() => FontLabel.Text = $"Text size: {_settings.FontSize:F0} px";
+
+    private void ApplyArrivalMode() => Apply(() =>
+    {
+        _settings.WaypointArrival = ArrivalRemoveOnArrival.IsChecked == true
+            ? WaypointArrival.RemoveOnArrival
+            : WaypointArrival.MarkThenRemove;
+
+        if (_session is not null)
+            _session.Waypoints.Arrival = _settings.WaypointArrival;
+    });
+
+    private void UpdateArrivalRadiusLabel() =>
+        ArrivalRadiusLabel.Text =
+            $"A marker counts as reached within {_settings.WaypointArrivalRadiusMeters:F0} m";
 
     private void UpdateRaidLengthText()
     {

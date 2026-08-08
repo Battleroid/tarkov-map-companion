@@ -130,6 +130,22 @@ public sealed class Viewport
         if (Width <= 0 || Height <= 0)
             return;
 
+        Restore(StateForRect(target, padding));
+    }
+
+    /// <summary>
+    /// The view that <see cref="FitToRect"/> would produce, without moving there.
+    /// </summary>
+    /// <remarks>
+    /// Separated out so the canvas can ease towards a view rather than snapping to it: an animation
+    /// needs to know where it is going before it starts. Clamping is applied here too, so the
+    /// animation's destination is the same place a jump would have landed.
+    /// </remarks>
+    public State StateForRect(MapRect target, double padding = 0.0)
+    {
+        if (Width <= 0 || Height <= 0)
+            return Capture();
+
         var padded = target.Inflate(padding);
 
         // A player standing on top of the extract collapses the rect to a point; keep a floor so
@@ -137,9 +153,13 @@ public sealed class Viewport
         var width = Math.Max(padded.Width, 1e-6);
         var height = Math.Max(padded.Height, 1e-6);
 
-        Scale = Math.Min(Width / width, Height / height);
-        Center = padded.Center;
+        var scale = Math.Clamp(Math.Min(Width / width, Height / height), MinScale, MaxScale);
+
+        return new State(ClampedCenter(padded.Center, scale), scale);
     }
+
+    /// <summary>The view centered on a point at the current zoom, without moving there.</summary>
+    public State StateForCenter(MapPoint center) => new(ClampedCenter(center, _scale), _scale);
 
     /// <summary>Scale at which the whole map just fits the current viewport.</summary>
     public double FitAllScale()
@@ -169,22 +189,25 @@ public sealed class Viewport
     /// viewport on an axis it is centered on that axis; otherwise the center is held inside the
     /// map so at least half a screen of content is always visible.
     /// </summary>
-    private void ClampCenter()
+    private void ClampCenter() => _center = ClampedCenter(_center, _scale);
+
+    /// <inheritdoc cref="ClampCenter"/>
+    private MapPoint ClampedCenter(MapPoint center, double scale)
     {
         if (Width <= 0 || Height <= 0)
-            return;
+            return center;
 
-        var halfWidth = Width / 2.0 / _scale;
-        var halfHeight = Height / 2.0 / _scale;
+        var halfWidth = Width / 2.0 / scale;
+        var halfHeight = Height / 2.0 / scale;
 
         var x = MapBounds.Width <= halfWidth * 2
             ? MapBounds.Center.X
-            : Math.Clamp(_center.X, MapBounds.Left, MapBounds.Right);
+            : Math.Clamp(center.X, MapBounds.Left, MapBounds.Right);
 
         var y = MapBounds.Height <= halfHeight * 2
             ? MapBounds.Center.Y
-            : Math.Clamp(_center.Y, MapBounds.Top, MapBounds.Bottom);
+            : Math.Clamp(center.Y, MapBounds.Top, MapBounds.Bottom);
 
-        _center = new MapPoint(x, y);
+        return new MapPoint(x, y);
     }
 }

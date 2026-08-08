@@ -58,6 +58,19 @@ public static class MarkerPalette
     /// <summary>The line from the player to the selected extract.</summary>
     public static readonly SKColor ExtractLine = new(0xF5, 0xC9, 0x42);
 
+    // ---- Route the player drew ----------------------------------------------
+
+    /// <summary>
+    /// Waypoint pins. Deliberately unlike every extract faction color: these are the player's own
+    /// marks, and confusing one for an exit would be the worst possible mix-up.
+    /// </summary>
+    public static readonly SKColor Waypoint = new(0xFF, 0x4F, 0x9A);
+
+    /// <summary>A waypoint that has been reached and is about to disappear.</summary>
+    public static readonly SKColor WaypointVisited = new(0x6E, 0x7B, 0x8A);
+
+    public static readonly SKColor WaypointLabel = new(0xFF, 0xFF, 0xFF);
+
     /// <summary>
     /// Dashed ring marking an exit with conditions attached. Deliberately a shape cue rather than
     /// only a color one, since the faction colors already use the hue channel.

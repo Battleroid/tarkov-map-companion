@@ -69,6 +69,24 @@ and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and t
 and the exit together, tightening as you close in so the screen only shows what matters. Turning it
 off puts your previous view back exactly as it was.
 
+**Route markers.** Press **Mark**, then click the map in the order you mean to visit — quest
+objectives, a stash worth the detour, wherever you dropped something. Each click leaves a numbered
+pin; press **Mark** again to finish. The guide line then walks the route in order and only goes
+back to pointing at your exit once the route is done, so the exit can stay selected the whole time
+without getting in the way. Focus mode frames the next marker rather than the exit, for the same
+reason.
+
+A pin retires once you come within 50 m of it, adjustable in **Settings**. By default it shows as
+reached for one screenshot and is gone on the next: the confirmation is the point, since a pin that
+simply vanishes leaves you unsure whether you got close enough or had misplaced it. The other
+option removes it the moment you are inside the radius. **Clear marks** drops the whole route and
+hands the line back to the exit.
+
+**Smooth camera.** With **Follow** on, the view glides to your new position instead of jumping. A
+jump costs you your bearings — you have to find yourself on the map again every screenshot —
+where a move you can follow does not. It applies to focus mode's reframing too, and never to your
+own panning and zooming, which stay locked to the pointer. Toggle it in **Settings**.
+
 **Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use — on
 Customs that is 16 of 31 gone. **Nearest first** reorders the list by distance from your last known
 position, and every exit shows its distance either way.
@@ -91,6 +109,14 @@ Lighthouse, Reserve, Shoreline, Streets of Tarkov, Terminal, Woods.
 so an underground level is hidden behind the ground floor. Turning **Ground** off is what reveals
 it — Factory's Tunnels being the obvious case.
 
+**Map detection.** Pick your map from the dropdown, or let a position that cannot be on the current
+map offer you the right one. It proposes rather than switches, because several maps overlap in world
+coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
+available in **Settings** if you would rather.
+
+**Light and dark, at a readable size.** Monospaced throughout, with a text-size slider, and an
+always-on-top toggle for when it shares a screen with something else.
+
 ## First run
 
 The app watches `Documents\Escape from Tarkov\Screenshots` by default. If yours is elsewhere, set
@@ -104,7 +130,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 270 tests
+dotnet test              # 292 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -118,7 +144,7 @@ scripts\publish.ps1
 
 | Command | What it does |
 | --- | --- |
-| `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers. |
+| `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare] [marks]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers, `marks` lays a route of waypoints across it. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
 | `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
@@ -145,6 +171,7 @@ the bundled ones per exit.
 | `%APPDATA%\TarkovMapCompanion\settings.json` | Your preferences. Hand-editable. |
 | `%APPDATA%\TarkovMapCompanion\extract-notes.json` | Optional overrides for exit conditions. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\` | Downloaded maps and tiles. Safe to delete. |
+| `%LOCALAPPDATA%\TarkovMapCompanion\cache\app.log` | What the app was doing, including why it stopped. Worth attaching to a bug report. |
 
 ## License
 

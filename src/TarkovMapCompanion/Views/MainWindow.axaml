@@ -33,6 +33,10 @@
                     ToolTip.Tip="Recenter on the player when a new screenshot arrives" />
           <CheckBox Name="FocusToggle" Content="Focus exit"
                     ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer" />
+          <CheckBox Name="MarkToggle" Content="Mark"
+                    ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark again to finish." />
+          <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"
+                  ToolTip.Tip="Remove every marker and point the guide line back at the selected exit" />
         </StackPanel>
 
         <!-- Map suggestion, shown only when a fix lands off the current map. -->
