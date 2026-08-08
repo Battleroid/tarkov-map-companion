@@ -224,7 +224,7 @@ public sealed class ScreenshotCullerTests : IDisposable
         var settings = new AppSettings { CullMode = CullMode.DeleteAfterRead };
 
         Assert.Empty(Culler(settings).Apply(_folder));
-        Assert.Equal(1, Directory.GetFiles(_folder).Length);
+        Assert.Single(Directory.GetFiles(_folder));
     }
 
     [Fact]
