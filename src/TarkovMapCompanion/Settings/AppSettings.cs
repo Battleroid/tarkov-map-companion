@@ -106,6 +106,19 @@ public sealed class AppSettings
     /// <summary>Whether the map's ground level is drawn. Off reveals an underground floor.</summary>
     public bool ShowBaseLayer { get; set; } = true;
 
+    // ---- Reading exits off the screenshot ----------------------------------
+
+    /// <summary>
+    /// Look for Tarkov's extraction panel in each screenshot and dim the exits it does not list.
+    /// </summary>
+    /// <remarks>
+    /// Off by default. It costs about 25 ms per screenshot and does nothing at all unless the
+    /// player happens to have the panel open, so it should be a deliberate choice rather than a
+    /// surprise. Nothing about it touches the game: the panel is already on the player's screen,
+    /// and the screenshot is a file the game wrote itself.
+    /// </remarks>
+    public bool ReadExitsFromScreenshots { get; set; }
+
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }

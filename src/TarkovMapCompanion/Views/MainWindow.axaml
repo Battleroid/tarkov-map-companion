@@ -104,6 +104,25 @@
                     ToolTip.Tip="Hide exits your faction cannot use" />
           <CheckBox Name="SortByDistanceToggle" Content="Nearest first" FontSize="12"
                     ToolTip.Tip="Order the list by distance from your last known position" />
+          <CheckBox Name="ReadExitsToggle" Content="Read exits from screenshot" FontSize="12"
+                    ToolTip.Tip="When a screenshot catches the in-game extraction list (double-tap O), dim the exits it does not name. Reads the picture only; nothing touches the game." />
+
+          <!-- What the last read found, and a way out of it. Only shown once something was read. -->
+          <Border Name="ReadExitsBar" IsVisible="False"
+                  Padding="7,5"
+                  Background="{DynamicResource SurfaceRaisedBrush}"
+                  BorderBrush="{DynamicResource BorderSubtleBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource RadiusSmall}">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+              <TextBlock Name="ReadExitsText" Grid.Column="0" FontSize="11" TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+              <Button Name="ClearReadExitsButton" Grid.Column="1" Content="Clear"
+                      FontSize="11" Padding="7,2" VerticalAlignment="Center"
+                      ToolTip.Tip="Show every exit again" />
+            </Grid>
+          </Border>
+
           <TextBlock Name="ExitHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Pick one to draw a guide line from the player." />
         </StackPanel>
@@ -112,7 +131,9 @@
                  Background="Transparent" BorderThickness="0">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="data:MapPoi">
-              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+              <!-- Faded when the game did not list this exit for the current raid. Still selectable:
+                   the list comes from reading a screenshot, which can be wrong. -->
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Opacity="{Binding ListOpacity}">
                 <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="1" Text="{Binding DistanceLabel}"
                            Classes="secondary" FontSize="11"

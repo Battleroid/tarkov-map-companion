@@ -117,6 +117,17 @@ public partial class MainWindow : Window
             RebuildExtractList();
         });
 
+        ReadExitsToggle.IsChecked = _settings.ReadExitsFromScreenshots;
+        ReadExitsToggle.IsCheckedChanged += (_, _) => Apply(OnReadExitsToggled);
+
+        ClearReadExitsButton.Click += (_, _) =>
+        {
+            _session.ClearExitAvailability();
+            UpdateExitAvailabilityBar();
+            RebuildExtractList();
+            _canvas.InvalidateVisual();
+        };
+
         ExtractList.SelectionChanged += OnExtractSelectionChanged;
         ClearSelection.Click += (_, _) => ExtractList.SelectedItem = null;
 
@@ -155,6 +166,16 @@ public partial class MainWindow : Window
         {
             RebuildExtractList();
             _canvas.InvalidateVisual();
+        });
+
+        _session.ExitAvailabilityChanged += (_, availability) => Post(() =>
+        {
+            UpdateExitAvailabilityBar();
+            RebuildExtractList();
+            _canvas.InvalidateVisual();
+
+            if (availability is not null)
+                StatusText.Text = $"Read {availability.NameCount} exits from the screenshot.";
         });
     }
 
@@ -397,6 +418,63 @@ public partial class MainWindow : Window
         _ => group.ToString(),
     };
 
+    // ---- Exits read from the screenshot -------------------------------------
+
+    /// <summary>
+    /// Arms or disarms reading the in-game extraction panel out of new screenshots.
+    /// </summary>
+    /// <remarks>
+    /// Checks for a working OCR engine at the moment it is switched on, rather than letting the
+    /// box sit there looking armed while quietly doing nothing for a whole raid.
+    /// </remarks>
+    private void OnReadExitsToggled()
+    {
+        var on = ReadExitsToggle.IsChecked ?? false;
+
+        if (on && _session.ExitReaderUnavailableReason is { } reason)
+        {
+            ReadExitsToggle.IsChecked = false;
+            _settings.ReadExitsFromScreenshots = false;
+            StatusText.Text = reason;
+            return;
+        }
+
+        _settings.ReadExitsFromScreenshots = on;
+
+        if (on)
+        {
+            StatusText.Text = "Bring up the extraction list in game (double-tap O) and take a screenshot.";
+            return;
+        }
+
+        _session.ClearExitAvailability();
+        UpdateExitAvailabilityBar();
+        RebuildExtractList();
+        _canvas.InvalidateVisual();
+    }
+
+    private void UpdateExitAvailabilityBar()
+    {
+        var availability = _session.ExitAvailability;
+
+        ReadExitsBar.IsVisible = availability is not null;
+
+        if (availability is null)
+            return;
+
+        var exits = _session.Pois.Extracts.ToArray();
+        var shown = exits.Count(availability.Includes);
+
+        var text = $"{availability.TakenAt:HH:mm} screenshot: {shown} of {exits.Length} exits open this raid.";
+
+        // A row we could not place is reported rather than swallowed: the honest reading is
+        // "the app did not understand this", not "that exit is unavailable".
+        if (availability.Unresolved.Count > 0)
+            text += $" Unrecognized: {string.Join(", ", availability.Unresolved)}.";
+
+        ReadExitsText.Text = text;
+    }
+
     private void RebuildExtractList()
     {
         var all = _session.Pois.Extracts.ToArray();
@@ -404,8 +482,13 @@ public partial class MainWindow : Window
         // Distances are shown whether or not we sort by them; knowing an exit is 40 m away is
         // useful even in the faction-grouped order.
         var player = _session.Player.Current?.Position;
+        var availability = _session.ExitAvailability;
+
         foreach (var poi in all)
+        {
             poi.DistanceMeters = player?.GroundDistanceTo(poi.Position);
+            poi.AvailableThisRaid = availability?.Includes(poi);
+        }
 
         var visible = all.Where(p => _settings.ExitFilter.Includes(p.Kind));
 
@@ -413,10 +496,14 @@ public partial class MainWindow : Window
         // back to the stable ordering rather than showing an arbitrary one.
         var sortByDistance = _settings.SortExitsByDistance && player is not null;
 
+        // Exits the raid actually offers float to the top, whichever secondary order is in use.
+        // Without a reading every entry is null here and the ordering is untouched.
         var exits = (sortByDistance
-                ? visible.OrderBy(p => p.DistanceMeters ?? double.MaxValue)
+                ? visible.OrderBy(p => p.AvailableThisRaid == false)
+                    .ThenBy(p => p.DistanceMeters ?? double.MaxValue)
                     .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
-                : visible.OrderBy(p => p.Kind)
+                : visible.OrderBy(p => p.AvailableThisRaid == false)
+                    .ThenBy(p => p.Kind)
                     .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
             .ToList();
 

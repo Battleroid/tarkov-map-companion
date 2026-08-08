@@ -25,6 +25,11 @@ internal static class Program
         if (args.Length > 0 && args[0] is "--fetch-wiki")
             return Tools.FetchWiki.RunAsync(args[1..]).GetAwaiter().GetResult();
 
+        // Reads the extraction panel out of one screenshot, showing every stage of the decision.
+        //   TarkovMapCompanion --read-exits <screenshot.png> [map] [whole]
+        if (args.Length > 0 && args[0] is "--read-exits")
+            return Tools.ReadExits.RunAsync(args[1..]).GetAwaiter().GetResult();
+
         try
         {
             Log.Info($"starting {typeof(Program).Assembly.GetName().Version}");

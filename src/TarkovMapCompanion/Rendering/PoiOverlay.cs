@@ -21,6 +21,15 @@ public sealed class PoiOverlay : IMapOverlay
     private const double HitSlack = 6.0;
 
     /// <summary>
+    /// Opacity of an exit the game did not offer this raid. Low enough to recede, high enough to
+    /// still be findable against both the light and dark map artwork.
+    /// </summary>
+    private const byte MutedAlpha = 70;
+
+    private static readonly SKColor Outline = new(0, 0, 0, 190);
+    private static readonly SKColor MutedOutline = new(0, 0, 0, 60);
+
+    /// <summary>
     /// Text resources are shared and long-lived. Building an SKPaint (and worse, resolving a
     /// typeface by family name) per label per frame cost about 10 ms a frame on Customs, which is
     /// most of a 60 fps budget spent on font lookups.
@@ -77,6 +86,18 @@ public sealed class PoiOverlay : IMapOverlay
 
     /// <summary>Labels every extract rather than only the selected one.</summary>
     public bool ShowExtractNames { get; set; } = true;
+
+    /// <summary>
+    /// Exits the game listed for this raid, read off a screenshot. Null when unknown, which is the
+    /// normal case: the panel is only on screen when the player opens it.
+    /// </summary>
+    /// <remarks>
+    /// Exits outside the set are dimmed, never hidden. The reading comes from character recognition
+    /// on a screenshot, so it can be wrong, and the two failures are not equally bad: a stale marker
+    /// is a moment's confusion, while a missing one could send someone across the map to an exit the
+    /// app decided not to draw.
+    /// </remarks>
+    public Vision.ExitAvailability? Availability { get; set; }
 
     public IReadOnlyList<MapPoi> Pois => _pois;
 
@@ -152,7 +173,7 @@ public sealed class PoiOverlay : IMapOverlay
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.5f,
-            Color = new SKColor(0, 0, 0, 190),
+            Color = Outline,
         };
 
         // Background layers first, exits last, so an extract is never buried under a loot marker.
@@ -206,10 +227,16 @@ public sealed class PoiOverlay : IMapOverlay
         var isExtract = poi.IsExtract || poi.Kind == PoiKind.Transit;
         var radius = isExtract ? ExtractRadius : MarkerRadius;
 
-        if (ReferenceEquals(poi, Hovered) || ReferenceEquals(poi, Selected))
+        var highlighted = ReferenceEquals(poi, Hovered) || ReferenceEquals(poi, Selected);
+        if (highlighted)
             radius += 2.5f;
 
-        fill.Color = color;
+        // Pointing at one brings it back to full strength, so a dimmed exit can still be read and
+        // chosen rather than being effectively gone.
+        var muted = isExtract && !highlighted && Availability is { } availability && !availability.Includes(poi);
+
+        fill.Color = muted ? color.WithAlpha(MutedAlpha) : color;
+        stroke.Color = muted ? MutedOutline : Outline;
 
         if (isExtract)
         {
@@ -233,7 +260,7 @@ public sealed class PoiOverlay : IMapOverlay
 
         // A ring around a conditional exit, so "this one needs something" is visible at a glance
         // rather than only after clicking it. Deliberately a shape difference, not just a color.
-        if (isExtract && poi.IsConditional)
+        if (isExtract && poi.IsConditional && !muted)
         {
             using var ring = new SKPaint
             {
@@ -247,7 +274,9 @@ public sealed class PoiOverlay : IMapOverlay
             canvas.DrawCircle(x, y, radius + 3.5f, ring);
         }
 
-        var labeled = isExtract && (ShowExtractNames || ReferenceEquals(poi, Hovered) || ReferenceEquals(poi, Selected));
+        // Labels are what actually clutters the map, so a dimmed exit drops its name entirely
+        // unless it is being pointed at. The marker stays; the noise goes.
+        var labeled = isExtract && !muted && (ShowExtractNames || highlighted);
         if (labeled)
             DrawLabel(canvas, x + radius + 4, y + 4, poi.Name);
     }

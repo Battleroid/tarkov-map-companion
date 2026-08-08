@@ -11,9 +11,10 @@ the *filename* of every screenshot you take, so pressing the screenshot key upda
 ## This is not a cheat
 
 The app never reads the game's memory, hooks the process, injects anything, modifies a game file,
-or talks to the game in any way. Its only input is the name of a file the game itself wrote to
-your disk. It cannot show you anything you did not already capture yourself, and it cannot see
-other players.
+or talks to the game in any way. Its only input is a file the game itself wrote to your disk: the
+*name* of a screenshot for your position, and optionally the *picture* for the exit list you
+already had on screen. It cannot show you anything you did not already capture yourself, and it
+cannot see other players.
 
 ## Install
 
@@ -44,6 +45,18 @@ ringed on the map and flagged in the list, and selecting one tells you what it n
 - Sewer Manhole — *No backpack equipped*
 - Dorms V-Ex — *5000 Roubles per player · Maximum of 4 players*
 - Smugglers' Boat — *Note with code word Voron*
+
+**Only the exits you actually have.** Tarkov offers a different subset of a map's exits every raid,
+depending on where you spawned — Customs has 27, and a given raid might give you four. Tick
+**Read exits from screenshot** in the exits panel, bring the extraction list up in game (double-tap
+<kbd>O</kbd> by default) and take a screenshot: the app reads the list off the picture and fades
+every exit the game did not offer you.
+
+Exits are faded, never hidden, and stay clickable — the list comes from character recognition, and
+a misread should cost you a dim marker, not a missing one. Anything it reads but cannot place is
+named in the panel rather than quietly dropped. The reading is thrown away when the raid ends or
+you change map. It uses the OCR engine built into Windows, so it adds nothing to the download, and
+it costs about 25 ms per screenshot.
 
 **Guide line and focus mode.** Pick an exit and a line is drawn to it, labeled with the distance
 and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and the view frames you
@@ -85,7 +98,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 211 tests
+dotnet test              # 254 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -102,6 +115,7 @@ scripts\publish.ps1
 | `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
+| `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
 
 ## Where the data comes from
 

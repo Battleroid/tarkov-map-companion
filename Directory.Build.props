@@ -1,7 +1,20 @@
 <Project>
 
+  <!--
+    Windows-flavored TFM so the app can call the OCR engine built into Windows
+    (Windows.Media.Ocr), which is how the extraction panel is read off a screenshot. The
+    alternative was bundling Tesseract, which would have added native binaries and a language
+    model to a download that is already large, to do a job the OS does in 25 ms.
+
+    SupportedOSPlatformVersion is held well below the TFM's own 19041 on purpose. The TFM decides
+    which APIs we can compile against; this decides the oldest Windows the produced binary agrees
+    to start on. Leaving them equal would make the app refuse to launch on Windows 10 releases
+    that can run the OCR API perfectly well. The reader checks for an engine at runtime and
+    reports itself unavailable if there is not one.
+  -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

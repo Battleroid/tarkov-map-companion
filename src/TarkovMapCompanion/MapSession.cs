@@ -4,6 +4,7 @@ using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
 using TarkovMapCompanion.Settings;
+using TarkovMapCompanion.Vision;
 
 namespace TarkovMapCompanion;
 
@@ -29,6 +30,15 @@ public sealed class MapSession : IDisposable
     private IMapImageSource? _imageSource;
     private bool _disposed;
 
+    private readonly object _readerGate = new();
+    private IScreenTextReader? _textReader;
+
+    /// <summary>
+    /// Bumped whenever a reading stops being applicable: a new raid, or a different map. An OCR
+    /// pass that finishes after its epoch has passed is discarded rather than applied late.
+    /// </summary>
+    private int _readingEpoch;
+
     public MapSession(AppSettings settings, MapCatalog catalog)
     {
         _settings = settings;
@@ -48,6 +58,11 @@ public sealed class MapSession : IDisposable
         _watcher.Error += (_, message) => Status?.Invoke(this, message);
 
         Player = new PlayerOverlay { TrailLength = settings.HistoryTrailLength };
+
+        // Which exits a raid offers is decided when that raid starts, so a list read in the last
+        // one says nothing about this one.
+        Player.RaidStarted += (_, _) => ClearExitAvailability();
+
         Pois = new PoiOverlay();
         ExtractLine = new ExtractLineOverlay();
 
@@ -123,6 +138,39 @@ public sealed class MapSession : IDisposable
 
     /// <summary>Raised when the POI set for the current map has been rebuilt.</summary>
     public event EventHandler? PoisChanged;
+
+    /// <summary>
+    /// The exits the game listed for this raid, read off a screenshot, or null when unknown.
+    /// </summary>
+    public ExitAvailability? ExitAvailability { get; private set; }
+
+    /// <summary>Raised when the read exit list appears, changes, or is dropped.</summary>
+    public event EventHandler<ExitAvailability?>? ExitAvailabilityChanged;
+
+    /// <summary>Why exits cannot be read on this machine, or null when they can.</summary>
+    public string? ExitReaderUnavailableReason => EnsureTextReader()?.UnavailableReason;
+
+    /// <summary>
+    /// Forgets the exit list read from a screenshot, and invalidates any read still in flight.
+    /// </summary>
+    public void ClearExitAvailability()
+    {
+        Interlocked.Increment(ref _readingEpoch);
+
+        if (ExitAvailability is null)
+            return;
+
+        ExitAvailability = null;
+        Pois.Availability = null;
+
+        ExitAvailabilityChanged?.Invoke(this, null);
+    }
+
+    private IScreenTextReader? EnsureTextReader()
+    {
+        lock (_readerGate)
+            return _textReader ??= new WindowsOcrTextReader();
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -224,6 +272,7 @@ public sealed class MapSession : IDisposable
         // this case: two raids on different maps an hour apart can have perfectly consistent
         // in-raid clocks, so the map change itself is the signal.
         Player.Clear();
+        ClearExitAvailability();
 
         Player.Map = map;
         RebuildPois();
@@ -257,7 +306,15 @@ public sealed class MapSession : IDisposable
 
             FixApplied?.Invoke(this, fix);
 
+            // Take a copy of the pixels before culling gets a chance to recycle the file. Reading
+            // exits is slow enough to want off this thread, and DeleteAfterRead is fast enough to
+            // beat it there.
+            var image = ShouldReadExits() ? TryReadImage(fix.FilePath) : null;
+
             CullAfter(fix);
+
+            if (image is not null)
+                _ = ReadExitsAsync(image, fix, CurrentMap, Volatile.Read(ref _readingEpoch));
         }
         catch (Exception ex)
         {
@@ -306,6 +363,103 @@ public sealed class MapSession : IDisposable
         var deleted = results.Count(r => r.Deleted);
         if (deleted > 0)
             Status?.Invoke(this, $"Removed {deleted} old screenshot{(deleted == 1 ? "" : "s")} to the Recycle Bin");
+    }
+
+    private bool ShouldReadExits() =>
+        _settings.ReadExitsFromScreenshots && EnsureTextReader() is { IsAvailable: true };
+
+    /// <summary>
+    /// Loads a screenshot, waiting for the game to finish writing it.
+    /// </summary>
+    /// <remarks>
+    /// The folder watcher fires as soon as the file appears, and Tarkov's screenshots are several
+    /// megabytes, so the first look at one very often catches it half written. The filename is
+    /// complete from the start -- which is why positions never needed this -- but the pixels are
+    /// not, and a truncated PNG decodes to nothing useful. A complete PNG ends with its IEND chunk,
+    /// which makes "is this finished" a cheap and exact question rather than a guess at a delay.
+    /// </remarks>
+    internal static byte[]? TryReadImage(string path)
+    {
+        ReadOnlySpan<byte> pngEnd = [0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82];
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            if (attempt > 0)
+                Thread.Sleep(80);
+
+            try
+            {
+                // Share write: the game may still have the file open.
+                using var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
+                var bytes = new byte[stream.Length];
+                stream.ReadExactly(bytes);
+
+                if (bytes.Length > 16 && bytes.AsSpan(bytes.Length - 8).SequenceEqual(pngEnd))
+                    return bytes;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Locked or gone; either way it is worth one more look.
+            }
+        }
+
+        Log.Warn($"gave up waiting for {Path.GetFileName(path)} to finish writing");
+        return null;
+    }
+
+    /// <summary>
+    /// Reads Tarkov's extraction panel out of a screenshot and narrows the exit list to it.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here touches the game. The panel is drawn by the game on the player's own screen,
+    /// and the image is a file the game wrote; this only saves them from memorizing eight names.
+    /// </remarks>
+    private async Task ReadExitsAsync(byte[] image, PlayerFix fix, GameMap map, int epoch)
+    {
+        try
+        {
+            if (EnsureTextReader() is not { IsAvailable: true } reader)
+                return;
+
+            var lines = await reader.ReadAsync(image, RelativeRegion.ExtractPanel).ConfigureAwait(false);
+            var reading = ExtractPanelParser.Parse(lines);
+
+            // Most screenshots are just screenshots. Saying nothing is the right answer, and in
+            // particular is not the same as saying the player has no exits.
+            if (!reading.PanelFound)
+                return;
+
+            var exits = Pois.Extracts.ToArray();
+            var availability = ExitAvailability.Resolve(reading, exits, map.NormalizedName, fix.TakenAt);
+
+            if (availability is null)
+            {
+                Log.Warn($"exit panel read from {fix.FileName} matched no known exit on {map.NormalizedName}");
+                Status?.Invoke(this, "Found the exit panel but could not match any names; leaving all exits shown.");
+                return;
+            }
+
+            // The raid or the map may have moved on while this was decoding.
+            if (Volatile.Read(ref _readingEpoch) != epoch)
+                return;
+
+            ExitAvailability = availability;
+            Pois.Availability = availability;
+
+            Log.Info(
+                $"read {availability.NameCount} exits from {fix.FileName} on {map.NormalizedName}"
+                + (availability.Unresolved.Count > 0
+                    ? $"; unresolved: {string.Join(" | ", availability.Unresolved)}"
+                    : ""));
+
+            ExitAvailabilityChanged?.Invoke(this, availability);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"failed to read exits from {fix.FileName}", ex);
+        }
     }
 
     private static string Describe(CullRefusal refusal) => refusal switch

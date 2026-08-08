@@ -109,6 +109,18 @@ public sealed class MapPoi
     /// <summary>Distance formatted for the list, or empty when the player has not been placed.</summary>
     public string DistanceLabel => DistanceMeters is { } d ? $"{d:F0} m" : "";
 
+    /// <summary>
+    /// Whether the game listed this exit for the current raid, or null when nobody has told us.
+    /// </summary>
+    /// <remarks>
+    /// Mutable for the same reason as <see cref="DistanceMeters"/>: it belongs to the raid, not to
+    /// the exit, and the list is rebuilt whenever it changes.
+    /// </remarks>
+    public bool? AvailableThisRaid { get; set; }
+
+    /// <summary>Fades exits the current raid does not offer, without removing them.</summary>
+    public double ListOpacity => AvailableThisRaid == false ? 0.4 : 1.0;
+
     public bool IsExtract => Kind is PoiKind.ExtractPmc or PoiKind.ExtractScav or PoiKind.ExtractShared;
 
     /// <summary>Extracts usable by both factions, which is how co-op extracts are modeled.</summary>
