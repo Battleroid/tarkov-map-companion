@@ -114,6 +114,30 @@ map offer you the right one. It proposes rather than switches, because several m
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
 
+**Squad positions.** Press **Host session** and the app hands you a code like `K7QM4-3FHB9-8TZR9-M4X7Q`.
+Anyone who pastes it into **Join** appears on your map, and you on theirs. People can join part-way
+through a raid and get everybody's current positions straight away, and you can stop and restart a
+session at any point if something goes wrong.
+
+Teammates are only drawn when they are on the same map as you — a position from another raid means
+nothing in this one's coordinates. They stay in the roster, labelled with where they actually are.
+Every marker also carries its age and fades as it gets older, because peers only report when they
+take a screenshot: a minute-old dot drawn at full strength reads as "he is there now", which is how
+you end up trusting an angle nobody is covering.
+
+There is no server. The code contains the host's address and a shared key, so the squad connects
+directly and the traffic is encrypted with a key nobody else has. Everyone dials the host, which
+means only one person needs to be reachable from outside their router — and the host does not even
+have to be playing. If the app cannot open a port automatically, it will still give you a code, and
+you either forward `TCP 24601` or let somebody else host. `--party-test` tells you which case you
+are in.
+
+> **Worth thinking about before you use it.** Position sharing keeps the app's "never touches the
+> game" property, but it does change who knows what. With your own squad it is hard to object to —
+> you could already say "I'm at Dorms" over voice, and this is only more precise. But the app cannot
+> tell a squad from a group of strangers coordinating, because it has no view into the game's party
+> system. That is a judgement call it cannot make for you.
+
 **Light and dark, at a readable size.** Monospaced throughout, with a text-size slider, and an
 always-on-top toggle for when it shares a screen with something else.
 
@@ -130,7 +154,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 292 tests
+dotnet test              # 322 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -147,6 +171,7 @@ scripts\publish.ps1
 | `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare] [marks]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers, `marks` lays a route of waypoints across it. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
+| `--party-test [name] [local]` / `--party-test join <code> [name]` | Hosts or joins a position-sharing session from the console. Says whether this network can host at all, which is the one part that cannot be tested any other way. `local` uses loopback so two processes on one machine can talk. |
 | `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
 
 ## Where the data comes from

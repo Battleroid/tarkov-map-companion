@@ -64,6 +64,9 @@ public partial class PreferencesWindow : Window
         TrailSlider.Value = _settings.HistoryTrailLength;
         UpdateTrailLabel();
 
+        PlayerNameBox.Text = _settings.PlayerName;
+        UpdatePlayerNameHint();
+
         ArrivalRadiusSlider.Value = _settings.WaypointArrivalRadiusMeters;
         UpdateArrivalRadiusLabel();
 
@@ -109,6 +112,12 @@ public partial class PreferencesWindow : Window
 
         SmoothCameraBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.SmoothCameraMovement = SmoothCameraBox.IsChecked ?? false);
+
+        PlayerNameBox.TextChanged += (_, _) => Apply(() =>
+        {
+            _settings.PlayerName = PlayerNameBox.Text ?? "";
+            UpdatePlayerNameHint();
+        });
 
         ArrivalMarkThenRemove.IsCheckedChanged += (_, _) => ApplyArrivalMode();
         ArrivalRemoveOnArrival.IsCheckedChanged += (_, _) => ApplyArrivalMode();
@@ -346,6 +355,12 @@ public partial class PreferencesWindow : Window
         if (_session is not null)
             _session.Waypoints.Arrival = _settings.WaypointArrival;
     });
+
+    /// <summary>Says what will actually be shown, including the fallback when the box is empty.</summary>
+    private void UpdatePlayerNameHint() =>
+        PlayerNameHint.Text = string.IsNullOrWhiteSpace(_settings.PlayerName)
+            ? $"Your squad will see \"{Environment.UserName}\", your Windows username."
+            : $"Your squad will see \"{Party.PartyProtocol.CleanName(_settings.PlayerName)}\".";
 
     private void UpdateArrivalRadiusLabel() =>
         ArrivalRadiusLabel.Text =

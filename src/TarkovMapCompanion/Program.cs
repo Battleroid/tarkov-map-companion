@@ -30,6 +30,13 @@ internal static class Program
         if (args.Length > 0 && args[0] is "--read-exits")
             return Tools.ReadExits.RunAsync(args[1..]).GetAwaiter().GetResult();
 
+        // Hosts or joins a position-sharing session from the console, to check whether this
+        // network can host at all.
+        //   TarkovMapCompanion --party-test [name]
+        //   TarkovMapCompanion --party-test join <code> [name]
+        if (args.Length > 0 && args[0] is "--party-test")
+            return Tools.PartyTest.RunAsync(args[1..]).GetAwaiter().GetResult();
+
         try
         {
             Log.Info($"starting {typeof(Program).Assembly.GetName().Version}");

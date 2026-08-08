@@ -4,6 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:maps="using:TarkovMapCompanion.Maps"
         xmlns:data="using:TarkovMapCompanion.Data"
+        xmlns:views="using:TarkovMapCompanion.Views"
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.MainWindow"
         x:DataType="maps:GameMap"
@@ -129,6 +130,56 @@
 
           <TextBlock Name="ExitHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Pick one to draw a guide line from the player." />
+
+          <!-- Squad position sharing. Collapsed to two buttons until a session is running. -->
+          <Border Margin="0,4,0,0" Padding="8"
+                  Background="{DynamicResource SurfaceRaisedBrush}"
+                  BorderBrush="{DynamicResource BorderSubtleBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource RadiusSmall}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="heading" Text="PARTY" />
+
+              <StackPanel Name="PartyIdlePanel" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Button Name="HostPartyButton" Content="Host session" FontSize="11" Padding="8,3" />
+                  <Button Name="JoinPartyButton" Content="Join" FontSize="11" Padding="8,3" />
+                </StackPanel>
+                <TextBox Name="JoinCodeBox" Watermark="Paste a session code" FontSize="11" />
+              </StackPanel>
+
+              <StackPanel Name="PartyActivePanel" Spacing="6" IsVisible="False">
+                <StackPanel Name="PartyCodePanel" Spacing="3">
+                  <TextBlock Classes="secondary" FontSize="11" Text="Share this code with your squad:" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <SelectableTextBlock Name="PartyCodeText" FontWeight="SemiBold" FontSize="13"
+                                         VerticalAlignment="Center" />
+                    <Button Name="CopyCodeButton" Content="Copy" FontSize="11" Padding="7,2" />
+                  </StackPanel>
+                </StackPanel>
+
+                <ItemsControl Name="PartyRoster">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="views:PartyRow">
+                      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,1">
+                        <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center"
+                                 Fill="{Binding Swatch}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="11"
+                                   Classes="secondary" VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Name="LeavePartyButton" Content="Stop session" FontSize="11" Padding="8,3"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+
+              <TextBlock Name="PartyHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                         Text="Shares only your own position, and only with people you give the code to." />
+            </StackPanel>
+          </Border>
         </StackPanel>
 
         <ListBox Grid.Row="1" Name="ExtractList" Margin="6,0,6,6"

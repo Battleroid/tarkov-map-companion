@@ -71,6 +71,22 @@ public static class MarkerPalette
 
     public static readonly SKColor WaypointLabel = new(0xFF, 0xFF, 0xFF);
 
+    // ---- Squad --------------------------------------------------------------
+
+    /// <summary>
+    /// One color per squad slot, assigned by position in the roster so a teammate keeps the same
+    /// color all raid. Chosen to avoid the player's yellow, the marker pink, and the extract
+    /// faction colors, so a teammate can never be mistaken for an exit.
+    /// </summary>
+    public static readonly SKColor[] PeerColors =
+    [
+        new(0x64, 0xB5, 0xF6),
+        new(0x81, 0xC7, 0x84),
+        new(0xBA, 0x68, 0xC8),
+        new(0x4D, 0xB6, 0xAC),
+        new(0xF0, 0x6E, 0x8C),
+    ];
+
     /// <summary>
     /// Dashed ring marking an exit with conditions attached. Deliberately a shape cue rather than
     /// only a color one, since the faction colors already use the hue channel.

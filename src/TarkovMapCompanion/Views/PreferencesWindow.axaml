@@ -90,6 +90,15 @@
           <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- Party -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="PARTY" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="The name your squad sees when you share positions. Local only: there are no accounts, and nothing checks it." />
+          <TextBox Name="PlayerNameBox" Watermark="Your name" MaxLength="16" />
+          <TextBlock Name="PlayerNameHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
         <!-- Route markers -->
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="ROUTE MARKERS" />

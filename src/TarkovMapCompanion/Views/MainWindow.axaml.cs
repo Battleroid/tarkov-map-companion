@@ -2,10 +2,12 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Maps;
+using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
 using TarkovMapCompanion.Settings;
@@ -28,6 +30,9 @@ public partial class MainWindow : Window
 
     /// <summary>Where the view was before extract-focus mode took it over.</summary>
     private Viewport.State? _viewBeforeFocus;
+
+    /// <summary>Ticks peer ages, which change with no event to hang off.</summary>
+    private DispatcherTimer? _partyClock;
 
     // Parameterless ctor exists only for the XAML previewer.
     public MainWindow() : this(new AppSettings())
@@ -146,6 +151,7 @@ public partial class MainWindow : Window
 
         BuildLayerToggles();
         BuildHeatmapControls();
+        WireParty();
 
         // Hover highlighting and click-to-select on the map itself.
         _canvas.PointerMovedOverMap += OnPointerMovedOverMap;
@@ -178,6 +184,12 @@ public partial class MainWindow : Window
         _session.PoisChanged += (_, _) => Post(() =>
         {
             RebuildExtractList();
+            _canvas.InvalidateVisual();
+        });
+
+        _session.Party.Changed += (_, _) => Post(() =>
+        {
+            UpdatePartyPanel();
             _canvas.InvalidateVisual();
         });
 
@@ -274,6 +286,138 @@ public partial class MainWindow : Window
         }
 
         PersistSettings();
+    }
+
+    // ---- Party --------------------------------------------------------------
+
+    private void WireParty()
+    {
+        HostPartyButton.Click += async (_, _) => await StartHostingAsync();
+        JoinPartyButton.Click += async (_, _) => await JoinPartyAsync();
+        LeavePartyButton.Click += (_, _) => _session.Party.Leave();
+
+        JoinCodeBox.KeyDown += async (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+                await JoinPartyAsync();
+        };
+
+        CopyCodeButton.Click += async (_, _) =>
+        {
+            if (_session.Party.Code is { } code && Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(code);
+                StatusText.Text = "Session code copied.";
+            }
+        };
+
+        // Ages have to tick on their own: a teammate who stops taking screenshots produces no
+        // events, and that is precisely when their marker most needs to be visibly going stale.
+        _partyClock = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
+        {
+            if (!_session.Party.IsActive)
+                return;
+
+            UpdatePartyPanel();
+            _canvas.InvalidateVisual();
+        });
+
+        _partyClock.Start();
+    }
+
+    private async Task StartHostingAsync()
+    {
+        HostPartyButton.IsEnabled = false;
+
+        try
+        {
+            await _session.Party.HostAsync(DisplayName());
+        }
+        finally
+        {
+            HostPartyButton.IsEnabled = true;
+        }
+    }
+
+    private async Task JoinPartyAsync()
+    {
+        var code = JoinCodeBox.Text;
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            StatusText.Text = "Paste the session code first.";
+            return;
+        }
+
+        JoinPartyButton.IsEnabled = false;
+
+        try
+        {
+            if (await _session.Party.JoinAsync(code, DisplayName()))
+                JoinCodeBox.Text = "";
+        }
+        finally
+        {
+            JoinPartyButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Falls back to the Windows username so nobody has to fill anything in first.</summary>
+    private string DisplayName() =>
+        string.IsNullOrWhiteSpace(_settings.PlayerName) ? Environment.UserName : _settings.PlayerName;
+
+    private void UpdatePartyPanel()
+    {
+        var party = _session.Party;
+        var active = party.IsActive;
+
+        PartyIdlePanel.IsVisible = !active;
+        PartyActivePanel.IsVisible = active;
+        PartyCodePanel.IsVisible = party.Code is not null;
+
+        if (party.Code is { } code)
+            PartyCodeText.Text = code;
+
+        LeavePartyButton.Content = party.State == PartyState.Hosting ? "Stop session" : "Leave session";
+
+        PartyRoster.ItemsSource = party.Peers.Select(BuildRow).ToArray();
+
+        PartyHint.Text = party.State switch
+        {
+            PartyState.Starting => "Opening a port...",
+            PartyState.Joining => "Connecting...",
+            PartyState.Hosting when party.Peers.Count <= 1 =>
+                "Waiting for your squad. They paste the code and press Join.",
+            PartyState.Hosting => "Others can still join with the same code.",
+            PartyState.Joined => "Connected. Your position goes out with each screenshot.",
+            _ => "Shares only your own position, and only with people you give the code to.",
+        };
+    }
+
+    private PartyRow BuildRow(PartyPeer peer)
+    {
+        var color = _session.Peers.ColorFor(peer.Name);
+
+        var detail = peer switch
+        {
+            { IsSelf: true } => "you",
+            { HasPosition: false } => "no position yet",
+
+            // Named rather than hidden. Knowing a teammate is on another map is useful; drawing
+            // them in this map's coordinates would not be.
+            var p when !string.Equals(p.Map, _session.CurrentMap.NormalizedName, StringComparison.OrdinalIgnoreCase)
+                => $"on {GameMap.ToDisplayName(p.Map)}",
+
+            var p when p.AgeSeconds < 20 => "now",
+            var p when p.AgeSeconds < 90 => $"{p.AgeSeconds:F0}s ago",
+            var p => $"{p.AgeSeconds / 60:F0}m ago",
+        };
+
+        var swatch = peer.IsSelf
+            ? new SolidColorBrush(Color.FromRgb(0xF5, 0xC9, 0x42))
+            : new SolidColorBrush(Color.FromRgb(color.Red, color.Green, color.Blue));
+
+        return new PartyRow(peer.Name, detail, swatch);
     }
 
     // ---- Route markers ------------------------------------------------------
@@ -723,6 +867,7 @@ public partial class MainWindow : Window
         _canvas.AddOverlay(_session.Pois);
         _canvas.AddOverlay(_session.Waypoints);
         _canvas.AddOverlay(_session.ExtractLine);
+        _canvas.AddOverlay(_session.Peers);
         _canvas.AddOverlay(_session.Player);
 
         try

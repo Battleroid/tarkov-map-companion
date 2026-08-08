@@ -1,6 +1,7 @@
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Maps;
+using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
 using TarkovMapCompanion.Settings;
@@ -63,6 +64,12 @@ public sealed class MapSession : IDisposable
             Arrival = settings.WaypointArrival,
         };
 
+        Peers = new PeerOverlay();
+        Party = new PartySession();
+
+        Party.Changed += (_, _) => Peers.SetPeers(Party.Peers);
+        Party.Status += (_, message) => Status?.Invoke(this, message);
+
         Player = new PlayerOverlay { TrailLength = settings.HistoryTrailLength };
 
         // Which exits a raid offers is decided when that raid starts, so a list read in the last
@@ -101,6 +108,12 @@ public sealed class MapSession : IDisposable
 
     /// <summary>The ordered route the player has drawn, if any.</summary>
     public WaypointOverlay Waypoints { get; }
+
+    /// <summary>Position sharing with a squad. Idle unless the user starts or joins a session.</summary>
+    public PartySession Party { get; }
+
+    /// <summary>The rest of the squad, drawn on the map.</summary>
+    public PeerOverlay Peers { get; }
 
     /// <summary>Raised when the route changes, whether by the user or by reaching a marker.</summary>
     public event EventHandler? WaypointsChanged;
@@ -325,6 +338,10 @@ public sealed class MapSession : IDisposable
         Waypoints.Map = map;
         ClearWaypoints();
 
+        // Peers stay in the roster across a map change; the overlay simply stops drawing the ones
+        // who are somewhere else.
+        Peers.Map = map;
+
         Player.Map = map;
         RebuildPois();
 
@@ -362,6 +379,10 @@ public sealed class MapSession : IDisposable
                 RefreshGuideTarget();
                 WaypointsChanged?.Invoke(this, EventArgs.Empty);
             }
+
+            // Only ever our own position, only when a session is running, and only what the
+            // screenshot already told us.
+            Party.Publish(CurrentMap.NormalizedName, fix.Position, fix.YawDegrees);
 
             FixApplied?.Invoke(this, fix);
 
@@ -544,6 +565,7 @@ public sealed class MapSession : IDisposable
 
         _watcher.FixDetected -= OnFixDetected;
         _watcher.Dispose();
+        Party.Dispose();
         _imageSource?.Dispose();
     }
 }

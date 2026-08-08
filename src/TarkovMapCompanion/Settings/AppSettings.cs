@@ -197,6 +197,12 @@ public sealed class AppSettings
 
     // ---- Appearance --------------------------------------------------------
 
+    /// <summary>
+    /// The name shown to the rest of the squad when sharing positions. Local only; it is never
+    /// checked against anything and there are no accounts.
+    /// </summary>
+    public string PlayerName { get; set; } = "";
+
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>
