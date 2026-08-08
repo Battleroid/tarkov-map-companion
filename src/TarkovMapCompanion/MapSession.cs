@@ -1,4 +1,5 @@
 using TarkovMapCompanion.Data;
+using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
@@ -241,17 +242,28 @@ public sealed class MapSession : IDisposable
 
     private void OnFixDetected(object? sender, PlayerFix fix)
     {
-        if (!CurrentMap.ContainsPosition(fix.Position))
-            SuggestMapFor(fix);
+        // This runs on the folder-watcher thread, where an unhandled exception takes the whole
+        // process down without a word. One screenshot the app cannot make sense of must not close
+        // the app in the middle of a raid, which is exactly when it is needed.
+        try
+        {
+            if (!CurrentMap.ContainsPosition(fix.Position))
+                SuggestMapFor(fix);
 
-        Player.Add(fix);
+            Player.Add(fix);
 
-        ExtractLine.PlayerPosition = fix.Position;
-        ExtractLine.PlayerYawDegrees = fix.YawDegrees;
+            ExtractLine.PlayerPosition = fix.Position;
+            ExtractLine.PlayerYawDegrees = fix.YawDegrees;
 
-        FixApplied?.Invoke(this, fix);
+            FixApplied?.Invoke(this, fix);
 
-        CullAfter(fix);
+            CullAfter(fix);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"failed to apply fix from {fix.FileName}", ex);
+            Status?.Invoke(this, $"Could not read {fix.FileName}; see {Log.Path}");
+        }
     }
 
     /// <summary>

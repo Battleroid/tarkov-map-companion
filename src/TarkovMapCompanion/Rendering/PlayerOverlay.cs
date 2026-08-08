@@ -15,6 +15,12 @@ public sealed class PlayerOverlay : IMapOverlay
 {
     private readonly List<PlayerFix> _history = [];
 
+    /// <summary>
+    /// Guards <see cref="_history"/> and <see cref="Current"/>, which are written by the folder
+    /// watcher thread and read by both the UI and render threads.
+    /// </summary>
+    private readonly object _gate = new();
+
     public int ZOrder => 1000;
 
     public bool IsVisible { get; set; } = true;
@@ -37,8 +43,19 @@ public sealed class PlayerOverlay : IMapOverlay
     /// </summary>
     public IReadOnlyCollection<string> ActiveFloors { get; set; } = [];
 
-    /// <summary>Fixes belonging to the raid in progress, oldest first.</summary>
-    public IReadOnlyList<PlayerFix> History => _history;
+    /// <summary>
+    /// Snapshot of the fixes in the raid in progress, oldest first.
+    /// </summary>
+    /// <remarks>
+    /// A copy, not the live list. Three threads touch this overlay -- the folder watcher adds
+    /// fixes, the UI thread reads them to update the status bar and exit list, and the render
+    /// thread walks them to draw the trail -- so handing out the backing list would let a caller
+    /// enumerate it while it is being modified.
+    /// </remarks>
+    public IReadOnlyList<PlayerFix> History
+    {
+        get { lock (_gate) return _history.ToArray(); }
+    }
 
     /// <summary>
     /// Longest a raid may run before a new fix is treated as a fresh one. Configurable because
@@ -47,32 +64,53 @@ public sealed class PlayerOverlay : IMapOverlay
     public TimeSpan MaxRaidLength { get; set; } = RaidSession.DefaultMaxRaidLength;
 
     /// <summary>Real time elapsed since the first fix of the current raid.</summary>
-    public TimeSpan RaidElapsed =>
-        Current is null ? TimeSpan.Zero : RaidSession.ElapsedIn(_history, Current);
+    public TimeSpan RaidElapsed
+    {
+        get
+        {
+            // Read the current fix and the first of its raid together. Taken separately, a new
+            // raid arriving in between empties the list after the null check and the lookup of
+            // the first entry throws.
+            lock (_gate)
+            {
+                return Current is null || _history.Count == 0
+                    ? TimeSpan.Zero
+                    : RaidSession.ElapsedIn(_history, Current);
+            }
+        }
+    }
 
     /// <summary>Raised when a fix starts a new raid, after the old trail has been dropped.</summary>
     public event EventHandler? RaidStarted;
 
     public void Add(PlayerFix fix)
     {
-        // A fix from a different raid must not be joined to the current trail: the line would run
-        // straight across the map between two unrelated positions.
-        if (_history.Count > 0 && !RaidSession.IsSameRaid(_history[^1], fix, MaxRaidLength))
+        bool newRaid;
+
+        lock (_gate)
         {
-            _history.Clear();
-            RaidStarted?.Invoke(this, EventArgs.Empty);
+            // A fix from a different raid must not be joined to the current trail: the line would
+            // run straight across the map between two unrelated positions.
+            newRaid = _history.Count > 0 && !RaidSession.IsSameRaid(_history[^1], fix, MaxRaidLength);
+            if (newRaid)
+                _history.Clear();
+
+            Current = fix;
+            _history.Add(fix);
+
+            ExpireOlderThanARaid(fix);
+
+            // A raid cannot produce an unbounded number of screenshots, but cap anyway so a stuck
+            // watcher cannot grow this without limit.
+            const int cap = 512;
+            if (_history.Count > cap)
+                _history.RemoveRange(0, _history.Count - cap);
         }
 
-        Current = fix;
-        _history.Add(fix);
-
-        ExpireOlderThanARaid(fix);
-
-        // A raid cannot produce an unbounded number of screenshots, but cap anyway so a stuck
-        // watcher cannot grow this without limit.
-        const int cap = 512;
-        if (_history.Count > cap)
-            _history.RemoveRange(0, _history.Count - cap);
+        // Raised outside the lock: a handler that touches this overlay would otherwise deadlock
+        // or re-enter mid-mutation.
+        if (newRaid)
+            RaidStarted?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -95,28 +133,41 @@ public sealed class PlayerOverlay : IMapOverlay
 
     public void Clear()
     {
-        _history.Clear();
-        Current = null;
+        lock (_gate)
+        {
+            _history.Clear();
+            Current = null;
+        }
     }
 
     public void Draw(SKCanvas canvas, Viewport viewport)
     {
         var map = Map;
-        if (map is null || Current is null)
+        if (map is null)
             return;
 
-        DrawTrail(canvas, viewport, map);
-        DrawPlayer(canvas, viewport, map, Current);
+        // Take the current fix and the trail in one go, so the frame draws a consistent state
+        // even if a screenshot lands mid-render.
+        PlayerFix? current;
+        PlayerFix[] trail;
+
+        lock (_gate)
+        {
+            current = Current;
+            if (current is null)
+                return;
+
+            var start = TrailLength <= 0 ? _history.Count : Math.Max(0, _history.Count - TrailLength - 1);
+            trail = _history.Skip(start).ToArray();
+        }
+
+        DrawTrail(canvas, viewport, map, trail);
+        DrawPlayer(canvas, viewport, map, current);
     }
 
-    private void DrawTrail(SKCanvas canvas, Viewport viewport, GameMap map)
+    private void DrawTrail(SKCanvas canvas, Viewport viewport, GameMap map, PlayerFix[] points)
     {
-        if (TrailLength <= 0 || _history.Count < 2)
-            return;
-
-        var start = Math.Max(0, _history.Count - TrailLength - 1);
-        var points = _history.Skip(start).ToArray();
-        if (points.Length < 2)
+        if (TrailLength <= 0 || points.Length < 2)
             return;
 
         using var paint = new SKPaint

@@ -3,6 +3,7 @@ using Avalonia.Data;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
+using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
@@ -142,20 +143,42 @@ public partial class MainWindow : Window
 
     private void WireSession()
     {
-        _session.Status += (_, message) => Dispatcher.UIThread.Post(() => StatusText.Text = message);
+        _session.Status += (_, message) => Post(() => StatusText.Text = message);
 
-        _session.Player.RaidStarted += (_, _) => Dispatcher.UIThread.Post(() =>
+        _session.Player.RaidStarted += (_, _) => Post(() =>
             StatusText.Text = "New raid detected; cleared the previous trail.");
-        _session.FixApplied += (_, fix) => Dispatcher.UIThread.Post(() => OnFixApplied(fix));
-        _session.MapChanged += (_, map) => Dispatcher.UIThread.Post(() => OnMapChanged(map));
-        _session.MapSuggested += (_, map) => Dispatcher.UIThread.Post(() => ShowSuggestion(map));
+        _session.FixApplied += (_, fix) => Post(() => OnFixApplied(fix));
+        _session.MapChanged += (_, map) => Post(() => OnMapChanged(map));
+        _session.MapSuggested += (_, map) => Post(() => ShowSuggestion(map));
 
-        _session.PoisChanged += (_, _) => Dispatcher.UIThread.Post(() =>
+        _session.PoisChanged += (_, _) => Post(() =>
         {
             RebuildExtractList();
             _canvas.InvalidateVisual();
         });
     }
+
+    /// <summary>
+    /// Marshals to the UI thread and contains anything that throws there.
+    /// </summary>
+    /// <remarks>
+    /// These callbacks all originate on the folder-watcher thread. An exception escaping a posted
+    /// action reaches the dispatcher loop and closes the window with no message, which from the
+    /// outside looks like "I took a screenshot and the app vanished". Failing one update is
+    /// recoverable; losing the app mid-raid is not.
+    /// </remarks>
+    private void Post(Action action) => Dispatcher.UIThread.Post(() =>
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("UI update failed", ex);
+            StatusText.Text = $"Something went wrong updating the view; see {Log.Path}";
+        }
+    });
 
     private async Task ShowPreferencesAsync()
     {

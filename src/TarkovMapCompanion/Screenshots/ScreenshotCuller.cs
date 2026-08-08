@@ -84,19 +84,28 @@ public sealed class ScreenshotCuller(AppSettings settings)
     }
 
     /// <summary>Screenshot files directly inside <paramref name="folder"/>, never recursively.</summary>
-    public static IEnumerable<string> EnumerateScreenshots(string folder)
+    /// <remarks>
+    /// Materialized rather than returned lazily. <see cref="Directory.EnumerateFiles(string)"/>
+    /// does its work as the caller iterates, so a try/catch around the call itself catches
+    /// nothing: the failure surfaces later, in whichever thread happens to be enumerating. That
+    /// thread is the reconcile timer, where an escaping exception ends the process. Enumerating
+    /// here means the catch actually covers the IO.
+    /// </remarks>
+    public static IReadOnlyList<string> EnumerateScreenshots(string folder)
     {
-        IEnumerable<string> entries;
         try
         {
-            entries = Directory.EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly);
+            return Directory
+                .EnumerateFiles(folder, "*", SearchOption.TopDirectoryOnly)
+                .Where(ScreenshotNameParser.IsScreenshotFileName)
+                .ToArray();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
+            // The folder can vanish or be locked while the game is writing into it.
+            Diagnostics.Log.Warn($"could not list {folder}: {ex.Message}");
             return [];
         }
-
-        return entries.Where(ScreenshotNameParser.IsScreenshotFileName);
     }
 
     private CullResult Delete(string folder, string path)

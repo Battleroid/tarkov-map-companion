@@ -149,15 +149,23 @@ public sealed class ScreenshotWatcher : IDisposable
     /// </summary>
     public void Reconcile()
     {
-        string? folder;
-        lock (_gate)
-            folder = _folder;
+        // Also a timer callback, with the same fatal-if-it-escapes property as the watcher event.
+        try
+        {
+            string? folder;
+            lock (_gate)
+                folder = _folder;
 
-        if (folder is null || !Directory.Exists(folder))
-            return;
+            if (folder is null || !Directory.Exists(folder))
+                return;
 
-        foreach (var fix in ReadFolder(folder))
-            Report(fix);
+            foreach (var fix in ReadFolder(folder))
+                Report(fix);
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Log.Error("watcher: reconcile sweep failed", ex);
+        }
     }
 
     /// <summary>All parseable screenshots currently in a folder, oldest first.</summary>
@@ -178,8 +186,19 @@ public sealed class ScreenshotWatcher : IDisposable
 
     private void OnFileEvent(object sender, FileSystemEventArgs e)
     {
-        if (ScreenshotNameParser.TryParse(e.FullPath, out var fix))
-            Report(fix);
+        // FileSystemWatcher raises this on its own thread, where an escaping exception terminates
+        // the process rather than surfacing anywhere. Contain it here so the watcher survives a
+        // single bad file.
+        try
+        {
+            if (ScreenshotNameParser.TryParse(e.FullPath, out var fix))
+                Report(fix);
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Log.Error($"watcher: failed to handle {e.FullPath}", ex);
+            Error?.Invoke(this, $"Could not handle {Path.GetFileName(e.FullPath)}: {ex.Message}");
+        }
     }
 
     private void OnWatcherError(object sender, ErrorEventArgs e)
