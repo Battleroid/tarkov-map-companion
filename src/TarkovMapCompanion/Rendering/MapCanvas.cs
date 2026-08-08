@@ -61,8 +61,15 @@ public sealed class MapCanvas : Control
 
     public GameMap? Map => _map;
 
-    /// <summary>Floors the user has switched on, by name. The base level is always drawn.</summary>
+    /// <summary>Floors the user has switched on, by name.</summary>
     public HashSet<string> ActiveFloors { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether the ground level is drawn. Off is what lets you actually see an underground floor:
+    /// the map artwork stacks floors as opaque geometry, so Factory's Tunnels sit invisibly
+    /// beneath the ground floor until it is hidden.
+    /// </summary>
+    public bool ShowBaseLayer { get; set; } = true;
 
     /// <summary>Raised after a user gesture changes the view, so focus modes can disengage.</summary>
     public event EventHandler? UserInteracted;
@@ -257,6 +264,7 @@ public sealed class MapCanvas : Control
             _imageSource,
             Viewport,
             ActiveFloors.ToArray(),
+            ShowBaseLayer,
             _overlays.ToArray()));
     }
 
@@ -272,6 +280,7 @@ public sealed class MapCanvas : Control
         IMapImageSource imageSource,
         Viewport viewport,
         IReadOnlyCollection<string> activeFloors,
+        bool showBaseLayer,
         IReadOnlyList<IMapOverlay> overlays) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
@@ -296,7 +305,7 @@ public sealed class MapCanvas : Control
             {
                 canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
 
-                imageSource.Draw(canvas, viewport, activeFloors);
+                imageSource.Draw(canvas, viewport, activeFloors, showBaseLayer);
 
                 foreach (var overlay in overlays)
                 {

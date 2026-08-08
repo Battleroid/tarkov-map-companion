@@ -24,10 +24,16 @@ public interface IMapImageSource : IDisposable
     /// Draws the map into the current clip. The canvas is in screen space; use
     /// <paramref name="viewport"/> to place base-space geometry.
     /// </summary>
-    /// <param name="activeFloorNames">
-    /// Floors the user has switched on, by <c>MapFloor.Name</c>. The base level is always drawn.
+    /// <param name="activeFloorNames">Floors the user has switched on, by <c>MapFloor.Name</c>.</param>
+    /// <param name="includeBase">
+    /// Whether to draw the ground level. Turning it off is what makes an underground floor
+    /// visible, since the artwork stacks floors as opaque geometry.
     /// </param>
-    void Draw(SKCanvas canvas, Viewport viewport, IReadOnlyCollection<string> activeFloorNames);
+    void Draw(
+        SKCanvas canvas,
+        Viewport viewport,
+        IReadOnlyCollection<string> activeFloorNames,
+        bool includeBase = true);
 
     /// <summary>Raised when previously unavailable imagery has arrived and a repaint is worthwhile.</summary>
     event EventHandler? Invalidated;

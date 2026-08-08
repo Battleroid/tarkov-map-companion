@@ -109,6 +109,13 @@ public partial class MainWindow : Window
             ApplyExitFilter();
         });
 
+        SortByDistanceToggle.IsChecked = _settings.SortExitsByDistance;
+        SortByDistanceToggle.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.SortExitsByDistance = SortByDistanceToggle.IsChecked ?? false;
+            RebuildExtractList();
+        });
+
         ExtractList.SelectionChanged += OnExtractSelectionChanged;
         ClearSelection.Click += (_, _) => ExtractList.SelectedItem = null;
 
@@ -371,10 +378,23 @@ public partial class MainWindow : Window
     {
         var all = _session.Pois.Extracts.ToArray();
 
-        var exits = all
-            .Where(p => _settings.ExitFilter.Includes(p.Kind))
-            .OrderBy(p => p.Kind)
-            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+        // Distances are shown whether or not we sort by them; knowing an exit is 40 m away is
+        // useful even in the faction-grouped order.
+        var player = _session.Player.Current?.Position;
+        foreach (var poi in all)
+            poi.DistanceMeters = player?.GroundDistanceTo(poi.Position);
+
+        var visible = all.Where(p => _settings.ExitFilter.Includes(p.Kind));
+
+        // Sorting by distance is meaningless until a screenshot has placed the player, so fall
+        // back to the stable ordering rather than showing an arbitrary one.
+        var sortByDistance = _settings.SortExitsByDistance && player is not null;
+
+        var exits = (sortByDistance
+                ? visible.OrderBy(p => p.DistanceMeters ?? double.MaxValue)
+                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                : visible.OrderBy(p => p.Kind)
+                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
         // Keep a selection the filter would otherwise hide, so choosing "Running as PMC" while
@@ -549,6 +569,8 @@ public partial class MainWindow : Window
         if (_session.ImageSource is { } source)
             _canvas.SetMap(map, source);
 
+        _canvas.ShowBaseLayer = _settings.ShowBaseLayer;
+
         _session.Player.ActiveFloors = _canvas.ActiveFloors;
 
         BuildFloorList(map);
@@ -568,9 +590,24 @@ public partial class MainWindow : Window
         if (map.Floors.Count == 0)
             return;
 
-        // The base level is implicit and always drawn; show it so the list reads as a complete
-        // set rather than starting at "2nd Floor" with no explanation.
-        var ground = new CheckBox { Content = "Ground", IsChecked = true, IsEnabled = false };
+        // Ground is toggleable, not decorative. The artwork stacks floors as opaque geometry, so
+        // an underground level is completely hidden behind the ground floor until this is off --
+        // Factory's Tunnels being the obvious case.
+        var ground = new CheckBox
+        {
+            Content = "Ground",
+            IsChecked = _canvas.ShowBaseLayer,
+            [ToolTip.TipProperty] = "Turn off to see a level underneath the ground floor",
+        };
+
+        ground.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _canvas.ShowBaseLayer = ground.IsChecked ?? false;
+            _settings.ShowBaseLayer = _canvas.ShowBaseLayer;
+            UpdateFloorHint();
+            _canvas.InvalidateVisual();
+        });
+
         FloorList.Children.Add(ground);
 
         foreach (var floor in map.Floors)
@@ -590,11 +627,26 @@ public partial class MainWindow : Window
                     _canvas.ActiveFloors.Remove(name);
 
                 _session.Player.ActiveFloors = _canvas.ActiveFloors;
+                UpdateFloorHint();
                 _canvas.InvalidateVisual();
             };
 
             FloorList.Children.Add(toggle);
         }
+
+        UpdateFloorHint();
+    }
+
+    /// <summary>
+    /// Warns when every level is switched off, which draws an empty map. That is a legitimate
+    /// state to pass through while switching floors, so it is a hint rather than a refusal.
+    /// </summary>
+    private void UpdateFloorHint()
+    {
+        var nothingShown = !_canvas.ShowBaseLayer && _canvas.ActiveFloors.Count == 0;
+
+        FloorHint.IsVisible = nothingShown;
+        FloorHint.Text = nothingShown ? "All levels are off, so the map is blank." : "";
     }
 
     // ---- Fixes ------------------------------------------------------------
@@ -609,6 +661,10 @@ public partial class MainWindow : Window
             $"+{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
 
         UpdateExtractDetail();
+
+        // Distances in the list are relative to the player, so a new fix changes all of them --
+        // and reorders the list entirely when sorting by distance.
+        RebuildExtractList();
 
         // Focus mode owns the view when it is on, so following would fight it.
         if (FocusToggle.IsChecked.GetValueOrDefault() && _session.SelectedExtract is not null)

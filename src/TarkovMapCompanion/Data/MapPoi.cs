@@ -95,6 +95,20 @@ public sealed class MapPoi
     /// <summary>Usable once per raid, so a squad cannot all follow you out.</summary>
     public bool IsSingleUse { get; init; }
 
+    /// <summary>
+    /// Ground distance from the last known player position, in meters, or null before the first
+    /// screenshot places you.
+    /// </summary>
+    /// <remarks>
+    /// Mutable and settable, unlike the rest of this type, because it changes on every fix while
+    /// the POI itself does not. The exit list is rebuilt whenever it changes, so no change
+    /// notification is needed.
+    /// </remarks>
+    public double? DistanceMeters { get; set; }
+
+    /// <summary>Distance formatted for the list, or empty when the player has not been placed.</summary>
+    public string DistanceLabel => DistanceMeters is { } d ? $"{d:F0} m" : "";
+
     public bool IsExtract => Kind is PoiKind.ExtractPmc or PoiKind.ExtractScav or PoiKind.ExtractShared;
 
     /// <summary>Extracts usable by both factions, which is how co-op extracts are modeled.</summary>

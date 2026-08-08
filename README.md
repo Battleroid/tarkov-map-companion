@@ -50,11 +50,12 @@ and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and t
 and the exit together, tightening as you close in so the screen only shows what matters. Turning it
 off puts your previous view back exactly as it was.
 
-**Exit filter.** "Running as PMC" hides the Scav-only exits you cannot use — on Customs that is 16
-of 31 gone.
+**Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use — on
+Customs that is 16 of 31 gone. **Nearest first** reorders the list by distance from your last known
+position, and every exit shows its distance either way.
 
 **Spawn heatmap.** Where PMCs, Scavs, AI PMCs and bosses can start. The radius is set in game
-metres, so zooming changes how much you see rather than what the data says, and each band is scaled
+meters, so zooming changes how much you see rather than what the data says, and each band is scaled
 against its own peak so a sparse group stays visible next to a dense one.
 
 **Other layers.** Loot containers, hazards, locked doors, switches, mounted guns, BTR stops, boss
@@ -65,8 +66,11 @@ screenshots, or removes each one after reading it. Deleted files go to the Recyc
 outside the watched folder, and never anything that does not match Tarkov's own screenshot naming.
 
 **All 13 maps.** Customs, Factory, Ground Zero, Icebreaker, Interchange, The Lab, The Labyrinth,
-Lighthouse, Reserve, Shoreline, Streets of Tarkov, Terminal, Woods — with floor switching where a
-map has floors.
+Lighthouse, Reserve, Shoreline, Streets of Tarkov, Terminal, Woods.
+
+**Floor switching, including the ground floor.** The map artwork stacks floors as opaque geometry,
+so an underground level is hidden behind the ground floor. Turning **Ground** off is what reveals
+it — Factory's Tunnels being the obvious case.
 
 ## First run
 
@@ -81,7 +85,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 201 tests
+dotnet test              # 211 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -95,7 +99,7 @@ scripts\publish.ps1
 
 | Command | What it does |
 | --- | --- |
-| `--render-test <map> [out.png] [w] [h]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. |
+| `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
 

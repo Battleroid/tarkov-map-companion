@@ -35,14 +35,26 @@ public static class SvgLayerFilter
     }
 
     /// <summary>
-    /// Returns the SVG with only <paramref name="baseLayerId"/>, anything pinned to it, and the
-    /// groups named in <paramref name="extraLayerIds"/> retained.
+    /// Returns the SVG with only the requested floor groups retained.
     /// </summary>
+    /// <param name="svgText">The full map document.</param>
+    /// <param name="baseLayerId">The ground-level group id, e.g. <c>Ground_Floor</c>.</param>
+    /// <param name="extraLayerIds">Additional floor group ids to show.</param>
+    /// <param name="includeBase">
+    /// Whether to draw the ground level. Turning it off is the only way to actually see a level
+    /// below it: these documents stack floors as opaque geometry, so Factory's Tunnels group
+    /// renders underneath the ground floor and is invisible until the ground floor is dropped.
+    /// </param>
     /// <remarks>
-    /// If the document has no recognisable floor groups, or the base id is not found, the original
-    /// text is returned untouched: showing the whole map beats showing nothing.
+    /// If the document has no recognizable floor groups, or nothing was asked for that exists,
+    /// the original text is returned untouched: showing the whole map beats showing nothing.
+    /// Hiding the base deliberately is <em>not</em> that case, and is honored.
     /// </remarks>
-    public static string Filter(string svgText, string? baseLayerId, IReadOnlyCollection<string> extraLayerIds)
+    public static string Filter(
+        string svgText,
+        string? baseLayerId,
+        IReadOnlyCollection<string> extraLayerIds,
+        bool includeBase = true)
     {
         var root = Parse(svgText);
         if (root is null)
@@ -54,7 +66,7 @@ public static class SvgLayerFilter
 
         var keep = new HashSet<string>(StringComparer.Ordinal);
 
-        if (!string.IsNullOrEmpty(baseLayerId))
+        if (includeBase && !string.IsNullOrEmpty(baseLayerId))
         {
             keep.Add(baseLayerId);
 
@@ -73,8 +85,12 @@ public static class SvgLayerFilter
         foreach (var id in extraLayerIds)
             keep.Add(id);
 
-        // Nothing recognised: better to draw the whole document than an empty one.
-        if (!groups.Any(g => keep.Contains(g.Attribute("id")!.Value)))
+        var anyKept = groups.Any(g => keep.Contains(g.Attribute("id")!.Value));
+
+        // Nothing recognized at all: fall back to the whole document rather than a blank map.
+        // But if the caller deliberately dropped the base and asked for nothing else, an empty
+        // map is the honest answer -- silently redrawing the ground floor would ignore them.
+        if (!anyKept && includeBase)
             return svgText;
 
         foreach (var group in groups)

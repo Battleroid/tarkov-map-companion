@@ -97,6 +97,15 @@ public sealed class AppSettings
     /// <summary>Which exits are worth showing for the run you are on.</summary>
     public ExitFilter ExitFilter { get; set; } = ExitFilter.All;
 
+    /// <summary>
+    /// Order the exit list by distance from the player rather than by faction and name.
+    /// Only has an effect once a screenshot has placed you.
+    /// </summary>
+    public bool SortExitsByDistance { get; set; }
+
+    /// <summary>Whether the map's ground level is drawn. Off reveals an underground floor.</summary>
+    public bool ShowBaseLayer { get; set; } = true;
+
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }

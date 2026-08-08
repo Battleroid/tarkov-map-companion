@@ -85,6 +85,8 @@
       <StackPanel Spacing="6">
         <TextBlock Classes="heading" Text="LEVELS" />
         <StackPanel Name="FloorList" Spacing="2" />
+        <TextBlock Name="FloorHint" IsVisible="False" FontSize="11" TextWrapping="Wrap"
+                   Foreground="{DynamicResource WarningBrush}" />
       </StackPanel>
     </Border>
 
@@ -100,6 +102,8 @@
           <TextBlock Classes="heading" Text="EXITS" />
           <ComboBox Name="ExitFilterBox" HorizontalAlignment="Stretch"
                     ToolTip.Tip="Hide exits your faction cannot use" />
+          <CheckBox Name="SortByDistanceToggle" Content="Nearest first" FontSize="12"
+                    ToolTip.Tip="Order the list by distance from your last known position" />
           <TextBlock Name="ExitHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Pick one to draw a guide line from the player." />
         </StackPanel>
@@ -108,10 +112,13 @@
                  Background="Transparent" BorderThickness="0">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="data:MapPoi">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                 <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{Binding DistanceLabel}"
+                           Classes="secondary" FontSize="11"
+                           VerticalAlignment="Center" />
                 <!-- A conditional exit is flagged in the list, not only once you click it. -->
-                <TextBlock Grid.Column="1" Text="!"
+                <TextBlock Grid.Column="2" Text="!"
                            IsVisible="{Binding IsConditional}"
                            FontWeight="Bold"
                            VerticalAlignment="Center"

@@ -25,6 +25,18 @@ public static class RenderTest
         var width = args.Length > 2 && int.TryParse(args[2], out var w) ? w : 1600;
         var height = args.Length > 3 && int.TryParse(args[3], out var h) ? h : 1100;
 
+        // Optional 5th arg: comma-separated floor names to switch on, e.g. "Tunnels".
+        // Flags, position-independent:
+        //   nobase  hide the ground level, the only way to see a floor underneath it
+        //   bare    imagery only, no markers or heatmap, for comparing layers cleanly
+        var flags = args.Select(a => a.ToLowerInvariant()).ToHashSet();
+        var includeBase = !flags.Contains("nobase");
+        var bare = flags.Contains("bare");
+
+        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare")
+            ? args[4].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            : [];
+
         var catalog = MapCatalog.LoadEmbedded();
         var map = catalog.Find(mapName);
 
@@ -34,6 +46,15 @@ public static class RenderTest
             foreach (var candidate in catalog.Maps)
                 Console.Error.WriteLine($"  {candidate.NormalizedName}");
             return 2;
+        }
+
+        if (map.Floors.Count > 0)
+            Console.WriteLine($"floors     {string.Join(", ", map.Floors.Select(f => f.Name))}");
+
+        foreach (var requested in floors)
+        {
+            if (!map.Floors.Any(f => f.Name.Equals(requested, StringComparison.OrdinalIgnoreCase)))
+                Console.Error.WriteLine($"warning: '{requested}' is not a floor on this map");
         }
 
         Console.WriteLine($"map        {map.DisplayName} ({map.NormalizedName})");
@@ -49,6 +70,7 @@ public static class RenderTest
             : new TileMapSource(map, assets);
 
         Console.WriteLine($"renderer   {source.Name}");
+        Console.WriteLine($"showing    ground={includeBase}, floors=[{string.Join(", ", floors)}]");
 
         var stopwatch = Stopwatch.StartNew();
         await source.LoadAsync().ConfigureAwait(false);
@@ -71,7 +93,7 @@ public static class RenderTest
             using var warmup = SKSurface.Create(new SKImageInfo(width, height));
             for (var attempt = 0; attempt < 24 && warmup is not null; attempt++)
             {
-                source.Draw(warmup.Canvas, viewport, []);
+                source.Draw(warmup.Canvas, viewport, floors, includeBase);
                 await Task.Delay(200).ConfigureAwait(false);
             }
             Console.WriteLine("tiles      warmed");
@@ -162,6 +184,14 @@ public static class RenderTest
             overlays.Add(new DebugBoundsOverlay(map));
         }
 
+        // Bare mode keeps the imagery and drops everything drawn on top, which is what you want
+        // when comparing two floor selections against each other.
+        if (bare)
+        {
+            overlays.Clear();
+            Console.WriteLine("overlays   none (bare)");
+        }
+
         stopwatch.Restart();
 
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -175,7 +205,7 @@ public static class RenderTest
         var canvas = surface.Canvas;
         canvas.Clear(new SKColor(0x12, 0x15, 0x1A));
 
-        source.Draw(canvas, viewport, []);
+        source.Draw(canvas, viewport, floors, includeBase);
         foreach (var overlay in overlays)
             overlay.Draw(canvas, viewport);
 
@@ -188,7 +218,7 @@ public static class RenderTest
         const int frames = 30;
         for (var i = 0; i < frames; i++)
         {
-            source.Draw(canvas, viewport, []);
+            source.Draw(canvas, viewport, floors, includeBase);
             foreach (var overlay in overlays)
                 overlay.Draw(canvas, viewport);
         }

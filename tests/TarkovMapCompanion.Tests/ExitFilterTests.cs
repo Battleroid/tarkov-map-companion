@@ -66,6 +66,52 @@ public sealed class ExitFilterTests
         Assert.True(asPmc.Length < exits.Length);
     }
 
+    // ---- Sorting by distance ------------------------------------------------
+
+    [Fact]
+    public void SortingByDistance_OrdersExitsNearestFirst()
+    {
+        var catalog = MapCatalog.LoadEmbedded();
+        var store = new MapDataStore(
+            new AppSettings { AllowNetwork = false },
+            cacheDirectory: Path.Combine(Path.GetTempPath(), "tmc-tests-nocache", Guid.NewGuid().ToString("N")));
+        store.LoadLocal();
+
+        var map = catalog.Find("customs")!;
+        var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store);
+        var exits = pois.Where(p => p.IsExtract).ToArray();
+
+        // Stand at Dorms and rank the exits from there.
+        var player = new GamePosition(200, 0, 150);
+        foreach (var exit in exits)
+            exit.DistanceMeters = player.GroundDistanceTo(exit.Position);
+
+        var ordered = exits.OrderBy(e => e.DistanceMeters ?? double.MaxValue).ToArray();
+
+        // Monotonically increasing, and the nearest really is the nearest.
+        for (var i = 1; i < ordered.Length; i++)
+            Assert.True(ordered[i].DistanceMeters >= ordered[i - 1].DistanceMeters);
+
+        Assert.Equal(exits.Min(e => e.DistanceMeters), ordered[0].DistanceMeters);
+    }
+
+    [Fact]
+    public void DistanceLabel_IsEmptyUntilThePlayerHasBeenPlaced()
+    {
+        var poi = new MapPoi
+        {
+            Kind = PoiKind.ExtractPmc,
+            Name = "Exit",
+            Position = new GamePosition(0, 0, 0),
+            Base = new MapPoint(0, 0),
+        };
+
+        Assert.Equal("", poi.DistanceLabel);
+
+        poi.DistanceMeters = 348.4;
+        Assert.Equal("348 m", poi.DistanceLabel);
+    }
+
     // ---- Focus mode view restore --------------------------------------------
 
     [Fact]

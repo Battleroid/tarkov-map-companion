@@ -59,9 +59,13 @@ public sealed class TileMapSource : IMapImageSource
 
     public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public void Draw(SKCanvas canvas, Viewport viewport, IReadOnlyCollection<string> activeFloorNames)
+    public void Draw(
+        SKCanvas canvas,
+        Viewport viewport,
+        IReadOnlyCollection<string> activeFloorNames,
+        bool includeBase = true)
     {
-        var template = ResolveTemplate(activeFloorNames);
+        var template = ResolveTemplate(activeFloorNames, includeBase);
         if (template is null)
             return;
 
@@ -184,7 +188,13 @@ public sealed class TileMapSource : IMapImageSource
     /// The tile set to draw. A selected floor with its own pyramid replaces the base imagery,
     /// matching how tarkov.dev swaps rather than stacks raster floors.
     /// </summary>
-    private string? ResolveTemplate(IReadOnlyCollection<string> activeFloorNames)
+    /// <remarks>
+    /// Because raster floors swap, hiding the base is already implicit once a floor is selected.
+    /// The flag still matters for the case where the base is hidden and no floor is selected:
+    /// then there is genuinely nothing to draw, and drawing the ground anyway would ignore the
+    /// user and make the checkbox look broken.
+    /// </remarks>
+    private string? ResolveTemplate(IReadOnlyCollection<string> activeFloorNames, bool includeBase)
     {
         foreach (var floor in _map.Floors)
         {
@@ -192,7 +202,7 @@ public sealed class TileMapSource : IMapImageSource
                 return floor.TilePathTemplate;
         }
 
-        return _map.BaseTilePathTemplate;
+        return includeBase ? _map.BaseTilePathTemplate : null;
     }
 
     private void QueueFetch(TileKey key)

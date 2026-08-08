@@ -81,9 +81,13 @@ public sealed class SvgMapSource : IMapImageSource
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
-    public void Draw(SKCanvas canvas, Viewport viewport, IReadOnlyCollection<string> activeFloorNames)
+    public void Draw(
+        SKCanvas canvas,
+        Viewport viewport,
+        IReadOnlyCollection<string> activeFloorNames,
+        bool includeBase = true)
     {
-        var layerKey = BuildLayerKey(activeFloorNames);
+        var layerKey = BuildLayerKey(activeFloorNames, includeBase);
 
         var picture = GetPicture(layerKey);
         if (picture is null)
@@ -123,18 +127,17 @@ public sealed class SvgMapSource : IMapImageSource
     /// Floor ids that should be present in the document, as a stable cache key. Named floors
     /// without an SVG group (tile-only floors, e.g. Customs' 4th) simply contribute nothing.
     /// </summary>
-    private string BuildLayerKey(IReadOnlyCollection<string> activeFloorNames)
+    private string BuildLayerKey(IReadOnlyCollection<string> activeFloorNames, bool includeBase)
     {
-        if (activeFloorNames.Count == 0)
-            return "";
-
         var ids = _map.Floors
             .Where(floor => activeFloorNames.Contains(floor.Name) && floor.SvgLayerId is not null)
             .Select(floor => floor.SvgLayerId!)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
 
-        return string.Join('|', ids);
+        // The base flag is part of the key: the same set of floors looks different with the
+        // ground floor under it, so the two must not share a cached picture.
+        return (includeBase ? "base|" : "nobase|") + string.Join('|', ids);
     }
 
     private SKPicture? GetPicture(string layerKey)
@@ -152,14 +155,15 @@ public sealed class SvgMapSource : IMapImageSource
         lock (_gate)
             text = _svgText!;
 
-        var extras = layerKey.Length == 0
-            ? Array.Empty<string>()
-            : layerKey.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        // Key format is "<base|nobase>|<layer ids...>"; see BuildLayerKey.
+        var parts = layerKey.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        var includeBase = parts.Length == 0 || parts[0] != "nobase";
+        var extras = parts.Skip(1).ToArray();
 
         SKPicture? picture = null;
         try
         {
-            var filtered = SvgLayerFilter.Filter(text, _map.BaseSvgLayerId, extras);
+            var filtered = SvgLayerFilter.Filter(text, _map.BaseSvgLayerId, extras, includeBase);
 
             var svg = new SKSvg();
             picture = svg.FromSvg(filtered);
