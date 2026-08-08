@@ -378,6 +378,139 @@ public sealed class PartySessionTests
     }
 
     [Fact]
+    public async Task EndingASessionClearsEveryPeer()
+    {
+        using var host = new PartySession();
+        using var guest = new PartySession();
+
+        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await guest.JoinAsync(host.Code!, "Guest");
+
+        await Eventually(() => guest.Peers.Count == 2);
+
+        host.Publish("customs", At(10, 20), 0);
+        guest.Publish("customs", At(30, 40), 0);
+
+        await Eventually(() => host.Peers.Count(p => p.HasPosition) == 2);
+
+        host.Leave();
+        Assert.Empty(host.Peers);
+
+        // And the guest's copy goes too, once it notices the host has gone.
+        Assert.True(await Eventually(() => guest.Peers.Count == 0), "the guest kept a roster of a dead session");
+    }
+
+    [Fact]
+    public async Task AnUpdateBelongingToAnEndedSessionIsDiscarded()
+    {
+        // The bug this prevents: a frame that arrived just before the socket was torn down finishes
+        // being applied just after the roster was emptied, and nothing ever removes that peer
+        // again -- their marker sits on the map until the app is restarted.
+        //
+        // Driven directly rather than by timing. The real window is microseconds wide, so a test
+        // that raced for it would pass whether or not the guard existed, which is worse than no
+        // test at all.
+        using var session = new PartySession();
+
+        await session.HostAsync("Host", CancellationToken.None, useRouter: false);
+
+        var stale = session.CurrentGeneration;
+        session.Leave();
+
+        session.ApplyRoster(
+            [new PeerPosition { Name = "Ghost", Map = "customs", X = 1, Z = 2, AgeSeconds = 0 }],
+            stale);
+
+        Assert.Empty(session.Peers);
+
+        // And an update from the session that is actually current still lands.
+        await session.HostAsync("Host", CancellationToken.None, useRouter: false);
+
+        session.ApplyRoster(
+            [new PeerPosition { Name = "Real", Map = "customs", X = 1, Z = 2, AgeSeconds = 0 }],
+            session.CurrentGeneration);
+
+        Assert.Contains(session.Peers, p => p.Name == "Real");
+    }
+
+    [Fact]
+    public async Task LeavingUnderAConstantStreamOfUpdatesLeavesNothingBehind()
+    {
+        using var host = new PartySession();
+        using var guest = new PartySession();
+
+        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await guest.JoinAsync(host.Code!, "Guest");
+
+        await Eventually(() => host.Peers.Count == 2);
+
+        // Keep frames arriving continuously so the teardown lands in the middle of one.
+        var stop = false;
+        var spam = Task.Run(async () =>
+        {
+            while (!Volatile.Read(ref stop))
+            {
+                guest.Publish("customs", At(Random.Shared.Next(500), 0), 0);
+                await Task.Delay(1);
+            }
+        });
+
+        await Task.Delay(100);
+        host.Leave();
+        await Task.Delay(300);
+
+        Volatile.Write(ref stop, true);
+        await spam;
+
+        Assert.Empty(host.Peers);
+    }
+
+    [Fact]
+    public async Task AFreshSessionDoesNotInheritTheLastOnesPeers()
+    {
+        using var host = new PartySession();
+        var guest = new PartySession();
+
+        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await guest.JoinAsync(host.Code!, "Guest");
+        await Eventually(() => host.Peers.Count == 2);
+
+        host.Leave();
+        guest.Dispose();
+
+        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+
+        Assert.DoesNotContain(host.Peers, p => p.Name == "Guest");
+        Assert.All(host.Peers, p => Assert.True(p.IsSelf));
+    }
+
+    [Fact]
+    public async Task TheOverlayHasNothingLeftToDrawAfterLeaving()
+    {
+        // The markers themselves, not just the roster behind them.
+        var overlay = new TarkovMapCompanion.Rendering.PeerOverlay
+        {
+            Map = MapCatalog.LoadEmbedded().Find("customs"),
+        };
+
+        using var host = new PartySession();
+        using var guest = new PartySession();
+
+        host.Changed += (_, _) => overlay.SetPeers(host.Peers);
+
+        await host.HostAsync("Host", CancellationToken.None, useRouter: false);
+        await guest.JoinAsync(host.Code!, "Guest");
+        await Eventually(() => host.Peers.Count == 2);
+
+        guest.Publish("customs", At(100, 100), 0);
+        Assert.True(await Eventually(() => overlay.Drawable.Any()), "the peer never became drawable");
+
+        host.Leave();
+
+        Assert.Empty(overlay.Drawable);
+    }
+
+    [Fact]
     public async Task AnUnreachableHostFailsInsteadOfHanging()
     {
         using var guest = new PartySession();

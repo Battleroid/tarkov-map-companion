@@ -83,6 +83,18 @@ public sealed class PartySession : IDisposable
     private PeerPosition? _selfPosition;
     private bool _disposed;
 
+    /// <summary>
+    /// Bumped every time a session ends. Reader loops capture it when they start and drop anything
+    /// they were mid-way through applying once it has moved on.
+    /// </summary>
+    /// <remarks>
+    /// Without this, leaving is a race it can lose. A frame that arrived just before the socket was
+    /// torn down can finish being processed just after the roster was emptied, putting a peer back
+    /// into a session that no longer exists -- and nothing would ever remove them again, so a
+    /// teammate's marker would sit on the map until the app was restarted.
+    /// </remarks>
+    private int _generation;
+
     public PartyState State { get; private set; } = PartyState.Idle;
 
     /// <summary>The code to hand out. Only set while hosting.</summary>
@@ -224,6 +236,7 @@ public sealed class PartySession : IDisposable
     private async Task ServeAsync(TcpClient client, CancellationToken cancellationToken)
     {
         HostedClient? hosted = null;
+        var generation = CurrentGeneration;
 
         try
         {
@@ -246,7 +259,7 @@ public sealed class PartySession : IDisposable
 
             Status?.Invoke(this, $"{name} joined.");
 
-            SetPeer(name, null, isSelf: false);
+            SetPeer(name, null, isSelf: false, generation);
             await BroadcastAsync(cancellationToken).ConfigureAwait(false);
 
             while (!cancellationToken.IsCancellationRequested)
@@ -258,7 +271,7 @@ public sealed class PartySession : IDisposable
                 if (message.Kind != PartyMessageKind.Position || message.Position is null)
                     continue;
 
-                SetPeer(name, message.Position, isSelf: false);
+                SetPeer(name, message.Position, isSelf: false, generation);
                 await BroadcastAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -434,6 +447,8 @@ public sealed class PartySession : IDisposable
 
     private async Task ReceiveLoopAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
+        var generation = CurrentGeneration;
+
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -452,7 +467,7 @@ public sealed class PartySession : IDisposable
                 if (!string.IsNullOrEmpty(message.Name))
                     _selfName = message.Name;
 
-                ApplyRoster(message.Roster);
+                ApplyRoster(message.Roster, generation);
                 Raise();
             }
         }
@@ -474,10 +489,13 @@ public sealed class PartySession : IDisposable
         }
     }
 
-    private void ApplyRoster(List<PeerPosition> roster)
+    internal void ApplyRoster(List<PeerPosition> roster, int generation)
     {
         lock (_gate)
         {
+            if (generation != _generation)
+                return;
+
             _peers.Clear();
 
             foreach (var entry in roster)
@@ -550,12 +568,28 @@ public sealed class PartySession : IDisposable
         });
     }
 
-    private void UpdateSelf() => SetPeer(_selfName, _selfPosition, isSelf: true);
+    /// <summary>
+    /// Which session is current. Internal so a test can hold onto one, end the session, and then
+    /// apply an update from it -- the race itself is far too narrow to reproduce by timing.
+    /// </summary>
+    internal int CurrentGeneration
+    {
+        get { lock (_gate) return _generation; }
+    }
 
-    private void SetPeer(string name, PeerPosition? position, bool isSelf)
+    private void UpdateSelf() => SetPeer(_selfName, _selfPosition, isSelf: true, CurrentGeneration);
+
+    /// <param name="generation">
+    /// The session this update belongs to. An update from a session that has since ended is
+    /// discarded rather than resurrecting a peer nobody is connected to any more.
+    /// </param>
+    private void SetPeer(string name, PeerPosition? position, bool isSelf, int generation)
     {
         lock (_gate)
         {
+            if (generation != _generation)
+                return;
+
             _peers[name] = new PartyPeer
             {
                 Name = name,
@@ -587,6 +621,9 @@ public sealed class PartySession : IDisposable
 
         lock (_gate)
         {
+            // Invalidate first, so anything still in flight is already too late to be applied.
+            _generation++;
+
             clients = _clients.ToArray();
             _clients.Clear();
             _peers.Clear();
@@ -609,6 +646,10 @@ public sealed class PartySession : IDisposable
         _cancellation = null;
         _key = null;
         Code = null;
+
+        // Our own last position is session state too. Kept, it would be republished to whoever we
+        // connect to next, before a screenshot has said we are anywhere.
+        _selfPosition = null;
 
         if (State != PartyState.Failed)
             State = PartyState.Idle;

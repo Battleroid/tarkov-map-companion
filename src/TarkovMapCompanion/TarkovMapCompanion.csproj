@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -12,7 +12,7 @@
       Fallback for local builds only. Release builds override this from the git tag
       (see .github/workflows/release.yml), so do not rely on it to identify a shipped binary.
     -->
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
 
     <!-- The SDK otherwise appends "+<commit sha>", which the About window would show verbatim. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -44,3 +44,4 @@
   </ItemGroup>
 
 </Project>
+

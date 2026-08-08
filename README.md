@@ -1,4 +1,4 @@
-# Tarkov Map Companion
+﻿# Tarkov Map Companion
 
 A second-monitor map for Escape from Tarkov that shows where you are, which way you are facing,
 and how to get to the exit you picked.
@@ -41,18 +41,18 @@ today's, and nothing older than the map's raid length is drawn.
 **Exits, with their conditions.** Every exit is shown, colored by faction. Conditional exits are
 ringed on the map and flagged in the list, and selecting one tells you what it needs:
 
-- Cliff Descent — *Red Rebel ice pick · Paracord · No armor vest equipped*
-- Sewer Manhole — *No backpack equipped*
-- Dorms V-Ex — *5000 Roubles per player · Maximum of 4 players*
-- Smugglers' Boat — *Note with code word Voron*
+- Cliff Descent â€” *Red Rebel ice pick Â· Paracord Â· No armor vest equipped*
+- Sewer Manhole â€” *No backpack equipped*
+- Dorms V-Ex â€” *5000 Roubles per player Â· Maximum of 4 players*
+- Smugglers' Boat â€” *Note with code word Voron*
 
 **Only the exits you actually have.** Tarkov offers a different subset of a map's exits every raid,
-depending on where you spawned — Customs has 27, and a given raid might give you four. Tick
+depending on where you spawned â€” Customs has 27, and a given raid might give you four. Tick
 **Read exits from screenshot** in the exits panel, bring the extraction list up in game (double-tap
 <kbd>O</kbd> by default) and take a screenshot: the app reads the list off the picture and fades
 every exit the game did not offer you.
 
-Exits are faded, never hidden, and stay clickable — the list comes from character recognition, and
+Exits are faded, never hidden, and stay clickable â€” the list comes from character recognition, and
 a misread should cost you a dim marker, not a missing one. Anything it reads but cannot place is
 named in the panel rather than quietly dropped. Readings accumulate through a raid, so a screenshot
 that catches the panel part-way through opening can only add to what is already known, and the whole
@@ -65,11 +65,11 @@ small enough that whole rows go unseen rather than misread. If a read ever goes 
 `--read-exits` prints every stage of it.
 
 **Guide line and focus mode.** Pick an exit and a line is drawn to it, labeled with the distance
-and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and the view frames you
+and how far you have to turn (`348 m, 18Â° right`). Turn on **Focus exit** and the view frames you
 and the exit together, tightening as you close in so the screen only shows what matters. Turning it
 off puts your previous view back exactly as it was.
 
-**Route markers.** Press **Mark**, then click the map in the order you mean to visit — quest
+**Route markers.** Press **Mark**, then click the map in the order you mean to visit â€” quest
 objectives, a stash worth the detour, wherever you dropped something. Each click leaves a numbered
 pin; press **Mark** again to finish. The guide line then walks the route in order and only goes
 back to pointing at your exit once the route is done, so the exit can stay selected the whole time
@@ -83,11 +83,11 @@ option removes it the moment you are inside the radius. **Clear marks** drops th
 hands the line back to the exit.
 
 **Smooth camera.** With **Follow** on, the view glides to your new position instead of jumping. A
-jump costs you your bearings — you have to find yourself on the map again every screenshot —
+jump costs you your bearings â€” you have to find yourself on the map again every screenshot â€”
 where a move you can follow does not. It applies to focus mode's reframing too, and never to your
 own panning and zooming, which stay locked to the pointer. Toggle it in **Settings**.
 
-**Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use — on
+**Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use â€” on
 Customs that is 16 of 31 gone. **Nearest first** reorders the list by distance from your last known
 position, and every exit shows its distance either way.
 
@@ -107,7 +107,7 @@ Lighthouse, Reserve, Shoreline, Streets of Tarkov, Terminal, Woods.
 
 **Floor switching, including the ground floor.** The map artwork stacks floors as opaque geometry,
 so an underground level is hidden behind the ground floor. Turning **Ground** off is what reveals
-it — Factory's Tunnels being the obvious case.
+it â€” Factory's Tunnels being the obvious case.
 
 **Map detection.** Pick your map from the dropdown, or let a position that cannot be on the current
 map offer you the right one. It proposes rather than switches, because several maps overlap in world
@@ -119,7 +119,7 @@ Anyone who pastes it into **Join** appears on your map, and you on theirs. Peopl
 through a raid and get everybody's current positions straight away, and you can stop and restart a
 session at any point if something goes wrong.
 
-Teammates are only drawn when they are on the same map as you — a position from another raid means
+Teammates are only drawn when they are on the same map as you â€” a position from another raid means
 nothing in this one's coordinates. They stay in the roster, labelled with where they actually are.
 Every marker also carries its age and fades as it gets older, because peers only report when they
 take a screenshot: a minute-old dot drawn at full strength reads as "he is there now", which is how
@@ -127,13 +127,13 @@ you end up trusting an angle nobody is covering.
 
 There is no server. The code contains the host's address and a shared key, so the squad connects
 directly and the traffic is encrypted with a key nobody else has. Everyone dials the host, which
-means only one person needs to be reachable from outside their router — and the host does not even
+means only one person needs to be reachable from outside their router â€” and the host does not even
 have to be playing. If the app cannot open a port automatically, it will still give you a code, and
 you either forward `TCP 24601` or let somebody else host. `--party-test` tells you which case you
 are in.
 
 > **Worth thinking about before you use it.** Position sharing keeps the app's "never touches the
-> game" property, but it does change who knows what. With your own squad it is hard to object to —
+> game" property, but it does change who knows what. With your own squad it is hard to object to â€”
 > you could already say "I'm at Dorms" over voice, and this is only more precise. But the app cannot
 > tell a squad from a group of strangers coordinating, because it has no view into the game's party
 > system. That is a judgement call it cannot make for you.
@@ -154,7 +154,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 322 tests
+dotnet test              # 327 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -177,7 +177,7 @@ scripts\publish.ps1
 ## Where the data comes from
 
 Map artwork, geometry, exits, spawns and loot positions come from the
-[tarkov.dev](https://tarkov.dev) community project — specifically
+[tarkov.dev](https://tarkov.dev) community project â€” specifically
 [`tarkov-dev`](https://github.com/the-hideout/tarkov-dev) for the geometry (MIT) and
 `json.tarkov.dev` for the point-of-interest data. Exit *conditions* are not in that data and are
 taken from the [Escape from Tarkov Wiki](https://escapefromtarkov.fandom.com) (CC BY-SA).
@@ -200,8 +200,9 @@ the bundled ones per exit.
 
 ## License
 
-Code is [MIT](LICENSE). Bundled third-party data keeps its own terms — see
+Code is [MIT](LICENSE). Bundled third-party data keeps its own terms â€” see
 [NOTICE.md](NOTICE.md).
 
 Escape from Tarkov is a trademark of Battlestate Games. This is an unofficial fan-made tool with no
 connection to Battlestate Games.
+
