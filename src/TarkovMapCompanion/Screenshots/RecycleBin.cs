@@ -1,5 +1,4 @@
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
+using Microsoft.VisualBasic.FileIO;
 
 namespace TarkovMapCompanion.Screenshots;
 
@@ -7,67 +6,52 @@ namespace TarkovMapCompanion.Screenshots;
 /// Moves files to the Windows Recycle Bin instead of unlinking them.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Culling exists to keep a folder tidy, not to destroy anything. Recoverable deletion is the
 /// difference between a tidy-up and data loss when a filter turns out to be wrong.
+/// </para>
+/// <para>
+/// This used to hand-marshal <c>SHFileOperationW</c>. That struct was declared with
+/// <c>Pack = 1</c> while the native <c>SHFILEOPSTRUCTW</c> uses natural alignment, so every field
+/// after <c>wFunc</c> sat at the wrong offset, the shell read the source path from the wrong place
+/// and dereferenced garbage. The result was an AccessViolationException on the folder-watcher
+/// thread, which .NET does not deliver to catch blocks -- so the app vanished the moment a
+/// screenshot triggered a cull, with nothing logged.
+/// </para>
+/// <para>
+/// The runtime already ships a correct, tested implementation of exactly this. Using it removes
+/// the marshalling from our hands entirely, which is worth more here than avoiding the dependency.
+/// </para>
 /// </remarks>
 public static class RecycleBin
 {
     public static bool IsSupported => OperatingSystem.IsWindows();
 
     /// <summary>
-    /// Sends a single file to the Recycle Bin. Returns false if the shell refused, leaving the
-    /// file untouched; callers must not fall back to a hard delete on failure.
+    /// Sends a single file to the Recycle Bin. Returns false if it could not be deleted, leaving
+    /// the file untouched; callers must not fall back to a hard delete on failure.
     /// </summary>
     public static bool TryDelete(string path)
     {
         if (!OperatingSystem.IsWindows())
             return false;
 
-        return TryDeleteWindows(path);
-    }
-
-    [SupportedOSPlatform("windows")]
-    private static bool TryDeleteWindows(string path)
-    {
-        // SHFileOperation wants a double-null-terminated list of paths.
-        var from = path + "\0\0";
-
-        var operation = new SHFILEOPSTRUCT
+        try
         {
-            wFunc = FO_DELETE,
-            pFrom = from,
-            fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT | FOF_NOCONFIRMMKDIR,
-        };
-
-        var result = SHFileOperation(ref operation);
-
-        // A non-zero result or a user-abort flag both mean the file is still there.
-        return result == 0 && !operation.fAnyOperationsAborted;
+            // OnlyErrorDialogs: no progress or confirmation UI, but a genuine failure still
+            // surfaces rather than being swallowed.
+            FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException
+                                       or UnauthorizedAccessException
+                                       or OperationCanceledException
+                                       or ArgumentException
+                                       or NotSupportedException
+                                       or FileNotFoundException)
+        {
+            Diagnostics.Log.Warn($"could not recycle {path}: {ex.Message}");
+            return false;
+        }
     }
-
-    private const uint FO_DELETE = 0x0003;
-
-    private const ushort FOF_SILENT = 0x0004;
-    private const ushort FOF_NOCONFIRMATION = 0x0010;
-    private const ushort FOF_ALLOWUNDO = 0x0040;
-    private const ushort FOF_NOCONFIRMMKDIR = 0x0200;
-    private const ushort FOF_NOERRORUI = 0x0400;
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
-    private struct SHFILEOPSTRUCT
-    {
-        public IntPtr hwnd;
-        public uint wFunc;
-        [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
-        public ushort fFlags;
-        [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
-        public IntPtr hNameMappings;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
-    }
-
-    // Classic DllImport rather than LibraryImport: the struct carries MarshalAs string fields,
-    // which the source-generated marshaller does not handle.
-    [DllImport("shell32.dll", EntryPoint = "SHFileOperationW", CharSet = CharSet.Unicode)]
-    private static extern int SHFileOperation(ref SHFILEOPSTRUCT lpFileOp);
 }
