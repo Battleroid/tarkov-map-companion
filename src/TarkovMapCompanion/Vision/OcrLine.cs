@@ -18,6 +18,9 @@ public readonly record struct TextBox(double X, double Y, double Width, double H
     }
 
     public TextBox Offset(double dx, double dy) => new(X + dx, Y + dy, Width, Height);
+
+    public TextBox Divide(double factor) =>
+        factor == 1.0 ? this : new TextBox(X / factor, Y / factor, Width / factor, Height / factor);
 }
 
 /// <summary>One run of text the reader found, with where it sat in the image.</summary>
@@ -49,7 +52,12 @@ public readonly record struct RelativeRegion(double Left, double Top, double Rig
     /// weapon labels and the hotbar, and every one of those is a string that could fuzzy-match an
     /// exit name by accident. A tight region is the cheapest false-positive defense available.
     /// </remarks>
-    public static readonly RelativeRegion ExtractPanel = new(0.45, 0.0, 1.0, 0.75);
+    /// <remarks>
+    /// Sized for the worst case rather than the observed one. The panel keeps its proportions
+    /// against screen *height*, so on a narrow display it covers a larger share of the width than
+    /// it does on an ultrawide -- 4:3 is the case that decides how far left this has to reach.
+    /// </remarks>
+    public static readonly RelativeRegion ExtractPanel = new(0.40, 0.0, 1.0, 0.80);
 
     /// <summary>
     /// Converts to whole pixels inside an image of the given size, clamped so a malformed region

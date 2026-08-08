@@ -10,20 +10,49 @@ public enum PanelRowKind
     /// <summary>The "Stay in the extraction point" banner shown while extracting.</summary>
     ActiveHeader,
 
-    /// <summary>An <c>EXIT<i>nn</i></c> row.</summary>
+    /// <summary>
+    /// An exit row: <c>EXFIL<i>nn</i></c> on a PMC raid, <c>EXIT<i>nn</i></c> on a Scav one.
+    /// </summary>
     Extract,
 
     /// <summary>A <c>TRANSIT<i>nn</i></c> row.</summary>
     Transit,
 
-    /// <summary>An <c>EXFIL<i>nn</i></c> row: the exit being used right now.</summary>
-    Active,
-
     /// <summary>Inside the panel, but with no id we recognized.</summary>
     Unknown,
 }
 
-public sealed record PanelRow(PanelRowKind Kind, string Name, string RawText);
+public sealed record PanelRow(
+    PanelRowKind Kind,
+    string Name,
+    string RawText,
+    IReadOnlyList<string>? Readings = null)
+{
+    /// <summary>
+    /// Every plausible reading of this row's name, best guess first.
+    /// </summary>
+    /// <remarks>
+    /// The id column is the least legible thing on the panel: short, set in a heavy face, and made
+    /// of exactly the characters a reader invents. At low resolutions it comes back as "EXIT u" or
+    /// "TRANSIT Q", which no pattern strips without also eating the first word of names that
+    /// legitimately begin with "Transit". Offering both readings and letting the name match decide
+    /// is safer than making the pattern cleverer.
+    /// </remarks>
+    public IReadOnlyList<string> NameCandidates => Readings is { Count: > 0 } ? Readings : [Name];
+
+    /// <summary>Whether the row carries an id keyword, however mangled.</summary>
+    public bool HasIdKeyword { get; init; }
+
+    /// <summary>
+    /// Whether failing to identify this row is worth telling the user about.
+    /// </summary>
+    /// <remarks>
+    /// Text can land inside the panel's bounds without being part of it -- a hotbar label, when
+    /// the panel opens lower down the screen. Those are picked up opportunistically and failing to
+    /// match one is not news; a row that plainly says EXFIL and still matches nothing is.
+    /// </remarks>
+    public bool LooksLikeAnExitRow => Kind is PanelRowKind.Extract or PanelRowKind.Transit || HasIdKeyword;
+}
 
 /// <summary>What one screenshot's extraction panel said.</summary>
 public sealed class ExtractPanelReading
@@ -42,10 +71,6 @@ public sealed class ExtractPanelReading
     /// <summary>Rows that name an exit the player could walk to.</summary>
     public IReadOnlyList<PanelRow> Exits =>
         Rows.Where(r => r.Kind is PanelRowKind.Extract or PanelRowKind.Transit or PanelRowKind.Unknown).ToArray();
-
-    /// <summary>The exit currently being stood in, when the screenshot caught an extraction.</summary>
-    public string? ActiveExtractName =>
-        Rows.FirstOrDefault(r => r.Kind == PanelRowKind.Active)?.Name;
 }
 
 /// <summary>
@@ -70,18 +95,37 @@ public static partial class ExtractPanelParser
     /// because Tarkov's font uses a slashed zero, which readers report as O, Ø, D or Q.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// At least one digit-like character is required. Without that, "Transit to Reserve" would
     /// match the TRANSIT keyword and get its first word eaten.
+    /// </para>
+    /// <para>
+    /// The trailing lookahead is what makes the loose character class safe. "EXIT Sniper Roadblock"
+    /// cannot match, because S is followed by more letters rather than a space, so widening the
+    /// class to cover the reader's inventions does not let it start eating real names.
+    /// </para>
     /// </remarks>
     [GeneratedRegex(
-        @"^(?<kind>EXTRACT|TRANSIT|EXFIL|EXIT)[\s\-_.]*[0-9OØQDIl|]{1,4}(?=\s|$)",
+        @"^(?<kind>EXTRACT|TRANSIT|EXFIL|EXIT)[\s\-_.]*[0-9OØQDIl|uUMmGSBZ]{1,4}(?=\s|$)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex IdPrefix();
 
-    /// <summary>A trailing countdown, e.g. "0:00:54".</summary>
+    /// <summary>Keywords that begin the id column, for the fallback readings.</summary>
+    private static readonly string[] IdKeywords = ["EXTRACT", "TRANSIT", "EXFIL", "EXIT"];
+
+    /// <summary>
+    /// A trailing countdown, e.g. "0:00:54".
+    /// </summary>
+    /// <remarks>
+    /// The digit class has to cover both cases of the slashed zero. The reader returns the
+    /// uppercase Ø at 1440p and the lowercase ø when the text is smaller, and a class carrying only
+    /// one of them leaves "Transit to Factory ø:øø:54" as the name -- which then falls below the
+    /// match floor and reports a perfectly legible row as unreadable. It looked like a resolution
+    /// limit and was nothing of the kind.
+    /// </remarks>
     [GeneratedRegex(
-        @"\s*[0-9OØ]{1,2}[:.][0-9OØ]{2}([:.][0-9OØ]{2})?\s*$",
-        RegexOptions.CultureInvariant)]
+        @"\s*[0-9OØQDIl|]{1,2}[:.;][0-9OØQDIl|]{2}([:.;][0-9OØQDIl|]{2})?\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TrailingTimer();
 
     public static ExtractPanelReading Parse(IReadOnlyList<OcrLine> lines)
@@ -100,11 +144,17 @@ public static partial class ExtractPanelParser
         var panelLeft = idLines.Min(l => l.Bounds.X);
         var slack = Math.Max(12.0, idLines.Average(l => l.Bounds.Height) * 0.75);
 
-        var inPanel = usable.Where(l => l.Bounds.X >= panelLeft - slack).ToArray();
+        // Judged on the middle of the text, not its left edge. A row whose id picks up a stray
+        // glyph from the panel border starts slightly outside and would be dropped whole, while a
+        // hotbar label that merely reaches the panel's edge is still mostly outside it.
+        var inPanel = usable
+            .Where(l => l.Bounds.X + (l.Bounds.Width / 2.0) >= panelLeft - slack)
+            .ToArray();
 
         var rows = new List<PanelRow>();
         var prefixedExits = 0;
         var sawListHeader = false;
+        var sawActiveHeader = false;
 
         foreach (var group in GroupIntoRows(inPanel))
         {
@@ -114,6 +164,9 @@ public static partial class ExtractPanelParser
             if (row.Kind == PanelRowKind.ListHeader)
                 sawListHeader = true;
 
+            if (row.Kind == PanelRowKind.ActiveHeader)
+                sawActiveHeader = true;
+
             if (row.Kind is PanelRowKind.Extract or PanelRowKind.Transit)
                 prefixedExits++;
 
@@ -121,9 +174,12 @@ public static partial class ExtractPanelParser
         }
 
         // Two independent ways to be sure: the list's own header, or several rows that are
-        // unmistakably list rows. One EXFIL row on its own is the banner shown while extracting,
-        // and must not be mistaken for "this is the only exit you have".
-        var found = sawListHeader || prefixedExits >= 2;
+        // unmistakably list rows.
+        //
+        // "Stay in the extraction point" vetoes the second of those. That banner shows the exit
+        // being used rather than the ones on offer, and its rows are numbered exactly like the
+        // list's, so counting rows cannot tell them apart -- only the wording can.
+        var found = sawListHeader || (prefixedExits >= 2 && !sawActiveHeader);
 
         return found
             ? new ExtractPanelReading { PanelFound = true, Rows = rows }
@@ -176,22 +232,58 @@ public static partial class ExtractPanelParser
         }
 
         var kind = PanelRowKind.Unknown;
-        var name = text;
+        var readings = new List<string>();
 
         if (IdPrefix().Match(text) is { Success: true } match)
         {
+            // EXFIL and EXIT are the same thing seen from different sides: Tarkov numbers a PMC's
+            // exits EXFILnn and a Scav's EXITnn. Reading EXFIL as "the exit being used right now"
+            // -- which is how it looks in the extracting banner -- silently threw away every row
+            // of every PMC raid's list.
             kind = match.Groups["kind"].Value.ToUpperInvariant() switch
             {
                 "TRANSIT" => PanelRowKind.Transit,
-                "EXFIL" => PanelRowKind.Active,
                 _ => PanelRowKind.Extract,
             };
 
-            name = text[match.Length..];
+            // Stripping the id worked, so that is the best guess.
+            readings.Add(Clean(text[match.Length..]));
+        }
+        else
+        {
+            // It did not, so the whole row is the best guess -- and it may genuinely be one, for a
+            // row whose id the reader dropped completely.
+            readings.Add(Clean(text));
         }
 
-        name = TrailingTimer().Replace(name, "").Trim();
+        // Fallbacks for an id mangled past recognition: drop the first token, and the first two
+        // when the second is short enough to be a stray digit rather than part of a name.
+        var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        return new PanelRow(kind, name, text);
+        // Contains rather than StartsWith: a stray glyph in front of the id ("WEXFIL01") is common
+        // enough, and it defeats an anchored pattern while leaving the keyword perfectly visible.
+        var hasKeyword = tokens.Length > 0
+            && IdKeywords.Any(k => tokens[0].Contains(k, StringComparison.OrdinalIgnoreCase));
+
+        if (tokens.Length > 1 && hasKeyword)
+        {
+            readings.Add(Clean(string.Join(' ', tokens.Skip(1))));
+
+            if (tokens.Length > 2 && tokens[1].Length <= 3)
+                readings.Add(Clean(string.Join(' ', tokens.Skip(2))));
+        }
+
+        readings.Add(Clean(text));
+
+        var distinct = readings
+            .Where(r => r.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return distinct.Length == 0
+            ? new PanelRow(kind, "", text) { HasIdKeyword = hasKeyword }
+            : new PanelRow(kind, distinct[0], text, distinct) { HasIdKeyword = hasKeyword };
     }
+
+    private static string Clean(string value) => TrailingTimer().Replace(value, "").Trim();
 }

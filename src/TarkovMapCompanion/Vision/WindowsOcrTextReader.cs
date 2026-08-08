@@ -23,6 +23,17 @@ namespace TarkovMapCompanion.Vision;
 /// </remarks>
 public sealed class WindowsOcrTextReader : IScreenTextReader
 {
+    /// <summary>
+    /// Frame height the reader wants before it looks at anything, in pixels.
+    /// </summary>
+    /// <remarks>
+    /// Below roughly 1440p the panel's text gets small enough that the engine stops seeing whole
+    /// rows -- not misreading them, missing them. At 1280x720 it silently dropped one of eight
+    /// exits, which is the worst way this feature can fail: no warning, just a real exit shown as
+    /// unavailable. Upscaling to this height first recovered every row.
+    /// </remarks>
+    private const double TargetHeight = 1440.0;
+
     private readonly OcrEngine? _engine;
 
     public WindowsOcrTextReader()
@@ -74,12 +85,23 @@ public sealed class WindowsOcrTextReader : IScreenTextReader
 
         var decoder = await BitmapDecoder.CreateAsync(stream).AsTask(cancellationToken).ConfigureAwait(false);
 
-        var (x, y, width, height) = region.ToPixels((int)decoder.PixelWidth, (int)decoder.PixelHeight);
+        // Never downscale: a 4K frame is already comfortable, and throwing pixels away could only
+        // cost accuracy. Capped so a tiny frame cannot ask for an enormous bitmap.
+        var scale = Math.Clamp(TargetHeight / decoder.PixelHeight, 1.0, 3.0);
 
-        // Crop during decode rather than after: the panel is a fraction of the frame, and there is
-        // no reason to materialize eight megapixels to read eight rows of text.
+        var scaledWidth = (int)Math.Round(decoder.PixelWidth * scale);
+        var scaledHeight = (int)Math.Round(decoder.PixelHeight * scale);
+
+        // Bounds are applied after the scale, so the crop is in scaled coordinates.
+        var (x, y, width, height) = region.ToPixels(scaledWidth, scaledHeight);
+
+        // Both done during decode rather than after: the panel is a fraction of the frame, and
+        // there is no reason to materialize eight megapixels to read eight rows of text.
         var transform = new BitmapTransform
         {
+            ScaledWidth = (uint)scaledWidth,
+            ScaledHeight = (uint)scaledHeight,
+            InterpolationMode = BitmapInterpolationMode.Fant,
             Bounds = new BitmapBounds
             {
                 X = (uint)x,
@@ -117,8 +139,9 @@ public sealed class WindowsOcrTextReader : IScreenTextReader
                 box = box?.Union(wordBox) ?? wordBox;
             }
 
-            // Back into full-frame coordinates so callers are not left reasoning about the crop.
-            lines.Add(new OcrLine(line.Text, box!.Value.Offset(x, y)));
+            // Back into source-frame coordinates so callers are not left reasoning about the crop
+            // or the upscale.
+            lines.Add(new OcrLine(line.Text, box!.Value.Offset(x, y).Divide(scale)));
         }
 
         return lines;

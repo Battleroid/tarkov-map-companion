@@ -139,6 +139,35 @@ public sealed class ExitAvailabilityTests
     }
 
     [Fact]
+    public void ResolvesARowWhoseIdWasReadAsGibberish()
+    {
+        // What a 720p frame actually produced. The id is unrecoverable; the name is not.
+        var boiler = Exit("Boiler Room Basement (Co-op)", PoiKind.ExtractShared);
+        var factory = Exit("Transit to Factory", PoiKind.Transit);
+
+        var reading = new ExtractPanelReading
+        {
+            PanelFound = true,
+            Rows =
+            [
+                new PanelRow(PanelRowKind.Unknown, "EXIT u Boiler Room Basement (Co-op)",
+                    "EXIT u Boiler Room Basement (Co-op)",
+                    ["EXIT u Boiler Room Basement (Co-op)", "u Boiler Room Basement (Co-op)", "Boiler Room Basement (Co-op)"]),
+                new PanelRow(PanelRowKind.Unknown, "TRANSIT Q Transit to Factory",
+                    "TRANSIT Q Transit to Factory",
+                    ["TRANSIT Q Transit to Factory", "Q Transit to Factory", "Transit to Factory"]),
+            ],
+        };
+
+        var availability = ExitAvailability.Resolve(reading, [boiler, factory], "customs", DateTime.Now);
+
+        Assert.NotNull(availability);
+        Assert.True(availability.Includes(boiler));
+        Assert.True(availability.Includes(factory));
+        Assert.Empty(availability.Unresolved);
+    }
+
+    [Fact]
     public void NoPanelMeansNoOpinion()
     {
         Assert.Null(ExitAvailability.Resolve(
@@ -166,6 +195,63 @@ public sealed class ExitAvailabilityTests
 
         Assert.NotNull(availability);
         Assert.Equal(["Qqqzzz Wvvxx"], availability.Unresolved);
+    }
+
+    [Fact]
+    public void DoesNotReportStrayHudTextAsAnUnrecognizedExit()
+    {
+        // "Compass" is a hotbar label that landed inside the panel's bounds. Calling it an
+        // unrecognized exit would teach the user to ignore that message.
+        var reading = new ExtractPanelReading
+        {
+            PanelFound = true,
+            Rows =
+            [
+                new PanelRow(PanelRowKind.Extract, "Sniper Roadblock", "EXIT01 Sniper Roadblock") { HasIdKeyword = true },
+                new PanelRow(PanelRowKind.Unknown, "Compass", "Compass"),
+            ],
+        };
+
+        var availability = ExitAvailability.Resolve(
+            reading, [Exit("Sniper Roadblock")], "customs", DateTime.Now);
+
+        Assert.NotNull(availability);
+        Assert.Empty(availability.Unresolved);
+    }
+
+    [Fact]
+    public void CombinesTwoLooksAtTheSameRaidsList()
+    {
+        // A screenshot can catch the panel part-way through opening. On its own that reading would
+        // dim exits an earlier, fuller look had already found.
+        var trailer = Exit("Trailer Park");
+        var dorms = Exit("Dorms V-Ex");
+        MapPoi[] exits = [trailer, dorms];
+
+        var full = ExitAvailability.Resolve(
+            Reading("Trailer Park", "Dorms V-Ex"), exits, "customs", DateTime.Now);
+
+        var partial = ExitAvailability.Resolve(
+            Reading("Trailer Park"), exits, "customs", DateTime.Now);
+
+        var merged = partial!.MergedWith(full);
+
+        Assert.True(merged.Includes(trailer));
+        Assert.True(merged.Includes(dorms));
+    }
+
+    [Fact]
+    public void DoesNotCombineReadingsFromDifferentMaps()
+    {
+        var crossroads = Exit("Crossroads");
+
+        var customs = ExitAvailability.Resolve(
+            Reading("Crossroads"), [crossroads], "customs", DateTime.Now);
+
+        var woods = ExitAvailability.Resolve(
+            Reading("Outskirts"), [Exit("Outskirts")], "woods", DateTime.Now);
+
+        Assert.False(woods!.MergedWith(customs).Includes(crossroads));
     }
 
     [Fact]

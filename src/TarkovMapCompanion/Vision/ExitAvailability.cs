@@ -37,13 +37,41 @@ public sealed class ExitAvailability
     /// </summary>
     public IReadOnlyList<string> Unresolved { get; init; } = [];
 
-    /// <summary>Exit being used at the moment the screenshot was taken, if any.</summary>
-    public string? ActiveExtractName { get; init; }
-
     /// <summary>Distinct exit names recognized.</summary>
     public int NameCount => _names.Count;
 
     public bool Includes(MapPoi poi) => _names.Contains(NameMatcher.Normalize(poi.Name));
+
+    /// <summary>
+    /// Folds in an earlier reading from the same raid.
+    /// </summary>
+    /// <remarks>
+    /// Which exits a raid offers is fixed when it starts, so two readings taken during one raid are
+    /// two looks at the same list and the union of them is the better answer. This matters because
+    /// a screenshot can catch the panel part-way through opening: one of Casey's caught it with the
+    /// first three rows not yet drawn, and left on its own that reading would have dimmed three
+    /// exits he really had. Combining means a partial look can only ever add.
+    /// </remarks>
+    public ExitAvailability MergedWith(ExitAvailability? earlier)
+    {
+        if (earlier is null
+            || !string.Equals(earlier.MapNormalizedName, MapNormalizedName, StringComparison.Ordinal))
+        {
+            return this;
+        }
+
+        var names = new HashSet<string>(_names, StringComparer.Ordinal);
+        names.UnionWith(earlier._names);
+
+        // Anything the earlier reading could not place has either been resolved since or is still
+        // unplaceable in this one; either way the newer list is the one worth reporting.
+        return new ExitAvailability(names)
+        {
+            MapNormalizedName = MapNormalizedName,
+            TakenAt = TakenAt,
+            Unresolved = Unresolved,
+        };
+    }
 
     /// <summary>
     /// Matches a panel reading against the exits known for a map.
@@ -78,29 +106,60 @@ public sealed class ExitAvailability
             if (string.IsNullOrWhiteSpace(row.Name))
                 continue;
 
-            if (NameMatcher.Match(row.Name, candidates) is { } match)
+            if (Best(row, candidates) is { } match)
                 matched.Add(match.NormalizedName);
-            else
+            else if (row.LooksLikeAnExitRow)
                 unresolved.Add(row.Name);
+
+            // A row with no id keyword that matches nothing is almost certainly not a row at all --
+            // a hotbar label the panel happens to sit near. Reporting those as unrecognized exits
+            // would train the user to ignore the one message that means something.
         }
 
         if (matched.Count == 0)
             return null;
 
-        // The exit being stood in is worth naming even though it is already in the list.
-        string? active = null;
-        if (reading.ActiveExtractName is { Length: > 0 } activeRow
-            && NameMatcher.Match(activeRow, candidates) is { } activeMatch)
+        return Build(matched, mapNormalizedName, takenAt, unresolved);
+    }
+
+    /// <summary>
+    /// Best match across every plausible reading of a row, or null when none of them resolve.
+    /// </summary>
+    /// <remarks>
+    /// A row can be read more than one way when the id column is mangled, and only one of those
+    /// readings will look like an exit name. Trying all of them and keeping the strongest costs a
+    /// few string comparisons and turns an unreadable id into a non-event.
+    /// </remarks>
+    private static NameMatch? Best(PanelRow row, IReadOnlySet<string> candidates)
+    {
+        NameMatch? best = null;
+
+        foreach (var reading in row.NameCandidates)
         {
-            active = activeMatch.NormalizedName;
+            if (string.IsNullOrWhiteSpace(reading))
+                continue;
+
+            if (NameMatcher.Match(reading, candidates) is { } match
+                && (best is null || match.Score > best.Score))
+            {
+                best = match;
+            }
         }
 
+        return best;
+    }
+
+    private static ExitAvailability Build(
+        HashSet<string> matched,
+        string mapNormalizedName,
+        DateTime takenAt,
+        IReadOnlyList<string> unresolved)
+    {
         return new ExitAvailability(matched)
         {
             MapNormalizedName = mapNormalizedName,
             TakenAt = takenAt,
             Unresolved = unresolved,
-            ActiveExtractName = active,
         };
     }
 }

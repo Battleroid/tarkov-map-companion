@@ -54,9 +54,15 @@ every exit the game did not offer you.
 
 Exits are faded, never hidden, and stay clickable — the list comes from character recognition, and
 a misread should cost you a dim marker, not a missing one. Anything it reads but cannot place is
-named in the panel rather than quietly dropped. The reading is thrown away when the raid ends or
-you change map. It uses the OCR engine built into Windows, so it adds nothing to the download, and
-it costs about 25 ms per screenshot.
+named in the panel rather than quietly dropped. Readings accumulate through a raid, so a screenshot
+that catches the panel part-way through opening can only add to what is already known, and the whole
+lot is thrown away when the raid ends or you change map. It uses the OCR engine built into Windows,
+so it adds nothing to the download, and it costs about 25 ms per screenshot.
+
+Verified from 1024x768 to 5120x1440, across 4:3, 5:4, 16:9, 21:9 and 32:9, for both PMC and Scav
+lists. Small frames are upscaled before reading, because below about 900 lines the panel's text gets
+small enough that whole rows go unseen rather than misread. If a read ever goes wrong,
+`--read-exits` prints every stage of it.
 
 **Guide line and focus mode.** Pick an exit and a line is drawn to it, labeled with the distance
 and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and the view frames you
@@ -98,7 +104,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 254 tests
+dotnet test              # 270 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

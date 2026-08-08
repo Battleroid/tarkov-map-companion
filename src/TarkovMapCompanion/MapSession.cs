@@ -445,6 +445,11 @@ public sealed class MapSession : IDisposable
             if (Volatile.Read(ref _readingEpoch) != epoch)
                 return;
 
+            // Two screenshots in one raid are two looks at the same list, so combine them. A
+            // screenshot that caught the panel opening sees only part of it, and on its own would
+            // dim exits an earlier, fuller look had already found.
+            availability = availability.MergedWith(ExitAvailability);
+
             ExitAvailability = availability;
             Pois.Availability = availability;
 

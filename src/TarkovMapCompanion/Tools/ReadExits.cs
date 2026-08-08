@@ -119,9 +119,6 @@ public static class ReadExits
         Console.WriteLine();
         Console.WriteLine($"  {exits.Count(availability.Includes)} of {exits.Length} exits available");
 
-        if (availability.ActiveExtractName is { } active)
-            Console.WriteLine($"  currently extracting at: {active}");
-
         foreach (var unresolved in availability.Unresolved)
             Console.WriteLine($"  UNRESOLVED: '{unresolved}'");
 
