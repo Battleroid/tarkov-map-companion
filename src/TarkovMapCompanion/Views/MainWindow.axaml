@@ -1,0 +1,176 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:maps="using:TarkovMapCompanion.Maps"
+        xmlns:data="using:TarkovMapCompanion.Data"
+        mc:Ignorable="d"
+        x:Class="TarkovMapCompanion.Views.MainWindow"
+        x:DataType="maps:GameMap"
+        Title="Tarkov Map Companion"
+        Width="1280" Height="860"
+        MinWidth="820" MinHeight="520"
+        Background="{DynamicResource SurfaceBaseBrush}">
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="12,8">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Classes="heading" VerticalAlignment="Center" Text="MAP" />
+          <ComboBox Name="MapSelector" Width="220" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                    Margin="16,0,0,0" VerticalAlignment="Center">
+          <Button Name="FitButton" Content="Fit" ToolTip.Tip="Zoom out to the whole map" />
+          <CheckBox Name="FollowToggle" Content="Follow"
+                    ToolTip.Tip="Recenter on the player when a new screenshot arrives" />
+          <CheckBox Name="FocusToggle" Content="Focus exit"
+                    ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer" />
+        </StackPanel>
+
+        <!-- Map suggestion, shown only when a fix lands off the current map. -->
+        <Border Grid.Column="2" Name="SuggestionBar"
+                IsVisible="False"
+                Margin="16,0"
+                Padding="10,4"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Background="{DynamicResource AccentMutedBrush}"
+                BorderBrush="{DynamicResource AccentBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusSmall}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Name="SuggestionText" VerticalAlignment="Center" />
+            <Button Name="SuggestionAccept" Content="Switch" Padding="8,2" />
+            <Button Name="SuggestionDismiss" Content="No" Padding="8,2" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <CheckBox Name="AlwaysOnTopToggle" Content="On top" VerticalAlignment="Center" />
+          <Button Name="ThemeButton" Content="Theme" ToolTip.Tip="Cycle dark, light, follow system" />
+          <Button Name="PreferencesButton" Content="Settings" />
+          <Button Name="AboutButton" Content="About" />
+        </StackPanel>
+
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="12,6">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Name="StatusText" Classes="secondary" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Name="PositionText" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- Floor switcher, only populated for maps that have floors. -->
+    <Border DockPanel.Dock="Left" Name="FloorPanel"
+            IsVisible="False"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,0,1,0"
+            Padding="10,10"
+            Width="160">
+      <StackPanel Spacing="6">
+        <TextBlock Classes="heading" Text="LEVELS" />
+        <StackPanel Name="FloorList" Spacing="2" />
+      </StackPanel>
+    </Border>
+
+    <!-- Exits, their requirements, and layer toggles. -->
+    <Border DockPanel.Dock="Right"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="1,0,0,0"
+            Width="290">
+      <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+        <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
+          <TextBlock Classes="heading" Text="EXITS" />
+          <ComboBox Name="ExitFilterBox" HorizontalAlignment="Stretch"
+                    ToolTip.Tip="Hide exits your faction cannot use" />
+          <TextBlock Name="ExitHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Pick one to draw a guide line from the player." />
+        </StackPanel>
+
+        <ListBox Grid.Row="1" Name="ExtractList" Margin="6,0,6,6"
+                 Background="Transparent" BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="data:MapPoi">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
+                <!-- A conditional exit is flagged in the list, not only once you click it. -->
+                <TextBlock Grid.Column="1" Text="!"
+                           IsVisible="{Binding IsConditional}"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource WarningBrush}"
+                           ToolTip.Tip="This exit has conditions" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Detail for the selected exit. Rows appear only when the data has something to say. -->
+        <Border Grid.Row="2" Name="ExtractDetail"
+                IsVisible="False"
+                Margin="10,0,10,10" Padding="10"
+                Background="{DynamicResource SurfaceRaisedBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource RadiusSmall}">
+          <StackPanel Spacing="5">
+            <TextBlock Name="DetailName" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Name="DetailFaction" Classes="secondary" FontSize="12" TextWrapping="Wrap" />
+            <TextBlock Name="DetailDistance" FontSize="12" TextWrapping="Wrap" />
+            <ItemsControl Name="DetailConditions">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                             Foreground="{DynamicResource WarningBrush}" Margin="0,1" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Name="DetailElevation" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+            <Button Name="ClearSelection" Content="Clear" HorizontalAlignment="Left" Padding="8,2" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="3">
+          <Expander Header="Spawn heatmap" Margin="6,0,6,4">
+            <StackPanel Spacing="4" Margin="6">
+              <CheckBox Name="HeatmapToggle" Content="Show heatmap" />
+              <StackPanel Name="HeatmapGroups" Spacing="2" Margin="14,0,0,0" />
+              <TextBlock Name="HeatmapRadiusLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
+              <Slider Name="HeatmapRadius" Minimum="10" Maximum="150" />
+              <TextBlock Name="HeatmapOpacityLabel" Classes="secondary" FontSize="11" />
+              <Slider Name="HeatmapOpacity" Minimum="0.1" Maximum="1.0" />
+            </StackPanel>
+          </Expander>
+
+          <Expander Header="Layers" Margin="6,0,6,8">
+            <ScrollViewer MaxHeight="240">
+              <StackPanel Name="LayerList" Spacing="2" Margin="6" />
+            </ScrollViewer>
+          </Expander>
+        </StackPanel>
+
+      </Grid>
+    </Border>
+
+    <Panel Name="MapHost" />
+
+  </DockPanel>
+
+</Window>

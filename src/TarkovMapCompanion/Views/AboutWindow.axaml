@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:TarkovMapCompanion.Views"
+        mc:Ignorable="d"
+        x:Class="TarkovMapCompanion.Views.AboutWindow"
+        Title="About Tarkov Map Companion"
+        Width="620" Height="540"
+        MinWidth="460" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBaseBrush}">
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Bottom"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="12,8">
+      <Button Name="CloseButton" Content="Close" Classes="accent"
+              HorizontalAlignment="Right" Padding="16,4" />
+    </Border>
+
+    <!--
+      Pinned to the viewport width for the same reason as the preferences window: a ScrollViewer
+      measures with unbounded width, and the unbroken data-source URLs below would otherwise set
+      the panel width and push every wrapping paragraph past the window edge.
+    -->
+    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">
+      <Border Padding="18" MaxWidth="{Binding #Scroller.Viewport.Width}">
+      <StackPanel Spacing="16">
+
+        <StackPanel Spacing="3">
+          <TextBlock Text="Tarkov Map Companion" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Name="VersionText" Classes="secondary" FontSize="11" />
+        </StackPanel>
+
+        <Border Classes="panel" Padding="12">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="heading" Text="HOW IT WORKS" />
+            <TextBlock TextWrapping="Wrap" FontSize="12"
+                       Text="Escape from Tarkov writes your position and camera rotation into the filename of every screenshot you take. This app watches that folder and reads the filenames. Nothing else." />
+            <TextBlock TextWrapping="Wrap" FontSize="12"
+                       Text="It does not read the game's memory, hook into the process, modify any game file, or communicate with the game in any way. It cannot see anything you have not already captured yourself." />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="MAPS AND DATA" />
+          <TextBlock TextWrapping="Wrap" FontSize="12"
+                     Text="All map artwork and point-of-interest data comes from the tarkov.dev community project. This app is not affiliated with them; it simply uses what they publish." />
+
+          <ItemsControl Name="CreditsList" Margin="0,4,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="views:Credit">
+                <Grid ColumnDefinitions="130,*" Margin="0,2">
+                  <TextBlock Grid.Column="0" Text="{Binding Who}" FontSize="12"
+                             Foreground="{DynamicResource AccentBrush}" />
+                  <TextBlock Grid.Column="1" Text="{Binding What}" FontSize="12" TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                     Text="Map geometry is taken from tarkov-dev, which is MIT licensed. Map artwork remains the work of its authors, credited above." />
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+            <Button Name="TarkovDevButton" Content="tarkov.dev" />
+            <Button Name="SourceButton" Content="tarkov-dev on GitHub" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="DATA SOURCES IN USE" />
+          <TextBlock Name="SourcesText" Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     FontFamily="{DynamicResource MonoFont}" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="BUILT WITH" />
+          <TextBlock Name="StackText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                   Text="Escape from Tarkov is a trademark of Battlestate Games. This is an unofficial fan-made tool with no connection to Battlestate Games." />
+
+      </StackPanel>
+      </Border>
+    </ScrollViewer>
+
+  </DockPanel>
+
+</Window>

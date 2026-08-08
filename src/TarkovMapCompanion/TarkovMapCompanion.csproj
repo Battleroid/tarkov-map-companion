@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>TarkovMapCompanion</RootNamespace>
+    <AssemblyName>TarkovMapCompanion</AssemblyName>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+
+    <Version>0.1.0</Version>
+    <Product>Tarkov Map Companion</Product>
+    <Company>casey</Company>
+    <Description>Reads position and heading out of Escape from Tarkov screenshot filenames and plots them on community maps. Does not interact with the game.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Svg.Skia" Version="$(SvgSkiaVersion)" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\Snapshots\*.json" />
+    <EmbeddedResource Include="Data\Snapshots\*.json.gz" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TarkovMapCompanion.Tests" />
+  </ItemGroup>
+
+</Project>

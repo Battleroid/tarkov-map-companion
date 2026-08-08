@@ -1,0 +1,934 @@
+{
+  "fetchedAt": "2026-08-08T09:18:30.7717296+00:00",
+  "maps": {
+    "customs": [
+      {
+        "name": "Administration Gate",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Boiler Room Basement (Co-op)",
+        "alwaysAvailable": false,
+        "availability": "PMC: no \u00B7 Scav: yes",
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Crossroads",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Dorms V-Ex",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+      },
+      {
+        "name": "Factory Far Corner",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Factory Shacks",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Military Base CP",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Old Gas Station",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flares = Open"
+      },
+      {
+        "name": "Old Gas Station Gate",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Old Road Gate",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Passage Between Rocks",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Railroad Passage (Flare)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      },
+      {
+        "name": "Railroad to Military Base",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Railroad to Port",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Railroad to Tarkov",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "RUAF Roadblock",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Scav Checkpoint",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Smugglers\u0027 Boat",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Voron"
+      },
+      {
+        "name": "Smugglers\u0027 Bunker (ZB-1012)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Voron"
+      },
+      {
+        "name": "Sniper Roadblock",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Trailer Park",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Trailer Park Workers\u0027 Shack",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Warehouse 4",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Warehouse 17",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "ZB-013",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Activate lever in warehouse #4 at the crane yard \u00B7 Used to open the door to the extraction"
+      },
+      {
+        "name": "ZB-1011",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      }
+    ],
+    "factory": [
+      {
+        "name": "Camera Bunker Door",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Cellars",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Used to open the door to the extraction"
+      },
+      {
+        "name": "Courtyard Gate",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Gate 0",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Gate 3",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Med Tent Gate",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Used to open the door to the extraction"
+      },
+      {
+        "name": "Office Window",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Smugglers\u0027 Passage",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Ark"
+      }
+    ],
+    "ground-zero": [
+      {
+        "name": "Emercom Checkpoint",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Mira Ave (Flare)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      },
+      {
+        "name": "Nakatani Basement Stairs",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Police Cordon V-Ex",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+      },
+      {
+        "name": "Scav Checkpoint (Co-op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Tartowers Sales Office",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Adaptation"
+      }
+    ],
+    "icebreaker": [
+      {
+        "name": "Helicopter",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the helicopter won\u0027t come \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      }
+    ],
+    "interchange": [
+      {
+        "name": "Emercom Checkpoint",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Path to River (Flare)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      },
+      {
+        "name": "Power Station V-Ex",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+      },
+      {
+        "name": "Railway Exfil",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Saferoom Exfil",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "1.Turn on power at the power station \u00B7 2.Flush urinal in the \u0022Burger Spot\u0022 restaurant \u00B7 3.Swipe Object #11SR keycard at revealed keycard panel \u00B7 4.Lock the extraction door from inside with\u2026"
+      },
+      {
+        "name": "Scav Camp (Co-Op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Smugglers\u0027 Tunnel",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Interchange underground utility plan"
+      }
+    ],
+    "lighthouse": [
+      {
+        "name": "Armored Train",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Hideout Under the Landing Stage",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Industrial Zone Gates",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Mountain Pass",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+      },
+      {
+        "name": "Northern Checkpoint",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Passage by the Lake",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Minefield map (Lighthouse)"
+      },
+      {
+        "name": "Path to Shoreline",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Road to Military Base V-Ex",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players"
+      },
+      {
+        "name": "Scav Hideout at the Grotto",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Side Tunnel (Co-Op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Southern Road",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Southern Road Landslide",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      }
+    ],
+    "reserve": [
+      {
+        "name": "Armored Train",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": null
+      },
+      {
+        "name": "Bunker Hermetic Door",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Activate the lever in the shack west of the white pawn barracks"
+      },
+      {
+        "name": "Checkpoint Fence",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Cliff Descent",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+      },
+      {
+        "name": "D-2",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "1.Turn on power with a lever in the command part of the underground bunker system \u00B7 2.Press the button on the wall next to the sliding door"
+      },
+      {
+        "name": "Depot Hermetic Door",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Exit to Woods",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Minefield map (Reserve)"
+      },
+      {
+        "name": "Heating Pipe",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Hole in the Wall by the Mountains",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Scav Lands (Co-Op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Sewer Manhole",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "No backpack equipped"
+      }
+    ],
+    "shoreline": [
+      {
+        "name": "Admin Basement",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Climber\u0027s Trail",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+      },
+      {
+        "name": "East Wing Gym Entrance",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Lighthouse",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Mountain Bunker",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Heartbeat"
+      },
+      {
+        "name": "Path to Lighthouse",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Pier Boat",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flare = Open"
+      },
+      {
+        "name": "Railway Bridge",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Road to Customs",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Road to North V-Ex",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players"
+      },
+      {
+        "name": "Ruined Road",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Smugglers\u0027 Path (Co-op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Tunnel",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      }
+    ],
+    "streets-of-tarkov": [
+      {
+        "name": "Cardinal Apartment Complex Parking",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Collapsed Crane",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Courtyard",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flare = Open"
+      },
+      {
+        "name": "Crash Site",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Damaged House",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Entrance to Catacombs",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Expo Checkpoint",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Klimov Shopping Mall Exfil",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Klimov Street (Flare)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      },
+      {
+        "name": "Near Kamchatskaya Arch",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Pinewood Basement (Co-Op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Primorsky Ave Taxi V-Ex",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+      },
+      {
+        "name": "Sewer Manhole",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Sewer River",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Smugglers\u0027 Basement",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Note with code word Onyx"
+      },
+      {
+        "name": "Stylobate Building Elevator",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Ventilation Shaft",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      }
+    ],
+    "terminal": [
+      {
+        "name": "Zubr Boat",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "The available boat seats depend on the number of players that entered the raid: \u00B7 3 seats with 1-3 players \u00B7 3 to 4 seats with 4 players \u00B7 4 to 5 seats with 5 players \u00B7 Players who brought\u2026"
+      }
+    ],
+    "the-lab": [
+      {
+        "name": "Cargo Elevator",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "Restore power in the basement, room G1"
+      },
+      {
+        "name": "Hangar Gate",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Open the gate in cabin B24, on the second floor of the hangar"
+      },
+      {
+        "name": "Main Elevator",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Restore power in the basement, opposite of room R4"
+      },
+      {
+        "name": "Medical Block Elevator",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Restore power in the basement, room G6"
+      },
+      {
+        "name": "Parking Gate",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Open the gate in room Y21 on the second floor, next to R22"
+      },
+      {
+        "name": "Sewage Conduit",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Sink the water level"
+      },
+      {
+        "name": "Ventilation Shaft",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "No backpack equipped"
+      }
+    ],
+    "the-labyrinth": [
+      {
+        "name": "Ariadne\u0027s Path",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Ariadne symbol key"
+      },
+      {
+        "name": "The Way Up",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Only available 15 min after raid start"
+      }
+    ],
+    "woods": [
+      {
+        "name": "Boat",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Bridge V-Ex",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": true,
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+      },
+      {
+        "name": "Dead Man\u0027s Place",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Eastern Rocks",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Friendship Bridge (Co-Op)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Scav \u002B PMC"
+      },
+      {
+        "name": "Mountain Stash",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Northern UN Roadblock",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Old Railway Depot",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Outskirts",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Power Line Passage (Flare)",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+      },
+      {
+        "name": "Railway Bridge to Tarkov",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Minefield map (Woods)"
+      },
+      {
+        "name": "RUAF Gate",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flare = Open"
+      },
+      {
+        "name": "RUAF Roadblock",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Scav Bunker",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "Scav House",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "UN Roadblock",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null
+      },
+      {
+        "name": "ZB-014",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flares = Open"
+      },
+      {
+        "name": "ZB-016",
+        "alwaysAvailable": false,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Green flares = Open"
+      }
+    ]
+  }
+}

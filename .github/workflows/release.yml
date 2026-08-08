@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag/version to release (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.ref_name }}' }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # Never ship a build whose tests did not pass.
+      - name: Test
+        run: dotnet test TarkovMapCompanion.sln -c Release
+
+      - name: Publish single-file win-x64
+        run: >
+          dotnet publish src/TarkovMapCompanion/TarkovMapCompanion.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none -p:DebugSymbols=false
+          -o publish
+
+      - name: Name the release asset
+        shell: pwsh
+        run: |
+          Remove-Item publish\*.pdb -ErrorAction SilentlyContinue
+          $name = "TarkovMapCompanion-${{ steps.ver.outputs.version }}-win-x64.exe"
+          Move-Item publish\TarkovMapCompanion.exe $name
+          "$name is $([math]::Round((Get-Item $name).Length / 1MB, 1)) MB"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: Tarkov Map Companion ${{ steps.ver.outputs.version }}
+          files: TarkovMapCompanion-*-win-x64.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Download **TarkovMapCompanion-${{ steps.ver.outputs.version }}-win-x64.exe** below and run it.
+            Nothing to install: .NET is bundled, and the maps and exit data are baked in, so it works offline.
+
+            Windows SmartScreen will warn about an unsigned executable the first time.
+            Choose *More info* then *Run anyway*, or check the Actions build log to see it was built from this tag.

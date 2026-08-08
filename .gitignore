@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+artifacts/
+
+# Build output from scripts/publish.ps1 and the release workflow
+publish/
+TarkovMapCompanion-*-win-x64.exe
+TarkovMapCompanion-*-win-x64.zip
+
+# Local render-test output
+*.render.png

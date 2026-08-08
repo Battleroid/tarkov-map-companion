@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{2A999230-1BCC-42CE-8890-8CE05CB04148}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TarkovMapCompanion", "src\TarkovMapCompanion\TarkovMapCompanion.csproj", "{2A9D1FFE-1355-4B53-B04E-9BA022E211CF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5BD43A1C-9376-476D-B61B-43BB51DFA881}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TarkovMapCompanion.Tests", "tests\TarkovMapCompanion.Tests\TarkovMapCompanion.Tests.csproj", "{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2A9D1FFE-1355-4B53-B04E-9BA022E211CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A9D1FFE-1355-4B53-B04E-9BA022E211CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A9D1FFE-1355-4B53-B04E-9BA022E211CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A9D1FFE-1355-4B53-B04E-9BA022E211CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2A9D1FFE-1355-4B53-B04E-9BA022E211CF} = {2A999230-1BCC-42CE-8890-8CE05CB04148}
+		{88E0D5D5-50FE-43C3-80AA-FA5BB81D0ACF} = {5BD43A1C-9376-476D-B61B-43BB51DFA881}
+	EndGlobalSection
+EndGlobal

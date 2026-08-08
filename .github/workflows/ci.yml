@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore TarkovMapCompanion.sln
+
+      - name: Build
+        run: dotnet build TarkovMapCompanion.sln -c Release --no-restore
+
+      # The coordinate maths and the screenshot parser are the whole app; a green build that
+      # skipped them would not be telling us anything.
+      - name: Test
+        run: dotnet test TarkovMapCompanion.sln -c Release --no-build --verbosity normal
+
+      # Headless render of a map. Catches a broken embedded snapshot or a projection regression
+      # that the unit tests cannot see, because it exercises the real drawing path.
+      #
+      # The map artwork is downloaded, so this depends on tarkov.dev being up. Exit code 4 means
+      # exactly "imagery unavailable and not cached", and is reported without failing the build:
+      # an outage at a third party is not a defect in this repo.
+      - name: Smoke test the renderer
+        shell: pwsh
+        run: |
+          $out = "$env:RUNNER_TEMP\customs.png"
+          dotnet run --project src/TarkovMapCompanion -c Release --no-build -- `
+            --render-test customs $out 1200 700
+          $code = $LASTEXITCODE
+
+          if ($code -eq 4) {
+            Write-Warning "Map imagery could not be downloaded; skipping the render smoke test."
+            exit 0
+          }
+          if ($code -ne 0) { throw "render test failed with exit code $code" }
+          if (-not (Test-Path $out)) { throw "render test reported success but produced no image" }
+
+          "Rendered $([math]::Round((Get-Item $out).Length / 1KB)) KB"
+
+      - name: Publish single-file win-x64
+        run: >
+          dotnet publish src/TarkovMapCompanion/TarkovMapCompanion.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none -p:DebugSymbols=false
+          -o publish
+
+      - name: Drop native debug symbols
+        shell: pwsh
+        run: Remove-Item publish\*.pdb -ErrorAction SilentlyContinue
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarkov-map-companion-win-x64
+          path: publish/
+          if-no-files-found: error

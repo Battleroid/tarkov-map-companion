@@ -1,0 +1,77 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:rendering="using:TarkovMapCompanion.Rendering">
+
+  <!--
+    Chrome styling on top of FluentTheme. Only overrides what the token palette needs; anything
+    not listed here keeps Fluent's defaults deliberately.
+  -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBaseBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <!--
+    Letterbox behind the map. The map artwork itself is dark in both themes, so this only affects
+    the margin around a map that does not fill the viewport.
+  -->
+  <Style Selector="rendering|MapCanvas">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+
+  <!-- Section heading: uppercase tracking reads well in a monospace face at small sizes. -->
+  <Style Selector="TextBlock.heading">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="0.08" />
+  </Style>
+
+  <Style Selector="Border.panel">
+    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+
+  <Style Selector="Button:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+  </Style>
+
+  <Style Selector="CheckBox, RadioButton, ComboBox, TextBox, NumericUpDown, Slider">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <!-- Keyboard focus must stay obvious against both surfaces. -->
+  <Style Selector=":is(Control):focus-visible /template/ Border#FocusRing">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+</Styles>

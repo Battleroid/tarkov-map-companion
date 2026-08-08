@@ -1,0 +1,20 @@
+# Normalize to LF in the repository; Git checks out native line endings on Windows.
+* text=auto
+
+*.cs      text diff=csharp
+*.axaml   text
+*.csproj  text
+*.sln     text eol=crlf
+*.props   text
+*.json    text
+*.md      text
+*.yml     text
+
+# Windows-only scripts must keep CRLF or cmd.exe and PowerShell can misparse them.
+*.bat     text eol=crlf
+*.ps1     text eol=crlf
+
+# Binary assets: never touch these.
+*.png     binary
+*.gz      binary
+*.svg     text

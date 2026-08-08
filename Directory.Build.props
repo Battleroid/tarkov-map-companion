@@ -1,0 +1,37 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    Version pinning notes. Do NOT bump one of these without checking the other.
+
+    Avalonia and Svg.Skia both surface raw SkiaSharp types, and we draw SVG pictures straight into
+    Avalonia's Skia canvas via ISkiaSharpApiLease. If the two resolve to different SkiaSharp majors
+    the app compiles fine and then dies at runtime with a TypeLoadException on SKCanvas.
+
+      Avalonia      11.3.19 -> SkiaSharp 2.88.9
+      Svg.Skia       4.8.0  -> SkiaSharp 2.88.9   (exact match)
+
+    Known-bad combinations, for whoever tries to upgrade next:
+      * Svg.Skia >= 4.9.0 moves to SkiaSharp 3.119.x and breaks against Avalonia 11.3.
+      * Avalonia 12.x does pair with Svg.Skia 5.x on SkiaSharp 3.119.x, but its source generators
+        require Roslyn 4.14 (.NET 10 SDK). This machine has SDK 8.0.421 / Roslyn 4.11, where the
+        generator silently does not run and every x:Name field fails to compile. Moving to
+        Avalonia 12 means installing a newer .NET SDK first.
+      * Avalonia.Svg.Skia (the wrapper) tops out at SkiaSharp 2.88.x on an Avalonia 11.3 baseline
+        but is not published for 12.x at all. We do not use it: all we need is SKSvg -> SKPicture,
+        and we custom-draw everything anyway.
+  -->
+  <PropertyGroup>
+    <AvaloniaVersion>11.3.19</AvaloniaVersion>
+    <SvgSkiaVersion>4.8.0</SvgSkiaVersion>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="TarkovMapCompanion.Views.PreferencesWindow"
+        Title="Preferences"
+        Width="600" Height="540"
+        MinWidth="460" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBaseBrush}">
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Bottom"
+            Background="{DynamicResource SurfacePanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="12,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Name="SettingsPathText"
+                   Classes="secondary" FontSize="11"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <Button Grid.Column="1" Name="CloseButton" Content="Close" Classes="accent" Padding="16,4" />
+      </Grid>
+    </Border>
+
+    <!--
+      A ScrollViewer measures its content with unbounded width, so the TextBox below reports the
+      full pixel width of whatever folder path it holds, the star column sizes to that, and every
+      wrapping TextBlock in the panel then wraps to a width wider than the window. Pinning the
+      content to the viewport width is what actually stops that; HorizontalScrollBarVisibility
+      alone does not, because the Border is what has to be constrained.
+      Padding lives on the Border, inside MaxWidth, rather than on the ScrollViewer, so the
+      content plus its margins still fits.
+    -->
+    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">
+      <Border Padding="16" MaxWidth="{Binding #Scroller.Viewport.Width}">
+      <StackPanel Spacing="18">
+
+        <!-- Screenshots -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="SCREENSHOTS" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="The folder Escape from Tarkov writes screenshots to. Only the filename is read; the image itself is never opened." />
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+            <TextBox Grid.Column="0" Name="FolderBox" FontSize="12" />
+            <Button Grid.Column="1" Name="BrowseButton" Content="Browse" />
+            <Button Grid.Column="2" Name="DefaultFolderButton" Content="Default" />
+          </Grid>
+          <TextBlock Name="FolderStatus" FontSize="11" />
+        </StackPanel>
+
+        <!-- Culling. Destructive, so it gets its own framing and an explicit warning. -->
+        <Border Classes="panel" Padding="12">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="heading" Text="REMOVING OLD SCREENSHOTS" />
+            <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                       Text="Off by default. When enabled this deletes files from the folder above. Deleted files go to the Recycle Bin, and only files matching Tarkov's own screenshot naming are ever touched." />
+
+            <RadioButton Name="CullOff" GroupName="Cull" Content="Keep everything" />
+            <RadioButton Name="CullKeepLatest" GroupName="Cull" Content="Keep only the newest" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
+              <NumericUpDown Name="CullCount" Minimum="1" Maximum="10000" Increment="5"
+                             Width="120" FormatString="0" />
+              <TextBlock Text="screenshots" VerticalAlignment="Center" FontSize="12" />
+            </StackPanel>
+            <RadioButton Name="CullAfterRead" GroupName="Cull" Content="Delete each screenshot once its position has been read" />
+
+            <TextBlock Name="CullWarning" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
+          </StackPanel>
+        </Border>
+
+        <!-- View -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="VIEW" />
+          <CheckBox Name="FollowPlayerBox" Content="Recenter on the player when a new screenshot arrives" />
+          <CheckBox Name="SuggestMapBox" Content="Offer to switch maps when a position lands off the current one" />
+          <CheckBox Name="AutoSwitchBox" Content="Switch automatically instead of asking" Margin="24,0,0,0" />
+
+          <TextBlock Name="PaddingLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
+          <Slider Name="PaddingSlider" Minimum="0" Maximum="0.75" />
+
+          <TextBlock Name="TrailLabel" Classes="secondary" FontSize="11" />
+          <Slider Name="TrailSlider" Minimum="0" Maximum="60" />
+
+          <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Appearance -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="APPEARANCE" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Theme" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <ComboBox Name="ThemeBox" Width="160" />
+          </StackPanel>
+          <TextBlock Name="FontLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
+          <Slider Name="FontSlider" Minimum="11" Maximum="22" TickFrequency="1" IsSnapToTickEnabled="True" />
+          <CheckBox Name="AlwaysOnTopBox" Content="Keep the window above other windows" />
+        </StackPanel>
+
+        <!-- Data -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="MAP DATA" />
+          <CheckBox Name="AllowNetworkBox" Content="Download map images and exit data from tarkov.dev" />
+          <TextBlock Name="DataStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Name="RefreshDataButton" Content="Refresh now" />
+            <Button Name="OpenCacheButton" Content="Open cache folder" />
+          </StackPanel>
+        </StackPanel>
+
+      </StackPanel>
+      </Border>
+    </ScrollViewer>
+
+  </DockPanel>
+
+</Window>
