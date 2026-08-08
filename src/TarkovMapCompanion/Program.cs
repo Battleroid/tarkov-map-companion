@@ -34,6 +34,11 @@ internal static class Program
         // network can host at all.
         //   TarkovMapCompanion --party-test [name]
         //   TarkovMapCompanion --party-test join <code> [name]
+        // Prints every place Tarkov screenshots might be, and what is in each.
+        //   TarkovMapCompanion --find-screenshots
+        if (args.Length > 0 && args[0] is "--find-screenshots")
+            return Tools.FindScreenshots.Run();
+
         if (args.Length > 0 && args[0] is "--party-test")
             return Tools.PartyTest.RunAsync(args[1..]).GetAwaiter().GetResult();
 

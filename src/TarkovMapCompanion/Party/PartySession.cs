@@ -79,7 +79,22 @@ public sealed class PartySession : IDisposable
     private TcpClient? _upstream;
     private byte[]? _key;
 
+    /// <summary>
+    /// A short tag derived from the session secret, printed on every party log line.
+    /// </summary>
+    /// <remarks>
+    /// The point of it is lining two machines' logs up side by side. Both ends of a session derive
+    /// the same tag from the same secret without either of them sending it, so "these are the same
+    /// session" is answerable from the logs alone -- and a mismatch immediately explains a squad
+    /// that cannot see each other because somebody pasted an older code.
+    /// </remarks>
+    private string _fingerprint = "--------";
+
+    /// <summary>"host" or "guest", fixed the moment a session starts.</summary>
+    private string _role = "idle";
+
     private string _selfName = "Player";
+    private int _published;
     private PeerPosition? _selfPosition;
     private bool _disposed;
 
@@ -148,6 +163,8 @@ public sealed class PartySession : IDisposable
             Y = position.Y,
             Z = position.Z,
         };
+
+        LogParty($"ping placed at {position.X:F0},{position.Z:F0} on {map}");
 
         PingReceived?.Invoke(this, ping);
 
@@ -221,7 +238,11 @@ public sealed class PartySession : IDisposable
 
         var secret = SessionCode.NewSecret();
         _key = PartyProtocol.DeriveKey(secret);
+        _fingerprint = Fingerprint(secret);
+        _role = "host";
         _cancellation = new CancellationTokenSource();
+
+        LogParty($"starting as \"{_selfName}\", requested port {port}");
 
         try
         {
@@ -247,6 +268,8 @@ public sealed class PartySession : IDisposable
 
             if (mapping is null)
             {
+                LogParty("WARN no usable address; UPnP failed and no public address was found");
+
                 Leave();
                 State = PartyState.Failed;
                 Status?.Invoke(
@@ -261,6 +284,10 @@ public sealed class PartySession : IDisposable
             Code = SessionCode.Format(mapping.ExternalAddress, mapping.Port, secret);
             RouterOpenedPort = mapping.Mapped;
             State = PartyState.Hosting;
+
+            LogParty(
+                $"listening on {LocalAddress}:{ListenPort}, external {Mask(mapping.ExternalAddress)}:{mapping.Port}, "
+                + $"router opened it: {mapping.Mapped}");
 
             UpdateSelf();
             _ = Task.Run(() => AcceptLoopAsync(_cancellation.Token), CancellationToken.None);
@@ -360,6 +387,7 @@ public sealed class PartySession : IDisposable
             lock (_gate)
                 _clients.Add(hosted);
 
+            LogParty($"\"{name}\" joined from {Mask(((IPEndPoint)client.Client.RemoteEndPoint!).Address)}");
             Status?.Invoke(this, $"{name} joined.");
 
             SetPeer(name, null, isSelf: false, generation);
@@ -377,6 +405,7 @@ public sealed class PartySession : IDisposable
                     // else.
                     ping.Name = name;
 
+                    LogParty($"ping from \"{name}\" at {ping.X:F0},{ping.Z:F0} on {ping.Map}");
                     PingReceived?.Invoke(this, ping);
                     await RelayPingAsync(ping, hosted).ConfigureAwait(false);
                     continue;
@@ -395,8 +424,10 @@ public sealed class PartySession : IDisposable
         }
         catch (Exception ex)
         {
-            // Includes a frame that would not authenticate, which is what a wrong code looks like.
-            Log.Warn($"party peer dropped: {ex.Message}");
+            // Includes a frame that would not authenticate, which is what a wrong code looks like:
+            // the type is the useful part, so log it rather than only the message.
+            Log.Warn($"[party {_fingerprint} host] peer dropped ({hosted?.Name ?? "before hello"}): "
+                     + $"{ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
@@ -408,6 +439,7 @@ public sealed class PartySession : IDisposable
                     _peers.Remove(hosted.Name);
                 }
 
+                LogParty($"\"{hosted.Name}\" left; {_clients.Count} still connected");
                 Status?.Invoke(this, $"{hosted.Name} left.");
                 hosted.Dispose();
 
@@ -508,10 +540,14 @@ public sealed class PartySession : IDisposable
 
         _selfName = PartyProtocol.CleanName(displayName);
         _key = PartyProtocol.DeriveKey(secret);
+        _fingerprint = Fingerprint(secret);
+        _role = "guest";
         _cancellation = new CancellationTokenSource();
 
         State = PartyState.Joining;
         Raise();
+
+        LogParty($"connecting to {Mask(endPoint.Address)}:{endPoint.Port} as \"{_selfName}\"");
 
         try
         {
@@ -532,6 +568,8 @@ public sealed class PartySession : IDisposable
                 cancellationToken).ConfigureAwait(false);
 
             State = PartyState.Joined;
+            LogParty("connected, sent hello");
+
             Status?.Invoke(this, "Connected to the session.");
             Raise();
 
@@ -546,7 +584,7 @@ public sealed class PartySession : IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn($"could not join a party: {ex.Message}");
+            LogParty($"WARN could not join: {ex.GetType().Name}: {ex.Message}");
             Leave();
 
             State = PartyState.Failed;
@@ -562,6 +600,7 @@ public sealed class PartySession : IDisposable
     private async Task ReceiveLoopAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         var generation = CurrentGeneration;
+        var lastRosterSize = -1;
 
         try
         {
@@ -576,6 +615,7 @@ public sealed class PartySession : IDisposable
 
                 if (message.Kind == PartyMessageKind.Ping && message.Position is { } ping)
                 {
+                    LogParty($"ping from \"{ping.Name}\" at {ping.X:F0},{ping.Z:F0} on {ping.Map}");
                     PingReceived?.Invoke(this, ping);
                     continue;
                 }
@@ -586,6 +626,18 @@ public sealed class PartySession : IDisposable
                 // The host is the authority on names, including ours if it had to disambiguate.
                 if (!string.IsNullOrEmpty(message.Name))
                     _selfName = message.Name;
+
+                // Only when the membership changes: a roster arrives on every position anyone
+                // publishes, and logging all of them would bury everything else.
+                if (message.Roster.Count != lastRosterSize)
+                {
+                    lastRosterSize = message.Roster.Count;
+
+                    LogParty(
+                        $"roster now {lastRosterSize}: "
+                        + string.Join(", ", message.Roster.Select(r =>
+                            $"{r.Name}{(r.AgeSeconds < 0 ? " (no position)" : $" on {r.Map}")}")));
+                }
 
                 ApplyRoster(message.Roster, generation);
                 Raise();
@@ -654,6 +706,13 @@ public sealed class PartySession : IDisposable
 
         if (!IsActive)
             return;
+
+        // Positions arrive every screenshot; logging each would drown the file. A periodic count
+        // is enough to answer "is this end publishing at all", which is the only question the log
+        // needs to settle -- and it is exactly the question a squad member who cannot be seen
+        // needs answered.
+        if (++_published % 10 == 1)
+            LogParty($"published {_published} position(s), latest on {map}");
 
         if (State == PartyState.Hosting)
         {
@@ -751,6 +810,9 @@ public sealed class PartySession : IDisposable
     /// </remarks>
     public void Leave()
     {
+        if (IsActive)
+            LogParty($"session ended after publishing {_published} position(s)");
+
         HostedClient[] clients;
 
         lock (_gate)
@@ -779,6 +841,7 @@ public sealed class PartySession : IDisposable
         _mapper = null;
         _cancellation = null;
         _key = null;
+        _published = 0;
         Code = null;
 
         // Our own last position is session state too. Kept, it would be republished to whoever we
@@ -792,6 +855,33 @@ public sealed class PartySession : IDisposable
     }
 
     private void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Every party line carries the session tag and which side of it we are.
+    /// </summary>
+    /// <remarks>
+    /// The role is recorded rather than read back from <see cref="State"/>. Inferring it meant the
+    /// very first line a host writes -- logged while the state is still Starting -- called itself a
+    /// guest, which is a lie in precisely the file someone reaches for when the two ends disagree.
+    /// </remarks>
+    private void LogParty(string message) => Log.Info($"[party {_fingerprint} {_role}] {message}");
+
+    /// <summary>
+    /// Identifies a session without revealing the code that would let somebody join it.
+    /// </summary>
+    private static string Fingerprint(ReadOnlySpan<byte> secret) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(secret))[..8].ToLowerInvariant();
+
+    /// <summary>
+    /// Keeps the last octet out of the log, so a pasted log does not hand out somebody's address.
+    /// </summary>
+    private static string Mask(IPAddress address)
+    {
+        var text = address.ToString();
+        var lastDot = text.LastIndexOf('.');
+
+        return lastDot < 0 ? "?" : $"{text[..lastDot]}.x";
+    }
 
     public void Dispose()
     {

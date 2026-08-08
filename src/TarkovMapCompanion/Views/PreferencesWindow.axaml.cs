@@ -104,6 +104,8 @@ public partial class PreferencesWindow : Window
             FolderBox.Text = AppSettings.DefaultScreenshotFolder();
             ApplyFolder();
         };
+
+        DetectFolderButton.Click += (_, _) => DetectFolder();
         FolderBox.LostFocus += (_, _) => ApplyFolder();
 
         CullOff.IsCheckedChanged += (_, _) => ApplyCullMode();
@@ -288,21 +290,60 @@ public partial class PreferencesWindow : Window
         UpdateFolderStatus();
     });
 
+    /// <summary>
+    /// Searches every place Tarkov might be writing and takes the one with screenshots in it.
+    /// </summary>
+    private void DetectFolder()
+    {
+        var candidates = Screenshots.ScreenshotFolders.Candidates();
+        var best = candidates.FirstOrDefault(c => c.Looks);
+
+        if (best is null)
+        {
+            FolderStatus.Text =
+                "No Tarkov screenshots in any of the usual places. Take one in raid, find where the "
+                + "PNG landed, and point Browse at that folder.";
+
+            FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            return;
+        }
+
+        FolderBox.Text = best.Path;
+        ApplyFolder();
+
+        FolderStatus.Text =
+            $"Found {best.ScreenshotCount} screenshot{(best.ScreenshotCount == 1 ? "" : "s")} here, via {best.Source}.";
+    }
+
     private void UpdateFolderStatus()
     {
         var folder = FolderBox.Text ?? "";
 
-        if (Directory.Exists(folder))
+        if (!Directory.Exists(folder))
         {
-            var count = Screenshots.ScreenshotCuller.EnumerateScreenshots(folder).Count();
-            FolderStatus.Text = $"Found {count} Tarkov screenshot{(count == 1 ? "" : "s")}.";
-            FolderStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
-        }
-        else
-        {
-            FolderStatus.Text = "That folder does not exist yet.";
+            FolderStatus.Text = "That folder does not exist. Press Find to look for it.";
             FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            UpdateCullWarning();
+            return;
         }
+
+        var count = Screenshots.ScreenshotCuller.EnumerateScreenshots(folder).Count;
+
+        // An empty folder is the silent failure worth shouting about: everything looks fine and the
+        // map just never moves. Usually it means OneDrive has relocated Documents.
+        if (count == 0)
+        {
+            FolderStatus.Text =
+                "No Tarkov screenshots here yet. If you have taken some in raid, the game is writing "
+                + "somewhere else -- press Find.";
+
+            FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            UpdateCullWarning();
+            return;
+        }
+
+        FolderStatus.Text = $"Found {count} Tarkov screenshot{(count == 1 ? "" : "s")}.";
+        FolderStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
 
         UpdateCullWarning();
     }

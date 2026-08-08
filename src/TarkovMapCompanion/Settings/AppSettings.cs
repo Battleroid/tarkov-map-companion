@@ -236,11 +236,15 @@ public sealed class AppSettings
     /// <summary>Allow outbound requests to tarkov.dev at all.</summary>
     public bool AllowNetwork { get; set; } = true;
 
-    public static string DefaultScreenshotFolder()
-    {
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Path.Combine(documents, "Escape from Tarkov", "Screenshots");
-    }
+    /// <summary>
+    /// Where to watch, found by looking rather than assumed.
+    /// </summary>
+    /// <remarks>
+    /// This used to be one hard-coded path under Documents, which is right until OneDrive has moved
+    /// Documents somewhere else -- and then the app watches an empty folder forever and the map
+    /// simply never moves, with nothing on screen to say why.
+    /// </remarks>
+    public static string DefaultScreenshotFolder() => Screenshots.ScreenshotFolders.Detect();
 
     /// <summary>
     /// Clamps anything a hand-edited settings file could get wrong into a usable range, so a bad

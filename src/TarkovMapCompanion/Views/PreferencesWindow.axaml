@@ -43,12 +43,14 @@
           <TextBlock Classes="heading" Text="SCREENSHOTS" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="The folder Escape from Tarkov writes screenshots to. Only the filename is read; the image itself is never opened." />
-          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
             <TextBox Grid.Column="0" Name="FolderBox" FontSize="12" />
             <Button Grid.Column="1" Name="BrowseButton" Content="Browse" />
-            <Button Grid.Column="2" Name="DefaultFolderButton" Content="Default" />
+            <Button Grid.Column="2" Name="DetectFolderButton" Content="Find"
+                    ToolTip.Tip="Look in every place Tarkov might be writing screenshots, including a OneDrive-relocated Documents folder" />
+            <Button Grid.Column="3" Name="DefaultFolderButton" Content="Default" />
           </Grid>
-          <TextBlock Name="FolderStatus" FontSize="11" />
+          <TextBlock Name="FolderStatus" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
         <!-- Culling. Destructive, so it gets its own framing and an explicit warning. -->

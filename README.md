@@ -154,8 +154,11 @@ always-on-top toggle for when it shares a screen with something else.
 
 ## First run
 
-The app watches `Documents\Escape from Tarkov\Screenshots` by default. If yours is elsewhere, set
-it in **Settings**. Pick your map from the dropdown; if a position lands somewhere the current map
+The app looks for `Escape from Tarkov\Screenshots` under Documents, and under OneDrive if OneDrive
+has relocated your Documents folder, preferring whichever one actually has screenshots in it. If it
+still points somewhere wrong, press **Find** in **Settings**, or **Browse** to set it by hand. The
+line under the folder says how many Tarkov screenshots it can see — if that says zero after you
+have taken some in raid, the game is writing somewhere else and **Find** will locate it. Pick your map from the dropdown; if a position lands somewhere the current map
 cannot contain, the app offers to switch.
 
 ## Building from source
@@ -165,7 +168,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 334 tests
+dotnet test              # 341 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -182,6 +185,7 @@ scripts\publish.ps1
 | `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare] [marks]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers, `marks` lays a route of waypoints across it. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
+| `--find-screenshots` | Prints every place Tarkov screenshots might be and what is in each. What to run when the map never moves. |
 | `--party-test [name] [local]` / `--party-test join <code> [name]` | Hosts or joins a position-sharing session from the console. Says whether this network can host at all, which is the one part that cannot be tested any other way. `local` uses loopback so two processes on one machine can talk. |
 | `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
 
@@ -208,6 +212,12 @@ the bundled ones per exit.
 | `%APPDATA%\TarkovMapCompanion\extract-notes.json` | Optional overrides for exit conditions. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\` | Downloaded maps and tiles. Safe to delete. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\app.log` | What the app was doing, including why it stopped. Worth attaching to a bug report. |
+
+Party activity is logged on both sides with a shared tag derived from the session secret, like
+`[party ecb8932e host]`. Both ends compute the same tag without either sending it, so two people's
+logs can be lined up side by side — and a tag that differs is itself the answer, because it means
+somebody pasted an older code. Addresses are logged with the last octet masked, so a pasted log
+does not hand out anyone's IP.
 
 ## License
 
