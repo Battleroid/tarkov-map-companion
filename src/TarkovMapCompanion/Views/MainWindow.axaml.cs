@@ -34,8 +34,8 @@ public partial class MainWindow : Window
     /// <summary>Ticks peer ages, which change with no event to hang off.</summary>
     private DispatcherTimer? _partyClock;
 
-    /// <summary>Drives the ping pulse, and only runs while a ping is alive.</summary>
-    private DispatcherTimer? _pingClock;
+    /// <summary>Repaints for everything that animates, and stops when nothing does.</summary>
+    private MapClock? _mapClock;
 
     // Parameterless ctor exists only for the XAML previewer.
     public MainWindow() : this(new AppSettings())
@@ -73,6 +73,8 @@ public partial class MainWindow : Window
             // layer toggles are changed constantly during a session and losing them to an
             // ungraceful exit would be annoying out of all proportion to the cost of saving here.
             PersistSettings();
+            _mapClock?.Dispose();
+            _partyClock?.Stop();
             _session.Dispose();
         };
     }
@@ -201,6 +203,9 @@ public partial class MainWindow : Window
         {
             UpdateWaypointControls();
             UpdateExtractDetail();
+
+            // A second pin is what gives the route a line for the arrows to march along.
+            _mapClock?.Wake();
             _canvas.InvalidateVisual();
         });
 
@@ -329,17 +334,29 @@ public partial class MainWindow : Window
 
         _partyClock.Start();
 
-        // Pings animate, so they need frames rather than events. Only runs while something is on
-        // screen; an idle map should not be repainting twenty times a second forever.
-        _pingClock = new DispatcherTimer(TimeSpan.FromMilliseconds(50), DispatcherPriority.Render, OnPingTick);
-        _pingClock.Stop();
+        // Pings and route arrows animate, so they need frames rather than events. The clock only
+        // runs while one of them says it is still moving; an idle map should not be repainting
+        // twenty times a second forever, least of all on a second monitor beside a running game.
+        _mapClock = new MapClock(() => _canvas.InvalidateVisual());
+        _mapClock.Register(_session.Pings);
+        _mapClock.Register(_session.Waypoints);
+
+        // Frames nobody can see are not worth the wake-ups.
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property != WindowStateProperty || _mapClock is null)
+                return;
+
+            _mapClock.Suspended = WindowState == WindowState.Minimized;
+            _mapClock.Wake();
+        };
 
         _session.PingAdded += (_, ping) => Post(() =>
         {
             Audio.PingSound.Play();
 
             StatusText.Text = $"{ping.Name} pinged the map.";
-            _pingClock.Start();
+            _mapClock?.Wake();
             _canvas.InvalidateVisual();
         });
 
@@ -496,15 +513,6 @@ public partial class MainWindow : Window
         return count == 0
             ? "No markers set."
             : $"{count} marker{(count == 1 ? "" : "s")} to visit before the exit.";
-    }
-
-    private void OnPingTick(object? sender, EventArgs e)
-    {
-        _session.Pings.Expire();
-        _canvas.InvalidateVisual();
-
-        if (!_session.Pings.Any)
-            _pingClock?.Stop();
     }
 
     private void UpdateWaypointControls()

@@ -63,6 +63,7 @@ public sealed class MapSession : IDisposable
         {
             ArrivalRadiusMeters = settings.WaypointArrivalRadiusMeters,
             Arrival = settings.WaypointArrival,
+            AnimateArrows = settings.AnimateRouteArrows,
         };
 
         Peers = new PeerOverlay();

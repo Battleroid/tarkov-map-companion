@@ -35,14 +35,26 @@ public sealed class Waypoint
 /// lock, and readers get a snapshot rather than the live list.
 /// </para>
 /// </remarks>
-public sealed class WaypointOverlay : IMapOverlay
+public sealed class WaypointOverlay : IAnimatedOverlay
 {
     private static readonly SKTypeface Typeface =
         SKTypeface.FromFamilyName("Cascadia Mono")
         ?? SKTypeface.FromFamilyName("Consolas")
         ?? SKTypeface.Default;
 
+    /// <summary>Wall clock for the marching arrows. Shared, monotonic, and thread-safe to read.</summary>
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+
     private const float PinRadius = 10f;
+
+    /// <summary>Minimum screen-space gap between arrowheads.</summary>
+    private const float ArrowSpacing = 26f;
+
+    /// <summary>Ceiling on arrowheads per route, so extreme zoom cannot make this expensive.</summary>
+    private const int MaxArrowheads = 200;
+
+    /// <summary>How many arrow-spacings the pattern travels each second.</summary>
+    private const double ArrowsPerSecond = 0.8;
 
     private readonly object _gate = new();
     private readonly List<Waypoint> _waypoints = [];
@@ -61,6 +73,18 @@ public sealed class WaypointOverlay : IMapOverlay
 
     /// <summary>Whether clicking the map adds a waypoint rather than selecting an exit.</summary>
     public bool IsPlacing { get; set; }
+
+    /// <summary>
+    /// Whether the arrowheads travel along the route. Off still draws them, just stationary.
+    /// </summary>
+    /// <remarks>
+    /// Turning this off is also what lets the shared clock stop, so it is the knob for anyone who
+    /// would rather the app did nothing at all while they are not looking at it.
+    /// </remarks>
+    public bool AnimateArrows { get; set; } = true;
+
+    /// <summary>Frames are only wanted while there is a route long enough to march along.</summary>
+    public bool Advance() => AnimateArrows && Count >= 2;
 
     public int Count
     {
@@ -173,8 +197,16 @@ public sealed class WaypointOverlay : IMapOverlay
             DrawPin(canvas, viewport, waypoint);
     }
 
-    /// <summary>The line through the remaining waypoints, in order.</summary>
-    private static void DrawRoute(SKCanvas canvas, Viewport viewport, IReadOnlyList<Waypoint> waypoints)
+    /// <summary>
+    /// The line through the remaining waypoints, in order, with arrowheads marching along it.
+    /// </summary>
+    /// <remarks>
+    /// A dashed line says "these points are connected". Arrowheads say which way around, which is
+    /// the entire content of a route -- and a route drawn without it is a shape you have to read the
+    /// pin numbers to interpret. The path is built in visiting order, so the tangent at any point
+    /// along it already faces the next pin and the direction falls out of the geometry.
+    /// </remarks>
+    private void DrawRoute(SKCanvas canvas, Viewport viewport, IReadOnlyList<Waypoint> waypoints)
     {
         if (waypoints.Count < 2)
             return;
@@ -191,16 +223,71 @@ public sealed class WaypointOverlay : IMapOverlay
                 path.LineTo((float)screen.X, (float)screen.Y);
         }
 
+        // A faint continuous thread under the arrowheads, so the route still reads as one line
+        // between them rather than as a row of unconnected marks.
+        using var thread = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.4f,
+            Color = MarkerPalette.Waypoint.WithAlpha(0x50),
+        };
+
+        canvas.DrawPath(path, thread);
+
+        DrawArrowheads(canvas, path, MarkerPalette.Waypoint.WithAlpha(0xC0));
+    }
+
+    /// <summary>Chevrons spaced along a path, pointing the way it runs.</summary>
+    private void DrawArrowheads(SKCanvas canvas, SKPath path, SKColor color)
+    {
+        using var measure = new SKPathMeasure(path, false);
+        var length = measure.Length;
+
+        if (length < ArrowSpacing)
+            return;
+
+        // Zoomed in, a two-pin route can be tens of thousands of screen pixels long. Cap the count
+        // and let the spacing stretch: a thousand arrowheads is slow to draw and no more legible
+        // than twenty.
+        var spacing = Math.Max(ArrowSpacing, length / MaxArrowheads);
+
+        // Phase from wall time, never from a frame counter, so a dropped frame is a stutter rather
+        // than an animation that has quietly fallen behind.
+        var phase = AnimateArrows
+            ? (float)(Clock.Elapsed.TotalSeconds * ArrowsPerSecond % 1.0) * spacing
+            : spacing * 0.5f;
+
         using var paint = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.8f,
-            Color = MarkerPalette.Waypoint.WithAlpha(0x90),
-            PathEffect = SKPathEffect.CreateDash([4f, 5f], 0),
+            StrokeWidth = 2f,
+            StrokeCap = SKStrokeCap.Round,
+            StrokeJoin = SKStrokeJoin.Round,
+            Color = color,
         };
 
-        canvas.DrawPath(path, paint);
+        for (var distance = phase; distance < length; distance += spacing)
+        {
+            if (!measure.GetPositionAndTangent(distance, out var at, out var tangent))
+                continue;
+
+            var angle = Math.Atan2(tangent.Y, tangent.X);
+
+            canvas.Save();
+            canvas.Translate(at.X, at.Y);
+            canvas.RotateRadians((float)angle);
+
+            // Drawn pointing along +X, so the rotation above aims it down the path.
+            using var chevron = new SKPath();
+            chevron.MoveTo(-3.5f, -3.5f);
+            chevron.LineTo(3.0f, 0f);
+            chevron.LineTo(-3.5f, 3.5f);
+
+            canvas.DrawPath(chevron, paint);
+            canvas.Restore();
+        }
     }
 
     private void DrawArrivalRing(SKCanvas canvas, Viewport viewport, Waypoint next)

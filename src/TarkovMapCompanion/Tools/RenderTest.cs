@@ -168,6 +168,13 @@ public static class RenderTest
                 {
                     var route = new WaypointOverlay { Map = map, ArrivalRadiusMeters = 50 };
 
+                    // The reached marker goes first, on the player, so the route runs strictly away
+                    // from them. It used to be added last, which sent the line out to the exit and
+                    // straight back down its own length -- harmless when the route was a dash
+                    // pattern, but now that the arrowheads carry the direction, an outbound and a
+                    // return arrow land on top of each other and read as a row of asterisks.
+                    route.Add(lastFix.Position, map.ToBase(lastFix.Position));
+
                     for (var step = 1; step <= 3; step++)
                     {
                         var t = step / 4.0;
@@ -177,7 +184,6 @@ public static class RenderTest
                         route.Add(new GamePosition(x, 0, z), map.Projection.ToBase(x, z));
                     }
 
-                    route.Add(lastFix.Position, map.ToBase(lastFix.Position));
                     route.ApplyFix(lastFix.Position);
 
                     line.Waypoint = route.Next;
