@@ -266,23 +266,6 @@
                 </StackPanel>
               </StackPanel>
 
-              <!-- Only shown when the router did not open the port itself, which is exactly
-                   when somebody needs to know what to forward. -->
-              <Border Name="PartyForwardPanel" IsVisible="False"
-                      Padding="7,5"
-                      Background="{DynamicResource SurfacePanelBrush}"
-                      BorderBrush="{DynamicResource WarningBrush}"
-                      BorderThickness="1"
-                      CornerRadius="{DynamicResource RadiusSmall}">
-                <StackPanel Spacing="3">
-                  <TextBlock Text="Port forwarding needed" FontSize="11" FontWeight="SemiBold"
-                             Foreground="{DynamicResource WarningBrush}" />
-                  <SelectableTextBlock Name="PartyForwardText" FontSize="11" TextWrapping="Wrap" />
-                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                             Text="Only the host needs this. People joining you do not have to open anything." />
-                </StackPanel>
-              </Border>
-
               <ItemsControl Name="PartyRoster">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="views:PartyRow">

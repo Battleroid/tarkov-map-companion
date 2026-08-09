@@ -474,6 +474,10 @@ public partial class MainWindow : Window
     private string DisplayName() =>
         string.IsNullOrWhiteSpace(_settings.PlayerName) ? Environment.UserName : _settings.PlayerName;
 
+    /// <summary>Lets the advice sentence be reused mid-sentence without reading as a new one.</summary>
+    private static string Uncapitalized(string text) =>
+        text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
+
     /// <summary>The port and address to forward to, spelled out rather than left to be looked up.</summary>
     private string ForwardingAdvice(int port) =>
         _session.Party.LocalAddress is { } address
@@ -491,14 +495,6 @@ public partial class MainWindow : Window
 
         if (party.Code is { } code)
             PartyCodeText.Text = code;
-
-        // Shown while hosting works but the router would not open the port, which is the case
-        // where everything looks fine right up until nobody can connect.
-        var needsForward = party.State == PartyState.Hosting && !party.RouterOpenedPort;
-
-        PartyForwardPanel.IsVisible = needsForward;
-        if (needsForward)
-            PartyForwardText.Text = ForwardingAdvice(party.ListenPort);
 
         PartyFailedPanel.IsVisible = party.State == PartyState.Failed && party.ListenPort > 0;
         if (PartyFailedPanel.IsVisible)
@@ -528,13 +524,34 @@ public partial class MainWindow : Window
 
         PartyHint.IsVisible = PartyHint.Text.Length > 0;
 
+        // Forwarding advice hangs off that one line as a tooltip rather than occupying a bordered
+        // block of its own. It used to be three sentences repeating the port and address that the
+        // line above already showed, and it was on screen for the whole session -- for a thing most
+        // routers make irrelevant, and which you only go looking for once somebody cannot connect.
+        //
+        // The line does turn amber when the router refused, because that is the case where
+        // everything looks fine right up until nobody can join, and it should not take a hover to
+        // find out.
+        var openedItself = party.State != PartyState.Hosting || party.RouterOpenedPort;
+
+        PartyHint.Foreground = openedItself
+            ? this.FindResource("TextSecondaryBrush") as IBrush
+            : this.FindResource("WarningBrush") as IBrush;
+
+        ToolTip.SetTip(PartyHint, party.State != PartyState.Hosting
+            ? null
+            : openedItself
+                ? $"Your router opened this port. If nobody can connect, {Uncapitalized(ForwardingAdvice(party.ListenPort))}"
+                : $"Your router would not open this port. {ForwardingAdvice(party.ListenPort)} "
+                  + "Only the host needs this; people joining you open nothing.");
+
         // The pill carries the roster count, so collapsed still answers "is anyone here".
         PartyOverlayToggle.Content = active ? $"Party · {party.Peers.Count}" : "Party";
 
         // Anything that has to be read comes to full strength. The rest of the time it stays out of
         // the way of the map, which is the thing actually being looked at.
         var needsAttention = party.State is PartyState.Starting or PartyState.Joining or PartyState.Failed
-                             || needsForward;
+                             || !openedItself;
 
         PartyOverlay.Classes.Set("attention", needsAttention);
 
