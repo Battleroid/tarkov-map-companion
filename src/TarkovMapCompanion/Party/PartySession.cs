@@ -128,6 +128,15 @@ public sealed class PartySession : IDisposable
     /// <summary>Null when it could not be determined.</summary>
     public string? LocalAddress { get; private set; }
 
+    /// <summary>
+    /// The address and port the squad actually dials, as encoded in the session code.
+    /// </summary>
+    /// <remarks>
+    /// Not the same as <see cref="LocalAddress"/>, which is this machine on its own network and is
+    /// only useful for typing into a router. This is what somebody else reaches you at.
+    /// </remarks>
+    public string? PublicEndpoint { get; private set; }
+
     /// <summary>False when the router refused, so the user has to forward the port themselves.</summary>
     public bool RouterOpenedPort { get; private set; }
 
@@ -282,6 +291,7 @@ public sealed class PartySession : IDisposable
             }
 
             Code = SessionCode.Format(mapping.ExternalAddress, mapping.Port, secret);
+            PublicEndpoint = $"{mapping.ExternalAddress}:{mapping.Port}";
             RouterOpenedPort = mapping.Mapped;
             State = PartyState.Hosting;
 
@@ -843,6 +853,7 @@ public sealed class PartySession : IDisposable
         _key = null;
         _published = 0;
         Code = null;
+        PublicEndpoint = null;
 
         // Our own last position is session state too. Kept, it would be republished to whoever we
         // connect to next, before a screenshot has said we are anywhere.

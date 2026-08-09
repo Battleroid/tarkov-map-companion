@@ -422,14 +422,15 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
         });
 
-        // Findable before anything has been tried. Most routers will open the port on request and
-        // this never becomes relevant, but when it does the answer should already be on screen
-        // rather than something to go and look up.
+        // Findable before anything has been tried, because when it does become relevant the answer
+        // should already be on screen. Cut to the two facts somebody types into a router: most
+        // routers open the port themselves and never make this matter, and the full explanation is
+        // in Settings and in the warning that appears when hosting actually cannot open it.
         var lan = Party.PortMapper.LocalAddress();
 
         PartyIdleHint.Text = lan is null
-            ? $"Hosting will open a port automatically if your router allows it. If not, you will need to forward TCP {_settings.PartyPort} to this PC."
-            : $"Hosting will open a port automatically if your router allows it. If not, forward TCP {_settings.PartyPort} to {lan} (this PC).";
+            ? $"If your router will not open TCP {_settings.PartyPort}, forward it to this PC."
+            : $"If your router will not open TCP {_settings.PartyPort}, forward it to {lan}.";
     }
 
     private async Task StartHostingAsync()
@@ -512,16 +513,20 @@ public partial class MainWindow : Window
 
         PartyRoster.ItemsSource = party.Peers.Select(BuildRow).ToArray();
 
+        // Facts, not reassurance. What somebody wants from this line while a session is up is where
+        // they are reachable; the privacy note it used to carry is in the README and the Settings
+        // screen, which is where you read about a feature rather than while using it.
         PartyHint.Text = party.State switch
         {
             PartyState.Starting => "Opening a port...",
             PartyState.Joining => "Connecting...",
-            PartyState.Hosting when party.Peers.Count <= 1 =>
-                "Waiting for your squad. They paste the code and press Join.",
-            PartyState.Hosting => "Others can still join with the same code.",
-            PartyState.Joined => "Connected. Your position goes out with each screenshot.",
-            _ => "Shares only your own position, and only with people you give the code to.",
+            PartyState.Hosting when party.PublicEndpoint is { } endpoint => $"Hosting on {endpoint} (TCP)",
+            PartyState.Hosting => $"Hosting on port {party.ListenPort} (TCP)",
+            PartyState.Joined => "Connected.",
+            _ => "",
         };
+
+        PartyHint.IsVisible = PartyHint.Text.Length > 0;
 
         // The pill carries the roster count, so collapsed still answers "is anyone here".
         PartyOverlayToggle.Content = active ? $"Party · {party.Peers.Count}" : "Party";
