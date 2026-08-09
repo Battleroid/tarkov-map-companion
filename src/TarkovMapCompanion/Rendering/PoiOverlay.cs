@@ -147,7 +147,7 @@ public sealed class PoiOverlay : IMapOverlay
             if (distanceSquared > radius * radius)
                 continue;
 
-            // Bias towards extracts so a loot marker sitting on top of one does not steal the hit.
+            // Bias toward extracts so a loot marker sitting on top of one does not steal the hit.
             var score = distanceSquared - (poi.IsExtract || poi.Kind == PoiKind.Transit ? 400 : 0);
 
             if (score < bestScore)

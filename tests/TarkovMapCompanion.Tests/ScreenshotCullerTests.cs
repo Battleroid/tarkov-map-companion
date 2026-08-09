@@ -68,7 +68,7 @@ public sealed class ScreenshotCullerTests : IDisposable
     }
 
     [Fact]
-    public void KeepLatest_NeverTouchesFilesItDoesNotRecognise()
+    public void KeepLatest_NeverTouchesFilesItDoesNotRecognize()
     {
         var notes = WriteOther("important-notes.png");
         var config = WriteOther("settings.json");

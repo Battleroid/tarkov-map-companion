@@ -14,7 +14,7 @@ namespace TarkovMapCompanion.Rendering;
 /// <para>
 /// A peer is drawn only when they are on the map you are looking at. Positions from another map are
 /// meaningless in this one's coordinates, and drawing them would scatter teammates across a raid
-/// they are not in. They stay in the roster list, labelled with where they actually are.
+/// they are not in. They stay in the roster list, labeled with where they actually are.
 /// </para>
 /// <para>
 /// And a marker fades with age. Peers only report when they take a screenshot, so a dot can easily

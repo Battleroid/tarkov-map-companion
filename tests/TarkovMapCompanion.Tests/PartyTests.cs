@@ -552,7 +552,7 @@ public sealed class PartySessionTests
     }
 
     [Fact]
-    public async Task AnExplicitPortIsHonouredExactly()
+    public async Task AnExplicitPortIsHonoredExactly()
     {
         using var host = new PartySession();
 
@@ -652,7 +652,7 @@ public sealed class PartySessionTests
     public void APingIsShownLocallyEvenWithNoSession()
     {
         // Alone it is a scratch mark that clears itself. A click that silently does nothing would
-        // be worse than either behaviour.
+        // be worse than either behavior.
         using var session = new PartySession();
 
         var seen = new List<PeerPosition>();

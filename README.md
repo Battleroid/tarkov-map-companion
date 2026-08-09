@@ -125,7 +125,7 @@ so a teammate notices while they are looking at the game rather than the map. Tu
 **Settings** if you would rather. Pings work solo too, as a scratch mark that expires on its own.
 
 Teammates are only drawn when they are on the same map as you — a position from another raid means
-nothing in this one's coordinates. They stay in the roster, labelled with where they actually are.
+nothing in this one's coordinates. They stay in the roster, labeled with where they actually are.
 Every marker also carries its age and fades as it gets older, because peers only report when they
 take a screenshot: a minute-old dot drawn at full strength reads as "he is there now", which is how
 you end up trusting an angle nobody is covering.

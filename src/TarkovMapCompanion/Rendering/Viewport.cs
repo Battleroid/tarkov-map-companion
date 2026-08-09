@@ -137,7 +137,7 @@ public sealed class Viewport
     /// The view that <see cref="FitToRect"/> would produce, without moving there.
     /// </summary>
     /// <remarks>
-    /// Separated out so the canvas can ease towards a view rather than snapping to it: an animation
+    /// Separated out so the canvas can ease toward a view rather than snapping to it: an animation
     /// needs to know where it is going before it starts. Clamping is applied here too, so the
     /// animation's destination is the same place a jump would have landed.
     /// </remarks>
@@ -179,7 +179,7 @@ public sealed class Viewport
 
     public void Restore(State state)
     {
-        // Scale first: the centre clamp depends on how much of the map is on screen.
+        // Scale first: the center clamp depends on how much of the map is on screen.
         Scale = state.Scale;
         Center = state.Center;
     }

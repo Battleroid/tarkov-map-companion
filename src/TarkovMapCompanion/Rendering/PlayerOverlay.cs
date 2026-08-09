@@ -178,7 +178,7 @@ public sealed class PlayerOverlay : IMapOverlay
             IsAntialias = true,
         };
 
-        // Segment-by-segment so the trail can fade out towards the oldest point.
+        // Segment-by-segment so the trail can fade out toward the oldest point.
         for (var i = 1; i < points.Length; i++)
         {
             var from = viewport.ToScreen(map.ToBase(points[i - 1].Position));

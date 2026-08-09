@@ -136,9 +136,9 @@ public sealed class ExitFilterTests
     }
 
     [Fact]
-    public void Restore_AppliesScaleBeforeCentre_SoTheClampDoesNotEatThePosition()
+    public void Restore_AppliesScaleBeforeCenter_SoTheClampDoesNotEatThePosition()
     {
-        // Restoring a zoomed-in centre while still at a zoomed-out scale would clamp the centre
+        // Restoring a zoomed-in center while still at a zoomed-out scale would clamp the center
         // toward the middle of the map and lose it. Order matters here.
         var viewport = new Viewport(new MapRect(0, 0, 1000, 800));
         viewport.Resize(600, 400);

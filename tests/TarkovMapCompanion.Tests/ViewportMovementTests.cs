@@ -8,7 +8,7 @@ namespace TarkovMapCompanion.Tests;
 /// Working out where the view is going without going there.
 /// </summary>
 /// <remarks>
-/// Smooth camera movement needs its destination up front so it can ease towards it. If a computed
+/// Smooth camera movement needs its destination up front so it can ease toward it. If a computed
 /// destination did not match where a jump would have landed, the animation would drift somewhere
 /// slightly wrong every time it ran, which is far harder to notice than an outright break.
 /// </remarks>
@@ -59,7 +59,7 @@ public sealed class ViewportMovementTests
     }
 
     [Fact]
-    public void TheComputedCentreIsClampedTheSameWayAJumpWouldBe()
+    public void TheComputedCenterIsClampedTheSameWayAJumpWouldBe()
     {
         // The animation's destination has to be the place a jump would have reached, or the ease
         // finishes somewhere the viewport then quietly corrects.
