@@ -147,11 +147,25 @@ public sealed class ScreenshotNameParserTests
         if (pngs.Length == 0)
             return;
 
-        var failures = pngs.Where(p => !ScreenshotNameParser.TryParse(p, out _)).ToArray();
+        // Tarkov leaves the coordinates out entirely when you are not in a raid: a screenshot from
+        // the menu or the hideout is just a date, a time and a frozen clock. Those are real Tarkov
+        // screenshots that genuinely cannot be placed, so the parser is right to refuse them and
+        // this test has to tell the two cases apart rather than demanding everything parse.
+        var positional = pngs.Where(p => Path.GetFileName(p).Contains(", ", StringComparison.Ordinal)).ToArray();
+        var failures = positional.Where(p => !ScreenshotNameParser.TryParse(p, out _)).ToArray();
 
         Assert.True(
             failures.Length == 0,
-            $"{failures.Length} of {pngs.Length} real screenshots failed to parse:{Environment.NewLine}" +
+            $"{failures.Length} of {positional.Length} in-raid screenshots failed to parse:{Environment.NewLine}" +
             string.Join(Environment.NewLine, failures.Select(Path.GetFileName)));
+    }
+
+    [Fact]
+    public void AScreenshotTakenOutsideARaidIsRefusedRatherThanMisread()
+    {
+        // Seen on a real machine: eleven of twenty-one files looked like this, all sharing one
+        // frozen clock value. Guessing a position for them would put a marker somewhere arbitrary.
+        Assert.False(ScreenshotNameParser.TryParse(@"C:\s\2026-08-08[23-06]_11.05 (3).png", out _));
+        Assert.False(ScreenshotNameParser.TryParse(@"C:\s\2026-08-08[21-05]_10.68 (0).png", out _));
     }
 }

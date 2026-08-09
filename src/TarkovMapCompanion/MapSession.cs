@@ -29,6 +29,7 @@ public sealed class MapSession : IDisposable
     private readonly ExtractNotesStore _extractNotes;
 
     private IMapImageSource? _imageSource;
+    private int _fixes;
     private bool _disposed;
 
     private readonly object _readerGate = new();
@@ -308,11 +309,47 @@ public sealed class MapSession : IDisposable
 
     public void StartWatching()
     {
-        _watcher.Start(_settings.ScreenshotFolder);
+        var folder = _settings.ScreenshotFolder;
+        _watcher.Start(folder);
 
-        Status?.Invoke(this, Directory.Exists(_settings.ScreenshotFolder)
-            ? $"Watching {_settings.ScreenshotFolder}"
-            : $"Folder not found: {_settings.ScreenshotFolder}");
+        // Logged rather than only shown in the status bar, and with the count, because "is this
+        // app even looking at the right folder" is the question behind almost every report of the
+        // map not moving -- and until now the log said nothing about it either way.
+        if (!Directory.Exists(folder))
+        {
+            Log.Warn($"[screenshots] folder does not exist: {folder}");
+            Status?.Invoke(this, $"Folder not found: {folder}");
+            return;
+        }
+
+        var count = Screenshots.ScreenshotFolders.CountIn(folder);
+
+        // Screenshots taken outside a raid carry no coordinates at all -- Tarkov writes just a
+        // date, a time and a frozen clock -- so they can never move the map. Counting them
+        // separately turns "I took loads and nothing happened" into an answer rather than a
+        // mystery, because the usual cause is pressing the key in the menu to test.
+        var placeless = Directory.EnumerateFiles(folder, "*.png", SearchOption.TopDirectoryOnly)
+            .Count(p => !Screenshots.ScreenshotNameParser.IsScreenshotFileName(p));
+
+        if (placeless > 0)
+        {
+            Log.Info(
+                $"[screenshots] {placeless} file(s) in the folder have no position in the name; "
+                + "Tarkov writes those when you are not in a raid, and they are ignored");
+        }
+
+        if (count == 0)
+        {
+            Log.Warn(
+                $"[screenshots] watching {folder}, which has no Tarkov screenshots in it. "
+                + "If the game has written some, it is writing somewhere else -- try Find in Settings.");
+        }
+        else
+        {
+            Log.Info($"[screenshots] watching {folder} ({count} already there)");
+        }
+
+        Status?.Invoke(this, $"Watching {folder}");
     }
 
     /// <summary>
@@ -384,6 +421,12 @@ public sealed class MapSession : IDisposable
         // the app in the middle of a raid, which is exactly when it is needed.
         try
         {
+            // The first one proves the whole ingest path works; after that a count is enough. A
+            // log with party lines but no screenshot lines used to be indistinguishable from one
+            // where the app was reading fine and simply not sharing.
+            if (++_fixes % 10 == 1)
+                Log.Info($"[screenshots] read {_fixes} so far, latest {fix.FileName} on {CurrentMap.NormalizedName}");
+
             if (!CurrentMap.ContainsPosition(fix.Position))
                 SuggestMapFor(fix);
 

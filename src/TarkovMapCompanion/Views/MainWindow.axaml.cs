@@ -949,6 +949,15 @@ public partial class MainWindow : Window
         {
             StatusText.Text = $"Startup failed: {ex.Message}";
         }
+
+        // Said last so it is what remains on screen. Two copies fight over reading and culling the
+        // same folder, and the symptoms look like unrelated bugs rather than like a duplicate.
+        if (Program.AnotherInstanceRunning)
+        {
+            StatusText.Text =
+                "Another copy of this app is already running. Close one -- two will read every "
+                + "screenshot twice and fight over removing them.";
+        }
     }
 
     // ---- Map --------------------------------------------------------------

@@ -168,7 +168,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 341 tests
+dotnet test              # 342 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

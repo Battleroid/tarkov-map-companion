@@ -45,6 +45,8 @@ internal static class Program
         try
         {
             Log.Info($"starting {typeof(Program).Assembly.GetName().Version}");
+
+            WarnAboutASecondInstance();
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             return 0;
         }
@@ -52,6 +54,44 @@ internal static class Program
         {
             Log.Error("the app closed because of an unhandled exception", ex);
             return 1;
+        }
+    }
+
+    /// <summary>Held for the lifetime of the process; releasing it early would defeat the check.</summary>
+    private static Mutex? _instanceLock;
+
+    /// <summary>True when another copy of the app was already running at startup.</summary>
+    public static bool AnotherInstanceRunning { get; private set; }
+
+    /// <summary>
+    /// Notices a second copy of the app.
+    /// </summary>
+    /// <remarks>
+    /// Two instances watching one folder is not merely redundant. Both read every screenshot, so
+    /// the OCR runs twice and can disagree when the two have different maps selected; both cull,
+    /// so they race to recycle the same files and each fails on the ones the other already took;
+    /// and one can delete a screenshot while the other is still reading it. All of that appeared
+    /// in a real log as a scattering of unrelated-looking warnings.
+    /// </remarks>
+    private static void WarnAboutASecondInstance()
+    {
+        try
+        {
+            // Local, not Global: two different users on one machine are genuinely separate.
+            _instanceLock = new Mutex(initiallyOwned: true, @"Local\TarkovMapCompanion", out var first);
+            AnotherInstanceRunning = !first;
+
+            if (AnotherInstanceRunning)
+            {
+                Log.Warn(
+                    "another copy of Tarkov Map Companion is already running. Two copies watching one "
+                    + "folder will read every screenshot twice and fight over culling; close one.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Not being able to tell is not a reason to refuse to start.
+            Log.Warn($"could not check for another instance: {ex.Message}");
         }
     }
 
