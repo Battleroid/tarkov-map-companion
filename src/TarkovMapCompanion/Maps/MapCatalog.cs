@@ -45,6 +45,27 @@ public sealed class MapCatalog
     /// </summary>
     public GameMap Resolve(string? normalizedName) => Find(normalizedName) ?? Maps[0];
 
+    /// <summary>
+    /// Looks up a map by something the game called it: a <c>nameId</c>, a scene token, or a
+    /// normalized name. Null when the token means nothing here.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a fallback, unlike <see cref="Resolve"/>. This one is driven by the game
+    /// log, where "I do not recognize that" has to stay distinguishable from "it is Factory":
+    /// falling back would switch the user's map to whatever sorts first every time BSG adds a
+    /// location.
+    /// </remarks>
+    public GameMap? ResolveByNameId(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
+
+        // The table first, then the raw token. That order matters for Ground Zero, whose upstream
+        // nameId variants would otherwise miss entirely, and it costs nothing for the maps whose
+        // scene token happens to be their normalized name already.
+        return Find(MapNameIds.NormalizedNameFor(token)) ?? Find(token.Trim());
+    }
+
     public static MapCatalog LoadEmbedded()
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(SnapshotResourceName)

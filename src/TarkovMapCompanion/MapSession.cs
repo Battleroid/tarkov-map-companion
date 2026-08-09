@@ -1,5 +1,6 @@
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
+using TarkovMapCompanion.GameLog;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
@@ -24,6 +25,17 @@ public sealed class MapSession : IDisposable
     private readonly AssetCache _assets;
     private readonly ScreenshotWatcher _watcher;
     private readonly ScreenshotCuller _culler;
+    private readonly GameLogWatcher _gameLog;
+
+    /// <summary>
+    /// Whether the log has told us a raid is running.
+    /// </summary>
+    /// <remarks>
+    /// Only ever read by the log handler. It exists because Tarkov writes no "raid over" line, so
+    /// the end has to be inferred from the profile reloading -- which also happens on the way in,
+    /// and twice in a row on the way out.
+    /// </remarks>
+    private bool _inRaidPerLog;
 
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
@@ -58,6 +70,10 @@ public sealed class MapSession : IDisposable
         _watcher = new ScreenshotWatcher();
         _watcher.FixDetected += OnFixDetected;
         _watcher.Error += (_, message) => Status?.Invoke(this, message);
+
+        _gameLog = new GameLogWatcher();
+        _gameLog.EventRead += OnGameLogEvent;
+        _gameLog.Error += (_, message) => Log.Warn($"[game log] {message}");
 
         Waypoints = new WaypointOverlay
         {
@@ -347,6 +363,22 @@ public sealed class MapSession : IDisposable
     public event EventHandler? PoisChanged;
 
     /// <summary>
+    /// Raised when the game's own log names the map it is loading.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from <see cref="MapSuggested"/> even though the window does something similar
+    /// with both. That one is a guess from a coordinate that several maps could contain; this one
+    /// is the game saying which map it is. They deserve different wording and different defaults.
+    /// </remarks>
+    public event EventHandler<GameMap>? MapDetectedFromLog;
+
+    /// <summary>Raised when the log says a raid started (true) or the player is back in the menu.</summary>
+    public event EventHandler<bool>? RaidStateChanged;
+
+    /// <summary>Following the game's log, for the preferences screen.</summary>
+    public GameLogWatcher GameLog => _gameLog;
+
+    /// <summary>
     /// The exits the game listed for this raid, read off a screenshot, or null when unknown.
     /// </summary>
     public ExitAvailability? ExitAvailability { get; private set; }
@@ -386,6 +418,7 @@ public sealed class MapSession : IDisposable
 
         await SetMapAsync(CurrentMap, cancellationToken).ConfigureAwait(false);
         StartWatching();
+        StartWatchingGameLog();
 
         _ = RefreshDataInBackgroundAsync(cancellationToken);
     }
@@ -482,6 +515,127 @@ public sealed class MapSession : IDisposable
         }
 
         Status?.Invoke(this, $"Watching {folder}");
+    }
+
+    /// <summary>
+    /// Starts, restarts, or stops following the game's log, according to the current settings.
+    /// </summary>
+    /// <remarks>
+    /// Called at startup and again whenever the preference or the folder changes, so the setting
+    /// takes effect without a restart. Turning it off really does stop reading the file.
+    /// </remarks>
+    public void StartWatchingGameLog()
+    {
+        _gameLog.Stop();
+
+        if (!_settings.ReadGameLog)
+        {
+            Log.Info("[game log] not reading the game log; the setting is off");
+            return;
+        }
+
+        var folder = string.IsNullOrWhiteSpace(_settings.GameLogFolder)
+            ? GameLogFolders.Detect()
+            : _settings.GameLogFolder;
+
+        if (folder is null)
+        {
+            Log.Warn("[game log] could not find where Tarkov is installed; run --find-logs to see what was tried");
+            Status?.Invoke(this, "Could not find Tarkov's log folder. Set it in Settings.");
+            return;
+        }
+
+        _gameLog.Start(folder);
+
+        var launches = GameLogFolders.CountLogFolders(folder);
+        Log.Info($"[game log] following {folder} ({launches} launches recorded)");
+
+        if (launches == 0)
+            Status?.Invoke(this, $"No Tarkov logs in {folder} yet.");
+    }
+
+    /// <summary>
+    /// Acts on a line from Tarkov's own log.
+    /// </summary>
+    /// <remarks>
+    /// Runs on the log watcher's thread, where an escaping exception takes the process with it, so
+    /// everything is contained here in the same way the screenshot path is.
+    /// </remarks>
+    private void OnGameLogEvent(object? sender, GameLogEvent entry)
+    {
+        try
+        {
+            switch (entry.Kind)
+            {
+                case GameLogEventKind.ScenePreset:
+                case GameLogEventKind.RaidCreated:
+                    AnnounceMapFrom(entry);
+                    break;
+
+                case GameLogEventKind.RaidStarted:
+                    _inRaidPerLog = true;
+
+                    // The same three things a map change clears, for the same reason: none of it
+                    // describes the raid that is starting. This is strictly better than the clock
+                    // heuristic that would otherwise work it out a screenshot or two later.
+                    Player.Clear();
+                    ClearExitAvailability();
+                    Pings.Clear();
+
+                    Log.Info("[game log] raid started");
+                    RaidStateChanged?.Invoke(this, true);
+                    break;
+
+                case GameLogEventKind.MenuReturned:
+                    // Fires on the way into a session as well as out of one, and twice in a row on
+                    // the way out, so it only means anything while a raid is known to be running.
+                    if (!_inRaidPerLog)
+                        return;
+
+                    _inRaidPerLog = false;
+
+                    // Nothing is cleared. The map after a raid is the one thing people actually
+                    // look at afterward -- where the fight was, which exit they took -- and the
+                    // next raid clears it anyway.
+                    Log.Info("[game log] back at the menu");
+                    RaidStateChanged?.Invoke(this, false);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"failed to act on a game log line: {entry.Line}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Works out which map a log line is talking about, and says so.
+    /// </summary>
+    /// <remarks>
+    /// Silent about a name it cannot place, apart from the log. Switching to the wrong map mid-raid
+    /// is worse than not switching, and an unrecognized location id means the app is out of date
+    /// rather than that the player is somewhere strange.
+    /// </remarks>
+    private void AnnounceMapFrom(GameLogEvent entry)
+    {
+        var map = entry.MapTokens
+            .Select(token => _catalog.ResolveByNameId(token)
+                             ?? _catalog.Find(_mapData.NormalizedNameForNameId(token)))
+            .FirstOrDefault(m => m is not null);
+
+        if (map is null)
+        {
+            Log.Warn(
+                $"[game log] {entry.Kind} named a map this build does not know: "
+                + $"{string.Join(" | ", entry.MapTokens)}");
+            return;
+        }
+
+        if (ReferenceEquals(map, CurrentMap))
+            return;
+
+        Log.Info($"[game log] {entry.Kind} says {map.NormalizedName}");
+        MapDetectedFromLog?.Invoke(this, map);
     }
 
     /// <summary>
@@ -791,6 +945,9 @@ public sealed class MapSession : IDisposable
 
         _watcher.FixDetected -= OnFixDetected;
         _watcher.Dispose();
+
+        _gameLog.EventRead -= OnGameLogEvent;
+        _gameLog.Dispose();
         Party.Dispose();
         _imageSource?.Dispose();
     }

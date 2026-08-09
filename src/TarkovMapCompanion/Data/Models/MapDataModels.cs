@@ -52,6 +52,15 @@ public sealed class MapPoiData
     [JsonPropertyName("id")] public string? Id { get; set; }
     [JsonPropertyName("normalizedName")] public string NormalizedName { get; set; } = "";
     [JsonPropertyName("name")] public string? Name { get; set; }
+
+    /// <summary>
+    /// BSG's internal location id, e.g. <c>bigmap</c> for Customs.
+    /// </summary>
+    /// <remarks>
+    /// The only field in this file that exists for something other than drawing: it is what the
+    /// game log's <c>Location:</c> line says, and therefore what joins a raid to a map.
+    /// </remarks>
+    [JsonPropertyName("nameId")] public string? NameId { get; set; }
     [JsonPropertyName("wiki")] public string? Wiki { get; set; }
     [JsonPropertyName("description")] public string? Description { get; set; }
 

@@ -152,6 +152,47 @@ public sealed class AppSettings
     /// </remarks>
     public bool ReadExitsFromScreenshots { get; set; }
 
+    // ---- Reading the game's own log ----------------------------------------
+
+    /// <summary>
+    /// Follow the log Escape from Tarkov writes, so the app knows which map is loading.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default, and deliberately so. Every other input to this app is something the player
+    /// made on purpose -- a screenshot they pressed a key for -- and this one is the game's own
+    /// running commentary. It is still only a text file on disk that anyone can open in Notepad,
+    /// nothing is written and nothing is injected, but it is a big enough difference in kind to be
+    /// worth asking for rather than assuming.
+    /// </para>
+    /// <para>
+    /// What it buys is the map being right before you have taken a single screenshot: the game
+    /// names the map it is loading somewhere between twenty seconds and two minutes before you have
+    /// control.
+    /// </para>
+    /// </remarks>
+    public bool ReadGameLog { get; set; }
+
+    /// <summary>
+    /// Switch the map as soon as the log names it, instead of offering the switch.
+    /// </summary>
+    /// <remarks>
+    /// On by default, unlike the equivalent for a position-based guess. The two are not comparable:
+    /// a coordinate that could be one of several overlapping maps is a guess, and the game saying
+    /// <c>Location: bigmap</c> is not.
+    /// </remarks>
+    public bool AutoSwitchMapFromGameLog { get; set; } = true;
+
+    /// <summary>
+    /// Where Tarkov's <c>Logs</c> folder is. Empty means look for it at every startup.
+    /// </summary>
+    /// <remarks>
+    /// Empty rather than a detected path, so a machine whose install moves is not stuck pointing at
+    /// where the game used to be. The override exists because the launcher will install anywhere
+    /// and detection is genuinely best-effort.
+    /// </remarks>
+    public string GameLogFolder { get; set; } = "";
+
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }

@@ -82,6 +82,34 @@
           </StackPanel>
         </Border>
 
+        <!--
+          The game's own log. Its own section rather than a line under SCREENSHOTS, because it is
+          a second and different input to the app and the difference is worth being explicit about.
+        -->
+        <Border Classes="panel" Padding="12">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="THE GAME'S OWN LOG" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Escape from Tarkov writes a plain text log while it runs, and it names the map it is loading up to two minutes before you have control. Reading it means the second monitor is already on the right map when you spawn. Nothing is written and nothing is injected; this only opens a file the game has already saved to disk." />
+
+          <CheckBox Name="ReadGameLogBox" Content="Read the game's log to tell which map is loading" />
+          <CheckBox Name="AutoSwitchFromLogBox" Content="Switch the map straight away instead of asking"
+                    Margin="24,0,0,0" />
+
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,4,0,0">
+            <TextBox Grid.Column="0" Name="GameLogFolderBox" FontSize="12"
+                     Watermark="Found automatically" />
+            <Button Grid.Column="1" Name="BrowseLogButton" Content="Browse" />
+            <Button Grid.Column="2" Name="DetectLogButton" Content="Find"
+                    ToolTip.Tip="Look for the Tarkov install, starting with the path the game records in its own Unity log" />
+          </Grid>
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Leave the folder empty to look for it at every startup. It is the Logs folder inside the Tarkov install, not in AppData." />
+
+          <TextBlock Name="GameLogStatus" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+        </Border>
+
         <!-- View -->
         <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">

@@ -39,6 +39,11 @@ internal static class Program
         if (args.Length > 0 && args[0] is "--find-screenshots")
             return Tools.FindScreenshots.Run();
 
+        // Prints where Tarkov's own logs are and what the parser makes of the newest one.
+        //   TarkovMapCompanion --find-logs [logs folder]
+        if (args.Length > 0 && args[0] is "--find-logs")
+            return Tools.FindLogs.Run(args[1..]);
+
         if (args.Length > 0 && args[0] is "--party-test")
             return Tools.PartyTest.RunAsync(args[1..]).GetAwaiter().GetResult();
 

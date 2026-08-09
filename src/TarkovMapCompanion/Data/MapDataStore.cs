@@ -130,6 +130,28 @@ public sealed class MapDataStore
     public string? NormalizedNameForId(string? mapId) =>
         mapId is not null && _document.Maps.TryGetValue(mapId, out var map) ? map.NormalizedName : null;
 
+    /// <summary>
+    /// Maps a game-log <c>Location:</c> value to a normalized name, when this data knows it.
+    /// </summary>
+    /// <remarks>
+    /// The hardcoded table in <c>MapNameIds</c> is checked first at the call site, because it also
+    /// folds variants onto the maps that are actually shipped. This is the path that keeps working
+    /// when BSG renames a location between app releases, since the data refreshes and the table
+    /// does not.
+    /// </remarks>
+    public string? NormalizedNameForNameId(string? nameId) =>
+        string.IsNullOrWhiteSpace(nameId)
+            ? null
+            : _document.Maps.Values
+                .FirstOrDefault(m => string.Equals(m.NameId, nameId, StringComparison.OrdinalIgnoreCase))
+                ?.NormalizedName;
+
+    /// <summary>
+    /// The bundled snapshot, unfiltered. For tests that need to check the data itself rather than
+    /// whatever happens to be cached on this machine.
+    /// </summary>
+    public static MapDataDocument? EmbeddedSnapshot() => ReadEmbeddedSnapshot();
+
     // ---- Fetching -----------------------------------------------------------
 
     /// <summary>

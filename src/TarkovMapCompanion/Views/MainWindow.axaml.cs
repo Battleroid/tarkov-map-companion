@@ -284,6 +284,8 @@ public partial class MainWindow : Window
         _session.FixApplied += (_, fix) => Post(() => OnFixApplied(fix));
         _session.MapChanged += (_, map) => Post(() => OnMapChanged(map));
         _session.MapSuggested += (_, map) => Post(() => ShowSuggestion(map));
+        _session.MapDetectedFromLog += (_, map) => Post(() => OnMapDetectedFromLog(map));
+        _session.RaidStateChanged += (_, started) => Post(() => OnRaidStateChanged(started));
 
         _session.PoisChanged += (_, _) => Post(() =>
         {
@@ -1316,6 +1318,47 @@ public partial class MainWindow : Window
         _suggestedMap = map;
         SuggestionText.Text = $"That looks like {map.DisplayName}.";
         SuggestionBar.IsVisible = true;
+    }
+
+    /// <summary>
+    /// Reacts to the game's log naming the map it is loading.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not routed through <see cref="ShowSuggestion"/>, even though the offer path
+    /// ends up in the same bar. This is not a guess, so it says so, and it obeys its own preference
+    /// rather than the one governing coordinate-based guesses.
+    /// </remarks>
+    private void OnMapDetectedFromLog(GameMap map)
+    {
+        if (ReferenceEquals(map, _session.CurrentMap))
+        {
+            HideSuggestion();
+            return;
+        }
+
+        if (_settings.AutoSwitchMapFromGameLog)
+        {
+            HideSuggestion();
+            StatusText.Text = $"The game is loading {map.DisplayName}.";
+
+            // Through the selector rather than SetMapAsync directly, so the combo box, the floor
+            // list and the extract list all follow along exactly as they do for a manual change.
+            MapSelector.SelectedItem = map;
+            return;
+        }
+
+        _suggestedMap = map;
+        SuggestionText.Text = $"The game is loading {map.DisplayName}.";
+        SuggestionBar.IsVisible = true;
+    }
+
+    private void OnRaidStateChanged(bool started)
+    {
+        StatusText.Text = started
+            ? "Raid started; cleared the previous trail."
+            : "Back at the menu.";
+
+        _canvas.InvalidateVisual();
     }
 
     private void OnSuggestionAccepted(object? sender, RoutedEventArgs e)

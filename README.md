@@ -11,10 +11,20 @@ the *filename* of every screenshot you take, so pressing the screenshot key upda
 ## This is not a cheat
 
 The app never reads the game's memory, hooks the process, injects anything, modifies a game file,
-or talks to the game in any way. Its only input is a file the game itself wrote to your disk: the
-*name* of a screenshot for your position, and optionally the *picture* for the exit list you
-already had on screen. It cannot show you anything you did not already capture yourself, and it
-cannot see other players.
+or talks to the game in any way. Everything it knows comes from files the game itself wrote to your
+disk, and it only ever reads them:
+
+- the **name** of a screenshot, for your position and facing;
+- optionally the **picture**, for the exit list you already had on screen;
+- optionally the **log** Tarkov writes as it runs, for which map is loading.
+
+It cannot show you anything you did not already capture yourself, and it cannot see other players.
+
+The log is the newest of the three and the only one that is not something you pressed a key to
+create, so it is off by default and has its own switch in Settings. What it is used for is narrow:
+the line where the game names the map it is about to load, and the line where you gain control. It
+is a plain text file in your Tarkov folder that you can open in Notepad, it contains nothing about
+anybody else's position, and nothing is written back to it.
 
 ## Install
 
@@ -129,6 +139,23 @@ side pane was a lot of window for two checkboxes.
 map offer you the right one. It proposes rather than switches, because several maps overlap in world
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
+
+**The map, before you have taken a single screenshot.** Tick **Read the game's log** in Settings
+and the app follows the log Tarkov writes as it runs. The game names the map it is loading between
+twenty seconds and two minutes before you have control, so the second monitor is already on the
+right map when you spawn, and the map switch no longer waits for you to take a screenshot and be
+somewhere only one map could contain.
+
+It also knows when a raid starts, which is a cleaner signal than the clock heuristic: the previous
+raid's trail goes the moment you gain control rather than a screenshot or two later. Nothing is
+cleared when you get back to the menu, because looking over where the fight went is the one thing
+people do with the map afterward.
+
+Off by default, and it stops reading the file the moment you untick it. The install is found from
+the path the game records in its own Unity log, which works even on a second drive where the
+registry has nothing; if that fails, set the folder yourself. `--find-logs` prints every place that
+was tried, what the parser made of the newest log, and any location name this build does not
+recognize — which is the thing to paste into an issue if the map stops switching after a patch.
 
 **Squad positions.** The **Party** panel floats over the top-right of the map, collapsed to a pill
 until you open it. Press **Host session** and the app hands you a code like `K7QM4-3FHB9-8TZR9-M4X7Q`.
@@ -251,6 +278,7 @@ scripts\publish.ps1
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
 | `--find-screenshots` | Prints every place Tarkov screenshots might be and what is in each. What to run when the map never moves. |
+| `--find-logs [folder] [all]` | Prints where Tarkov's own logs were found, what the parser made of the newest one, and any location name this build does not recognize. What to run when the map stops switching. `all` reads every launch's log rather than only the newest. |
 | `--party-test [name] [local]` / `--party-test join <code> [name]` | Hosts or joins a position-sharing session from the console. Says whether this network can host at all, which is the one part that cannot be tested any other way. `local` uses loopback so two processes on one machine can talk. |
 | `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
 

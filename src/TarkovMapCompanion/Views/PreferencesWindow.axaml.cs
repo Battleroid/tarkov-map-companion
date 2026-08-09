@@ -52,6 +52,12 @@ public partial class PreferencesWindow : Window
         CullCount.Value = _settings.CullKeepCount;
         UpdateCullWarning();
 
+        ReadGameLogBox.IsChecked = _settings.ReadGameLog;
+        AutoSwitchFromLogBox.IsChecked = _settings.AutoSwitchMapFromGameLog;
+        AutoSwitchFromLogBox.IsEnabled = _settings.ReadGameLog;
+        GameLogFolderBox.Text = _settings.GameLogFolder;
+        UpdateGameLogStatus();
+
         SmoothCameraBox.IsChecked = _settings.SmoothCameraMovement;
 
         PlayerColorPicker.Color = ToAvalonia(_settings.PlayerColor, Rendering.MarkerPalette.Player);
@@ -125,6 +131,23 @@ public partial class PreferencesWindow : Window
 
         DetectFolderButton.Click += (_, _) => DetectFolder();
         FolderBox.LostFocus += (_, _) => ApplyFolder();
+
+        ReadGameLogBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ReadGameLog = ReadGameLogBox.IsChecked ?? false;
+            AutoSwitchFromLogBox.IsEnabled = _settings.ReadGameLog;
+
+            // Takes effect now, in both directions. Turning it off closes the file.
+            _session?.StartWatchingGameLog();
+            UpdateGameLogStatus();
+        });
+
+        AutoSwitchFromLogBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.AutoSwitchMapFromGameLog = AutoSwitchFromLogBox.IsChecked ?? true);
+
+        BrowseLogButton.Click += async (_, _) => await BrowseForLogFolderAsync();
+        DetectLogButton.Click += (_, _) => DetectLogFolder();
+        GameLogFolderBox.LostFocus += (_, _) => ApplyLogFolder();
 
         CullOff.IsCheckedChanged += (_, _) => ApplyCullMode();
         CullKeepLatest.IsCheckedChanged += (_, _) => ApplyCullMode();
@@ -402,6 +425,96 @@ public partial class PreferencesWindow : Window
 
         FolderStatus.Text =
             $"Found {best.ScreenshotCount} screenshot{(best.ScreenshotCount == 1 ? "" : "s")} here, via {best.Source}.";
+    }
+
+    // ---- Game log folder ----------------------------------------------------
+
+    private async Task BrowseForLogFolderAsync()
+    {
+        var current = GameLogFolderBox.Text ?? "";
+
+        var start = Directory.Exists(current)
+            ? await StorageProvider.TryGetFolderFromPathAsync(current)
+            : null;
+
+        var picked = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose Tarkov's Logs folder",
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+        });
+
+        if (picked.Count == 0)
+            return;
+
+        var path = picked[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        GameLogFolderBox.Text = path;
+        ApplyLogFolder();
+    }
+
+    private void ApplyLogFolder() => Apply(() =>
+    {
+        var folder = GameLogFolderBox.Text ?? "";
+        if (string.Equals(folder, _settings.GameLogFolder, StringComparison.Ordinal))
+            return;
+
+        _settings.GameLogFolder = folder;
+        _session?.StartWatchingGameLog();
+        UpdateGameLogStatus();
+    });
+
+    private void DetectLogFolder()
+    {
+        var best = GameLog.GameLogFolders.Candidates().FirstOrDefault(c => c.Looks);
+
+        if (best is null)
+        {
+            GameLogStatus.Text =
+                "Could not find a Tarkov install with logs in it. Point Browse at the Logs folder "
+                + "next to EscapeFromTarkov.exe.";
+
+            GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            return;
+        }
+
+        GameLogFolderBox.Text = best.Path;
+        ApplyLogFolder();
+    }
+
+    private void UpdateGameLogStatus()
+    {
+        if (!_settings.ReadGameLog)
+        {
+            GameLogStatus.Text = "Not reading the game's log.";
+            GameLogStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
+            return;
+        }
+
+        var folder = string.IsNullOrWhiteSpace(GameLogFolderBox.Text)
+            ? GameLog.GameLogFolders.Detect()
+            : GameLogFolderBox.Text;
+
+        if (folder is null)
+        {
+            GameLogStatus.Text = "Could not find the Tarkov install. Press Find, or set the folder yourself.";
+            GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            return;
+        }
+
+        var launches = GameLog.GameLogFolders.CountLogFolders(folder);
+
+        if (launches == 0)
+        {
+            GameLogStatus.Text = $"No Tarkov logs in {folder}.";
+            GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
+            return;
+        }
+
+        GameLogStatus.Text = $"Following {folder} ({launches} game launches recorded).";
+        GameLogStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
     }
 
     private void UpdateFolderStatus()
