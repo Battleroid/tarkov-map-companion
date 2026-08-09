@@ -212,6 +212,28 @@ public sealed class MapSession : IDisposable
     public void RepublishRoute() => PublishRoute();
 
     /// <summary>
+    /// Builds a second, independent renderer for the current map.
+    /// </summary>
+    /// <remarks>
+    /// The minimap cannot share the main window's source. SvgMapSource holds one rasterized
+    /// snapshot keyed by zoom, so two canvases showing the same map at different scales would
+    /// invalidate each other's snapshot and re-rasterize on every single frame. A second instance
+    /// costs one more SVG parse and one more snapshot, which is a fair price for a window that is
+    /// optional and closed by default.
+    /// </remarks>
+    public async Task<IMapImageSource> CreateImageSourceAsync(CancellationToken cancellationToken = default)
+    {
+        var map = CurrentMap;
+
+        IMapImageSource source = map.HasSvg
+            ? new SvgMapSource(map, _assets)
+            : new TileMapSource(map, _assets);
+
+        await source.LoadAsync(cancellationToken).ConfigureAwait(true);
+        return source;
+    }
+
+    /// <summary>
     /// Projects the session's routes into the overlay, dropping our own.
     /// </summary>
     /// <remarks>
@@ -268,6 +290,17 @@ public sealed class MapSession : IDisposable
     }
 
     public HeatmapOverlay Heatmap { get; }
+
+    /// <summary>
+    /// Everything drawn on top of the map, for a second canvas to render the same picture.
+    /// </summary>
+    /// <remarks>
+    /// Shared instances, not copies. Every overlay already hands out a snapshot under a lock,
+    /// because the folder-watcher thread writes them while the render thread reads -- so a second
+    /// reader needs no synchronization and cannot drift out of step with the first.
+    /// </remarks>
+    public IReadOnlyList<IMapOverlay> Overlays =>
+        [Heatmap, Pois, Waypoints, ExtractLine, Peers, Pings, Player];
 
     public MapDataStore MapData => _mapData;
 

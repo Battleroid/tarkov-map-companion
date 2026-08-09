@@ -52,6 +52,9 @@ public partial class MainWindow : Window
     /// <summary>Repaints for everything that animates, and stops when nothing does.</summary>
     private MapClock? _mapClock;
 
+    /// <summary>The pop-out minimap, or null when it is closed.</summary>
+    private MinimapWindow? _minimap;
+
     // Parameterless ctor exists only for the XAML previewer.
     public MainWindow() : this(new AppSettings())
     {
@@ -93,6 +96,11 @@ public partial class MainWindow : Window
             // layer toggles are changed constantly during a session and losing them to an
             // ungraceful exit would be annoying out of all proportion to the cost of saving here.
             PersistSettings();
+
+            // Before the session goes: the minimap unsubscribes from it on the way out, and it has
+            // no taskbar entry, so leaving it open would strand a window nobody can close.
+            _minimap?.Close();
+
             _mapClock?.Dispose();
             _partyClock?.Stop();
             _session.Dispose();
@@ -126,6 +134,8 @@ public partial class MainWindow : Window
         FollowToggle.IsChecked = _settings.FollowPlayer;
         FollowToggle.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.FollowPlayer = FollowToggle.IsChecked ?? false);
+
+        MinimapToggle.IsCheckedChanged += (_, _) => OnMinimapToggled();
 
         ThemeButton.Click += OnThemeClicked;
         FitButton.Click += (_, _) => _canvas.FitAll();
@@ -222,6 +232,39 @@ public partial class MainWindow : Window
         Escape();
     }
 
+    /// <summary>
+    /// Opens or closes the pop-out minimap.
+    /// </summary>
+    /// <remarks>
+    /// Shown rather than shown-as-dialog, so the main window stays usable behind it, and it is not
+    /// owned by this window either -- an owned window is forced above its owner but also minimizes
+    /// with it, which is precisely wrong for something meant to sit over a game while the main
+    /// window is out of the way.
+    /// </remarks>
+    private void OnMinimapToggled()
+    {
+        var wanted = MinimapToggle.IsChecked ?? false;
+
+        if (!wanted)
+        {
+            _minimap?.Close();
+            return;
+        }
+
+        if (_minimap is not null)
+            return;
+
+        _minimap = new MinimapWindow(_settings, _session, PersistSettings);
+
+        _minimap.Dismissed += (_, _) => Post(() =>
+        {
+            _minimap = null;
+            MinimapToggle.IsChecked = false;
+        });
+
+        _minimap.Show();
+    }
+
     /// <summary>Escape leaves marker mode, which is easy to forget you are in.</summary>
     private void Escape() => KeyDown += (_, e) =>
     {
@@ -316,6 +359,11 @@ public partial class MainWindow : Window
         _session.Player.Color = ColorCodec.Parse(_settings.PlayerColor, MarkerPalette.Player);
         _session.ExtractLine.Color = ColorCodec.Parse(_settings.GuideLineColor, MarkerPalette.ExtractLine);
 
+        // Both live on the minimap and are reachable from here, so they have to be pushed across
+        // when the dialog closes rather than waiting for it to be reopened.
+        _minimap?.ApplyClickThrough();
+        _minimap?.Rescale();
+
         // The roster's own swatch follows the player color, and a route may have started animating.
         UpdatePartyPanel();
         _mapClock?.Wake();
@@ -399,7 +447,13 @@ public partial class MainWindow : Window
         // Pings and route arrows animate, so they need frames rather than events. The clock only
         // runs while one of them says it is still moving; an idle map should not be repainting
         // twenty times a second forever, least of all on a second monitor beside a running game.
-        _mapClock = new MapClock(() => _canvas.InvalidateVisual());
+        // One clock drives both windows. A second timer for the minimap would double the wake-ups
+        // for animations that are already in lockstep, since both canvases read the same overlays.
+        _mapClock = new MapClock(() =>
+        {
+            _canvas.InvalidateVisual();
+            _minimap?.Redraw();
+        });
         _mapClock.Register(_session.Pings);
         _mapClock.Register(_session.Waypoints);
 

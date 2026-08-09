@@ -66,6 +66,9 @@ public partial class PreferencesWindow : Window
         PeerTrailBox.Value = _settings.PeerTrailLength;
         UpdatePeerTrailLabel();
 
+        MinimapRangeBox.Value = (decimal)_settings.MinimapRangeMeters;
+        MinimapClickThroughBox.IsChecked = _settings.MinimapClickThrough;
+
         ShowConditionsBox.IsChecked = _settings.ShowExitConditions;
         ShowOffScreenPeersBox.IsChecked = _settings.ShowOffScreenPeers;
         ShareRouteBox.IsChecked = _settings.ShareRouteWithParty;
@@ -176,6 +179,13 @@ public partial class PreferencesWindow : Window
 
         ShowConditionsBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.ShowExitConditions = ShowConditionsBox.IsChecked ?? true);
+
+        MinimapRangeBox.ValueChanged += (_, _) => Apply(() =>
+            _settings.MinimapRangeMeters =
+                (double)(MinimapRangeBox.Value ?? (decimal)_settings.MinimapRangeMeters));
+
+        MinimapClickThroughBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.MinimapClickThrough = MinimapClickThroughBox.IsChecked ?? false);
 
         ShowOffScreenPeersBox.IsCheckedChanged += (_, _) => Apply(() =>
         {

@@ -289,6 +289,31 @@ public sealed class AppSettings
 
     public WindowPlacement? Window { get; set; }
 
+    // ---- Minimap -----------------------------------------------------------
+
+    /// <summary>
+    /// How solid the minimap window is. 1.0 is opaque.
+    /// </summary>
+    /// <remarks>
+    /// Clamped well above invisible. A window you cannot see but which still eats your clicks is a
+    /// state nobody would choose deliberately and everybody would reach by dragging a slider.
+    /// </remarks>
+    public double MinimapOpacity { get; set; } = 0.85;
+
+    /// <summary>How much of the map the minimap shows, as a radius in game meters.</summary>
+    public double MinimapRangeMeters { get; set; } = 150.0;
+
+    /// <summary>
+    /// Let clicks pass straight through the minimap to whatever is underneath.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, and deliberately not on the minimap itself: turning it on makes the window
+    /// unclickable, so the control that turns it back off cannot live there.
+    /// </remarks>
+    public bool MinimapClickThrough { get; set; }
+
+    public WindowPlacement? MinimapPlacement { get; set; }
+
     // ---- Data --------------------------------------------------------------
 
     /// <summary>How stale the cached tarkov.dev payload may get before we refetch.</summary>
@@ -342,6 +367,11 @@ public sealed class AppSettings
         // Anything unparseable becomes the default rather than a transparent marker.
         PlayerColor = Rendering.ColorCodec.Canonical(PlayerColor, Rendering.MarkerPalette.Player);
         GuideLineColor = Rendering.ColorCodec.Canonical(GuideLineColor, Rendering.MarkerPalette.ExtractLine);
+
+        // Never fully transparent. A window you cannot see but which still takes your clicks is a
+        // state nobody picks on purpose and anybody reaches by dragging a slider to the end.
+        MinimapOpacity = Math.Clamp(MinimapOpacity, 0.25, 1.0);
+        MinimapRangeMeters = Math.Clamp(MinimapRangeMeters, 25.0, 1000.0);
 
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);

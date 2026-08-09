@@ -48,6 +48,38 @@
     <Setter Property="Opacity" Value="1.0" />
   </Style>
 
+  <!--
+    A slider for a strip rather than a settings page. Fluent's default is built around a 20px thumb
+    and reserves well over thirty pixels of height for it, which is most of the minimap's header for
+    one control nobody needs to read a value off.
+  -->
+  <Style Selector="Slider.compact">
+    <Setter Property="Height" Value="14" />
+    <Setter Property="MinHeight" Value="14" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="Slider.compact /template/ Thumb">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="MinWidth" Value="10" />
+    <Setter Property="MinHeight" Value="10" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <!-- The two halves of the track are RepeatButtons; both have to shrink or the row stays tall. -->
+  <Style Selector="Slider.compact /template/ RepeatButton">
+    <Setter Property="Height" Value="3" />
+    <Setter Property="MinHeight" Value="3" />
+  </Style>
+
+  <Style Selector="Slider.compact /template/ Border#TrackBackground">
+    <Setter Property="Height" Value="3" />
+    <Setter Property="MinHeight" Value="3" />
+  </Style>
+
   <Style Selector="TextBlock.secondary">
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>

@@ -169,6 +169,20 @@ public sealed class MapCanvas : Control
     public void RestoreView(Viewport.State state) => MoveTo(state);
 
     /// <summary>
+    /// Centers on a point at an explicit zoom, for a view that owns both.
+    /// </summary>
+    /// <remarks>
+    /// The minimap sets its scale from a range in game meters rather than inheriting whatever the
+    /// user last pinched to, so it needs to say where and how close in one move -- two calls would
+    /// show a frame at the wrong zoom in between.
+    /// </remarks>
+    public void ShowAt(MapPoint center, double scale)
+    {
+        Viewport.Scale = scale;
+        MoveTo(Viewport.StateForCenter(center));
+    }
+
+    /// <summary>
     /// Moves the view to <paramref name="target"/>, easing there when smooth movement is on.
     /// </summary>
     private void MoveTo(Viewport.State target)

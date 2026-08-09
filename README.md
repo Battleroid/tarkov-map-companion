@@ -195,6 +195,20 @@ changed is the worst kind of broken. `--party-test` tells you which case you are
 > tell a squad from a group of strangers coordinating, because it has no view into the game's party
 > system. That is a judgement call it cannot make for you.
 
+**Minimap.** Press **Minimap** for a small always-on-top window that can sit over the game itself,
+for when you have only one screen. It draws everything the main map does — your position and trail,
+exits, routes, squad, pings — at a range you set in game meters, and it **always** centers on you.
+There is no follow toggle: a minimap you can pan away from your own position is just a small map,
+and the point of this one is that a glance answers "what is around me" with no interaction at all.
+
+Drag it anywhere, resize from the corner, scroll to change the range, and set how solid it is with
+the slider in its header. **Settings** has a click-through option that lets the mouse reach the game
+underneath — that one lives there rather than on the minimap, because switching it on makes the
+window unclickable, including whatever would switch it back off.
+
+It is still just a window. Nothing is drawn into the game, nothing is injected, and it shows only
+what the main window already had.
+
 **Light and dark, at a readable size.** Monospaced throughout, with a text-size slider, and an
 always-on-top toggle for when it shares a screen with something else.
 

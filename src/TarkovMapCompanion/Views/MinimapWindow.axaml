@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="TarkovMapCompanion.Views.MinimapWindow"
+        Title="Minimap"
+        Width="360" Height="360"
+        MinWidth="180" MinHeight="180"
+        Topmost="True"
+        ShowInTaskbar="False"
+        SystemDecorations="None"
+        CanResize="True"
+        Background="{DynamicResource SurfaceBaseBrush}">
+
+  <!--
+    Frameless on purpose. This sits on top of a game, where a title bar is thirty wasted pixels and
+    a Windows chrome that does not match anything around it. Dragging the strip moves it, the
+    bottom-right grip resizes it, and Escape closes it.
+  -->
+  <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+    <DockPanel>
+
+      <!--
+        One strip for everything. A second row along the bottom cost twenty-odd pixels of a window
+        that is only a few hundred tall, to hold one slider.
+      -->
+      <Border Name="HeaderStrip" DockPanel.Dock="Top"
+              Background="{DynamicResource SurfacePanelBrush}"
+              Padding="6,1">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Column="0" Name="MapName" Classes="secondary" FontSize="10"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+          <TextBlock Grid.Column="1" Name="RangeText" Classes="secondary" FontSize="10"
+                     Margin="6,0" VerticalAlignment="Center"
+                     HorizontalAlignment="Right" />
+
+          <!-- Narrow on purpose: a nudge, not a value anybody needs to read off. -->
+          <Slider Grid.Column="2" Name="OpacitySlider" Classes="compact"
+                  Minimum="0.25" Maximum="1.0"
+                  Width="52" Margin="0,0,6,0" VerticalAlignment="Center"
+                  ToolTip.Tip="How solid the minimap is" />
+
+          <Button Grid.Column="3" Name="ZoomOutButton" Content="−" FontSize="11" Padding="5,0"
+                  MinHeight="0" ToolTip.Tip="Show more ground" />
+          <Button Grid.Column="4" Name="ZoomInButton" Content="+" FontSize="11" Padding="5,0"
+                  MinHeight="0" Margin="3,0" ToolTip.Tip="Show less ground" />
+          <Button Grid.Column="5" Name="CloseButton" Content="✕" FontSize="10" Padding="5,0"
+                  MinHeight="0" ToolTip.Tip="Close the minimap (Escape)" />
+        </Grid>
+      </Border>
+
+      <!-- The grip floats over the map's own corner rather than reserving a row for itself. -->
+      <Panel Name="MinimapHost">
+        <Path Name="ResizeGrip"
+              Width="14" Height="14" Stretch="None"
+              HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              Margin="0,0,2,2"
+              Fill="{DynamicResource TextSecondaryBrush}"
+              Opacity="0.7"
+              Cursor="BottomRightCorner"
+              Data="M 13,4 L 13,13 L 4,13 Z" />
+      </Panel>
+
+    </DockPanel>
+  </Border>
+
+</Window>

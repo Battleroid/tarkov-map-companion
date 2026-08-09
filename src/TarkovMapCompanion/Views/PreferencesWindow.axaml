@@ -140,6 +140,28 @@
         </StackPanel>
         </Border>
 
+        <!-- Minimap -->
+        <Border Classes="panel" Padding="12">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="MINIMAP" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="A small always-on-top map that can sit over the game. Open it from the Minimap button on the toolbar. It always follows you, and its opacity slider is on the window itself." />
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="Shows" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="MinimapRangeBox" Minimum="25" Maximum="1000" Increment="25"
+                           Width="120" FormatString="0" />
+            <TextBlock Text="m around you" VerticalAlignment="Center" FontSize="12"
+                       Classes="secondary" />
+          </StackPanel>
+
+          <CheckBox Name="MinimapClickThroughBox" Content="Let clicks pass through to the game"
+                    Margin="0,4,0,0" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Stops the minimap taking clicks meant for the game. It also stops you moving, resizing or closing the window, so this switch lives here rather than on the minimap itself." />
+        </StackPanel>
+        </Border>
+
         <!-- Party -->
         <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
