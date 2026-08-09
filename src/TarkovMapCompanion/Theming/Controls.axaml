@@ -119,6 +119,22 @@
     <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
+  <!--
+    Headers on the floating map panels. These are disclosure toggles, not modes: open is not the
+    same kind of fact as "a click on the map will drop a pin now", and giving both the same filled
+    accent would spend the loudest thing in the toolbar on whether a panel happens to be unfolded.
+    Accent on the text only, so it still reads as on without shouting.
+  -->
+  <Style Selector="ToggleButton.overlayHeader:checked /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.overlayHeader:checked:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+
   <Style Selector="CheckBox, RadioButton, ComboBox, TextBox, NumericUpDown, Slider">
     <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
   </Style>

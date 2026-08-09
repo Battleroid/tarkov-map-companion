@@ -588,7 +588,7 @@ public partial class MainWindow : Window
         _canvas.Cursor = new Cursor(on ? StandardCursorType.Cross : StandardCursorType.Arrow);
 
         StatusText.Text = on
-            ? "Marker mode: click the map in the order you want to visit. Click Mark again to finish."
+            ? "Marker mode: click the map in the order you want to visit. Click Mark Route again, or press Escape, to finish."
             : DescribeRoute();
     }
 
@@ -1027,7 +1027,7 @@ public partial class MainWindow : Window
         if (_session.Waypoints.IsPlacing)
         {
             _session.AddWaypoint(position);
-            StatusText.Text = $"Marker {_session.Waypoints.Count} placed. Click Mark again to finish.";
+            StatusText.Text = $"Marker {_session.Waypoints.Count} placed. Click Mark Route again, or press Escape, to finish.";
             return;
         }
 

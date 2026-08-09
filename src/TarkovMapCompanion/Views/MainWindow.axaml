@@ -207,7 +207,7 @@
       <Border Name="FloorOverlay" Classes="mapOverlay" IsVisible="False"
               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
         <StackPanel Spacing="5">
-          <ToggleButton Name="FloorOverlayToggle" Content="Levels" FontSize="11" Padding="8,3"
+          <ToggleButton Name="FloorOverlayToggle" Classes="overlayHeader" Content="Levels" FontSize="11" Padding="8,3"
                         HorizontalAlignment="Stretch"
                         ToolTip.Tip="Turn map levels on and off. Ground has to be off to see anything underneath it." />
           <StackPanel Name="FloorBody" Spacing="3" IsVisible="False" MaxWidth="180">
@@ -218,14 +218,20 @@
         </StackPanel>
       </Border>
 
-      <!-- Squad position sharing. Collapsed to a single pill until it has something to say. -->
-      <Border Name="PartyOverlay" Classes="mapOverlay" Width="250"
+      <!--
+        Squad position sharing. Collapsed to a single pill until it has something to say.
+
+        The width lives on the body, not the border: a fixed-width border sizes the collapsed pill
+        to 250px too, and a wide empty bar with a one-word label in it reads as a text field rather
+        than a button. Collapsed, this needs to look exactly like the Levels pill opposite it.
+      -->
+      <Border Name="PartyOverlay" Classes="mapOverlay"
               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
         <StackPanel Spacing="6">
-          <ToggleButton Name="PartyOverlayToggle" Content="Party" FontSize="11" Padding="8,3"
+          <ToggleButton Name="PartyOverlayToggle" Classes="overlayHeader" Content="Party" FontSize="11" Padding="8,3"
                         HorizontalAlignment="Stretch" />
 
-          <StackPanel Name="PartyBody" Spacing="6" IsVisible="False">
+          <StackPanel Name="PartyBody" Spacing="6" IsVisible="False" Width="250">
 
             <StackPanel Name="PartyIdlePanel" Spacing="6">
               <StackPanel Orientation="Horizontal" Spacing="6">
