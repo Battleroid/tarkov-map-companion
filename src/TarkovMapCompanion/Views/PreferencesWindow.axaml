@@ -5,7 +5,7 @@
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.PreferencesWindow"
         Title="Preferences"
-        Width="600" Height="540"
+        Width="600" Height="620"
         MinWidth="460" MinHeight="320"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource SurfaceBaseBrush}">
@@ -38,7 +38,14 @@
       <Border Padding="16" MaxWidth="{Binding #Scroller.Viewport.Width}">
       <StackPanel Spacing="18">
 
+        <!--
+          Every section is boxed. With eight of them in one scroller, a heading alone did not say
+          where one topic stopped and the next started, so a setting read as belonging to whichever
+          heading happened to be above it on screen.
+        -->
+
         <!-- Screenshots -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="SCREENSHOTS" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
@@ -52,6 +59,7 @@
           </Grid>
           <TextBlock Name="FolderStatus" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
+        </Border>
 
         <!-- Culling. Destructive, so it gets its own framing and an explicit warning. -->
         <Border Classes="panel" Padding="12">
@@ -75,6 +83,7 @@
         </Border>
 
         <!-- View -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="VIEW" />
           <CheckBox Name="SmoothCameraBox" Content="Glide the view to its destination instead of jumping" />
@@ -91,35 +100,48 @@
 
           <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
+        </Border>
 
         <!-- Your marker -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="YOUR MARKER" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="How you are drawn on your own map, and the color your squad sees you as." />
 
-          <TextBlock Text="Color" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
-          <WrapPanel Name="PlayerColorSwatches" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="Color" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <ColorPicker Name="PlayerColorPicker" Width="120" HorizontalAlignment="Left" />
+          </StackPanel>
 
-          <TextBlock Name="PlayerSizeLabel" Classes="secondary" FontSize="11" />
-          <Slider Name="PlayerSizeSlider" Minimum="10" Maximum="48" TickFrequency="1"
-                  IsSnapToTickEnabled="True" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Size" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="PlayerSizeBox" Minimum="10" Maximum="48" Increment="1"
+                           Width="120" FormatString="0" />
+            <TextBlock Text="px" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
+          </StackPanel>
         </StackPanel>
+        </Border>
 
         <!-- Exits -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="EXITS" />
-          <CheckBox Name="ShowConditionsBox" Content="List an exit's conditions when it is selected" />
+          <CheckBox Name="ShowConditionsBox" Content="Show an exit's conditions when it is selected" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="Off folds the requirement text away. The warning marker in the list and the ring on the map stay either way, so you can still tell which exits have conditions." />
+                     Text="Conditions appear under the exit's name in the list. Double-click a row to fold them away for that exit. The warning marker and the ring on the map stay either way, so you can still tell which exits have conditions." />
 
-          <TextBlock Text="Guide line" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
-          <WrapPanel Name="GuideColorSwatches" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="Guide line" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <ColorPicker Name="GuideColorPicker" Width="120" HorizontalAlignment="Left" />
+          </StackPanel>
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="The line only uses this when it is pointing at an exit. While it is routing you along your own markers it stays pink, so the two are never confused." />
+                     Text="Used only while the line is pointing at an exit. Routing you along your own markers keeps it pink, so the two are never confused." />
         </StackPanel>
+        </Border>
 
         <!-- Party -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="PARTY" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
@@ -141,20 +163,29 @@
           <CheckBox Name="ShowOffScreenPeersBox" Content="Point an arrow at teammates off the edge of the view"
                     Margin="0,6,0,0" />
 
-          <TextBlock Name="PeerTrailLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
-          <Slider Name="PeerTrailSlider" Minimum="0" Maximum="20" TickFrequency="1"
-                  IsSnapToTickEnabled="True" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="Trail" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="PeerTrailBox" Minimum="0" Maximum="20" Increment="1"
+                           Width="120" FormatString="0" />
+            <TextBlock Name="PeerTrailLabel" VerticalAlignment="Center" FontSize="12"
+                       Classes="secondary" />
+          </StackPanel>
         </StackPanel>
+        </Border>
 
         <!-- Route markers -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="ROUTE MARKERS" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Markers you place with the Mark Route button. The guide line visits them in order before pointing at your chosen exit." />
 
-          <TextBlock Name="ArrivalRadiusLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
-          <Slider Name="ArrivalRadiusSlider" Minimum="5" Maximum="200" TickFrequency="5"
-                  IsSnapToTickEnabled="True" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="Reached at" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="ArrivalRadiusBox" Minimum="5" Maximum="200" Increment="5"
+                           Width="120" FormatString="0" />
+            <TextBlock Text="m" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
+          </StackPanel>
 
           <RadioButton Name="ArrivalMarkThenRemove" GroupName="Arrival"
                        Content="Show a marker as reached for one screenshot, then remove it" />
@@ -165,8 +196,10 @@
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Off still draws the arrows, they just hold still. It also lets the map stop redrawing entirely when nothing else is moving." />
         </StackPanel>
+        </Border>
 
         <!-- Appearance -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="APPEARANCE" />
           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -177,8 +210,10 @@
           <Slider Name="FontSlider" Minimum="11" Maximum="22" TickFrequency="1" IsSnapToTickEnabled="True" />
           <CheckBox Name="AlwaysOnTopBox" Content="Keep the window above other windows" />
         </StackPanel>
+        </Border>
 
         <!-- Data -->
+        <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="MAP DATA" />
           <CheckBox Name="AllowNetworkBox" Content="Download map images and exit data from tarkov.dev" />
@@ -188,6 +223,7 @@
             <Button Name="OpenCacheButton" Content="Open cache folder" />
           </StackPanel>
         </StackPanel>
+        </Border>
 
       </StackPanel>
       </Border>

@@ -108,13 +108,17 @@
     Armed has to be unmistakable. While Mark Route is on, a click on the map drops a pin instead of
     selecting an exit, and while Follow Player is on the view will move on its own. Both are states
     you need to be able to see without hunting for a tick mark.
+
+    Scoped to a class rather than every ToggleButton, and that is load-bearing. Expander builds its
+    header out of a ToggleButton, so an unscoped ":checked" rule paints every expanded Expander
+    header in full accent. That is exactly what happened the moment Layers was opened.
   -->
-  <Style Selector="ToggleButton:checked /template/ ContentPresenter">
+  <Style Selector="ToggleButton.mode:checked /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
-  <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter">
+  <Style Selector="ToggleButton.mode:checked:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>

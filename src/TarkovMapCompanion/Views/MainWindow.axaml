@@ -33,11 +33,11 @@
           <!-- Buttons rather than checkboxes: all three arm a mode that changes what the map does
                with your clicks or your view, and a filled button says "on" from across a room in a
                way a tick in a box does not. -->
-          <ToggleButton Name="FollowToggle" Content="Follow Player"
+          <ToggleButton Name="FollowToggle" Classes="mode" Content="Follow Player"
                         ToolTip.Tip="Recenter on the player when a new screenshot arrives. Panning and zooming will not switch this off." />
-          <ToggleButton Name="FocusToggle" Content="Focus Exit"
+          <ToggleButton Name="FocusToggle" Classes="mode" Content="Focus Exit"
                         ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer. Turning it off puts your previous view back." />
-          <ToggleButton Name="MarkToggle" Content="Mark Route"
+          <ToggleButton Name="MarkToggle" Classes="mode" Content="Mark Route"
                         ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark Route again, or press Escape, to finish." />
           <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"
                   ToolTip.Tip="Remove every marker and point the guide line back at the selected exit" />
@@ -88,7 +88,7 @@
             BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="1,0,0,0"
             Width="290">
-      <Grid RowDefinitions="Auto,*,Auto,Auto">
+      <Grid RowDefinitions="Auto,*">
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
           <TextBlock Classes="heading" Text="EXITS" />
@@ -119,76 +119,51 @@
                      Text="Pick one to draw a guide line from the player." />
         </StackPanel>
 
+        <!--
+          Requirements live in the row itself rather than in a panel underneath the list. A separate
+          pane meant reading the exit's name in one place and its conditions in another, six inches
+          apart, and it repeated the name and distance that were already on screen. Double-click a
+          row to fold its requirements away.
+        -->
         <ListBox Grid.Row="1" Name="ExtractList" Margin="6,0,6,6"
                  Background="Transparent" BorderThickness="0">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="data:MapPoi">
               <!-- Faded when the game did not list this exit for the current raid. Still selectable:
                    the list comes from reading a screenshot, which can be wrong. -->
-              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Opacity="{Binding ListOpacity}">
-                <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="1" Text="{Binding DistanceLabel}"
-                           Classes="secondary" FontSize="11"
-                           VerticalAlignment="Center" />
-                <!-- A conditional exit is flagged in the list, not only once you click it. -->
-                <TextBlock Grid.Column="2" Text="!"
-                           IsVisible="{Binding IsConditional}"
-                           FontWeight="Bold"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource WarningBrush}"
-                           ToolTip.Tip="This exit has conditions" />
-              </Grid>
+              <StackPanel Opacity="{Binding ListOpacity}" Spacing="2" Margin="0,1">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                  <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="1" Text="{Binding DistanceLabel}"
+                             Classes="secondary" FontSize="11"
+                             VerticalAlignment="Center" />
+                  <!-- A conditional exit is flagged whether or not the row is expanded. Folding the
+                       requirements away is decluttering; hiding that there are any would be a trap. -->
+                  <TextBlock Grid.Column="2" Text="!"
+                             IsVisible="{Binding IsConditional}"
+                             FontWeight="Bold"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource WarningBrush}"
+                             ToolTip.Tip="This exit has conditions. Double-click to fold them away." />
+                </Grid>
+
+                <StackPanel IsVisible="{Binding ShowDetails}" Margin="0,1,0,3" Spacing="1">
+                  <TextBlock Text="{Binding SubtitleLabel}"
+                             IsVisible="{Binding SubtitleLabel.Length}"
+                             Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+                  <ItemsControl ItemsSource="{Binding Details}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource WarningBrush}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-
-        <!-- Detail for the selected exit. Rows appear only when the data has something to say. -->
-        <Border Grid.Row="2" Name="ExtractDetail"
-                IsVisible="False"
-                Margin="10,0,10,10" Padding="10"
-                Background="{DynamicResource SurfaceRaisedBrush}"
-                BorderBrush="{DynamicResource BorderSubtleBrush}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource RadiusSmall}">
-          <StackPanel Spacing="5">
-            <TextBlock Name="DetailName" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <TextBlock Name="DetailFaction" Classes="secondary" FontSize="12" TextWrapping="Wrap" />
-            <TextBlock Name="DetailDistance" FontSize="12" TextWrapping="Wrap" />
-            <!-- Folds the requirement prose away without hiding that there are requirements: the
-                 "!" in the list and the ring on the map are not affected. -->
-            <Button Name="DetailConditionsToggle" IsVisible="False" FontSize="11" Padding="6,1"
-                    HorizontalAlignment="Left" />
-            <ItemsControl Name="DetailConditions">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
-                             Foreground="{DynamicResource WarningBrush}" Margin="0,1" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Name="DetailElevation" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
-            <Button Name="ClearSelection" Content="Clear" HorizontalAlignment="Left" Padding="8,2" />
-          </StackPanel>
-        </Border>
-
-        <StackPanel Grid.Row="3">
-          <Expander Header="Spawn heatmap" Margin="6,0,6,4">
-            <StackPanel Spacing="4" Margin="6">
-              <CheckBox Name="HeatmapToggle" Content="Show heatmap" />
-              <StackPanel Name="HeatmapGroups" Spacing="2" Margin="14,0,0,0" />
-              <TextBlock Name="HeatmapRadiusLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
-              <Slider Name="HeatmapRadius" Minimum="10" Maximum="150" />
-              <TextBlock Name="HeatmapOpacityLabel" Classes="secondary" FontSize="11" />
-              <Slider Name="HeatmapOpacity" Minimum="0.1" Maximum="1.0" />
-            </StackPanel>
-          </Expander>
-
-          <Expander Header="Layers" Margin="6,0,6,8">
-            <ScrollViewer MaxHeight="240">
-              <StackPanel Name="LayerList" Spacing="2" Margin="6" />
-            </ScrollViewer>
-          </Expander>
-        </StackPanel>
 
       </Grid>
     </Border>
@@ -214,6 +189,38 @@
             <StackPanel Name="FloorList" Spacing="2" />
             <TextBlock Name="FloorHint" IsVisible="False" FontSize="11" TextWrapping="Wrap"
                        Foreground="{DynamicResource WarningBrush}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!--
+        What is drawn on the map, which is a thing about the map rather than about the exit list.
+        Bottom-left, under the levels, so the two pieces of "what am I looking at" chrome share a
+        corner instead of being split across the window.
+      -->
+      <Border Name="LayersOverlay" Classes="mapOverlay"
+              HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10">
+        <StackPanel Spacing="5">
+          <ToggleButton Name="LayersOverlayToggle" Classes="overlayHeader" Content="Layers"
+                        FontSize="11" Padding="8,3" HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Which points of interest and spawn data are drawn" />
+
+          <StackPanel Name="LayersBody" Spacing="6" IsVisible="False" Width="210">
+            <ScrollViewer MaxHeight="260">
+              <StackPanel Name="LayerList" Spacing="2" />
+            </ScrollViewer>
+
+            <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0"
+                    Padding="0,6,0,0">
+              <StackPanel Spacing="4">
+                <CheckBox Name="HeatmapToggle" Content="Spawn heatmap" FontSize="12" />
+                <StackPanel Name="HeatmapGroups" Spacing="2" Margin="14,0,0,0" />
+                <TextBlock Name="HeatmapRadiusLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
+                <Slider Name="HeatmapRadius" Minimum="10" Maximum="150" />
+                <TextBlock Name="HeatmapOpacityLabel" Classes="secondary" FontSize="11" />
+                <Slider Name="HeatmapOpacity" Minimum="0.1" Maximum="1.0" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </StackPanel>
       </Border>

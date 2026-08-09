@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     /// <summary>Whether the floating map panels are open. Kept across map switches, not restarts.</summary>
     private bool _floorOverlayExpanded;
     private bool _partyOverlayExpanded;
+    private bool _layersOverlayExpanded;
 
     /// <summary>
     /// Whether the party panel has already opened itself once for the session that is running.
@@ -175,13 +176,7 @@ public partial class MainWindow : Window
         };
 
         ExtractList.SelectionChanged += OnExtractSelectionChanged;
-        ClearSelection.Click += (_, _) => ExtractList.SelectedItem = null;
-
-        DetailConditionsToggle.Click += (_, _) => Apply(() =>
-        {
-            _settings.ShowExitConditions = !_settings.ShowExitConditions;
-            UpdateExtractDetail();
-        });
+        ExtractList.DoubleTapped += OnExtractListDoubleTapped;
 
         // Both map overlays start collapsed and are not persisted. Like marker mode, an expanded
         // panel is a thing you are doing now rather than a preference -- but the state is kept in a
@@ -192,6 +187,9 @@ public partial class MainWindow : Window
 
         PartyOverlayToggle.IsCheckedChanged += (_, _) =>
             PartyBody.IsVisible = _partyOverlayExpanded = PartyOverlayToggle.IsChecked ?? false;
+
+        LayersOverlayToggle.IsCheckedChanged += (_, _) =>
+            LayersBody.IsVisible = _layersOverlayExpanded = LayersOverlayToggle.IsChecked ?? false;
 
         // At the minimum window width, minus the 290px sidebar, the map is about 530px across and
         // an open 250px party panel takes half of it. Shut it rather than cover the map; the pill
@@ -897,60 +895,66 @@ public partial class MainWindow : Window
         _canvas.InvalidateVisual();
     }
 
+    /// <summary>
+    /// Decides which rows are showing their requirements.
+    /// </summary>
+    /// <remarks>
+    /// Only the selected exit ever expands, and only when the preference allows it and the row has
+    /// not been folded away by double-clicking. Everything else collapses, so the list cannot grow
+    /// into a wall of requirement text as you click down it.
+    /// </remarks>
     private void UpdateExtractDetail()
     {
         var selected = _session.SelectedExtract;
 
-        ExtractDetail.IsVisible = selected is not null;
-        if (selected is null)
+        foreach (var poi in ExtractList.ItemsSource?.OfType<MapPoi>() ?? [])
+        {
+            if (!ReferenceEquals(poi, selected))
+                poi.DetailsExpanded = false;
+        }
+
+        if (selected is not null)
+            selected.DetailsExpanded = _settings.ShowExitConditions && selected.HasDetails;
+
+        RefreshExtractRows();
+    }
+
+    /// <summary>
+    /// Redraws the list so the row-level expansion flags take effect.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MapPoi"/> raises no change notifications by design -- the type's own comment says
+    /// the list is rebuilt whenever its mutable fields change, and this is that rebuild. Selection
+    /// is reassigned rather than left to survive, because replacing ItemsSource drops it.
+    /// </remarks>
+    private void RefreshExtractRows()
+    {
+        if (ExtractList.ItemsSource is not IEnumerable<MapPoi> rows)
             return;
 
-        DetailName.Text = selected.Name;
+        var selected = ExtractList.SelectedItem;
+        var items = rows.ToArray();
 
-        DetailFaction.Text = selected.DestinationMap is { } destination
-            ? $"Transit to {GameMap.ToDisplayName(destination)}"
-            : selected.FactionLabel;
+        _suppressExtractSelectionEvent = true;
+        ExtractList.ItemsSource = items;
+        ExtractList.SelectedItem = selected;
+        _suppressExtractSelectionEvent = false;
+    }
 
-        // Measured to the exit itself, not to wherever the guide line currently points. This panel
-        // is about the exit; borrowing the line's reading would put a marker's distance under the
-        // exit's name.
-        var player = _session.Player.Current;
+    /// <summary>
+    /// Double-clicking a row folds its requirements away, or brings them back.
+    /// </summary>
+    /// <remarks>
+    /// Per-row rather than a global preference, because "I have read this one" is about this exit
+    /// and not about every exit. The Settings checkbox still decides whether a row starts expanded.
+    /// </remarks>
+    private void OnExtractListDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_session.SelectedExtract is not { } selected || !selected.HasDetails)
+            return;
 
-        if (player is null)
-        {
-            DetailDistance.Text = "Waiting for a screenshot to place you.";
-        }
-        else
-        {
-            var distance = player.Position.GroundDistanceTo(selected.Position);
-            var bearing = MapProjection.NormalizeSigned(
-                MapProjection.BearingDegrees(player.Position, selected.Position) - player.YawDegrees);
-
-            var turn = Math.Abs(bearing) < 4
-                ? "ahead"
-                : $"{Math.Abs(bearing):F0}° {(bearing < 0 ? "left" : "right")}";
-
-            var route = _session.Waypoints.Count is var marks and > 0
-                ? $"   (via {marks} marker{(marks == 1 ? "" : "s")})"
-                : "";
-
-            DetailDistance.Text = $"{distance:F0} m away, {turn}{route}";
-        }
-
-        var conditions = selected.Details;
-        var showing = _settings.ShowExitConditions;
-
-        DetailConditionsToggle.IsVisible = conditions.Count > 0;
-        DetailConditionsToggle.Content = showing
-            ? "Hide conditions"
-            : $"Show {conditions.Count} condition{(conditions.Count == 1 ? "" : "s")}";
-
-        DetailConditions.IsVisible = showing;
-        DetailConditions.ItemsSource = conditions;
-
-        DetailElevation.IsVisible = selected.Elevation is not null;
-        if (selected.Elevation is { } elevation)
-            DetailElevation.Text = $"Elevation {elevation.Bottom:F1} to {elevation.Top:F1}";
+        selected.DetailsExpanded = !selected.DetailsExpanded;
+        RefreshExtractRows();
     }
 
     /// <summary>

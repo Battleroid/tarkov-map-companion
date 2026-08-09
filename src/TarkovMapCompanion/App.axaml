@@ -5,6 +5,16 @@
 
   <Application.Styles>
     <FluentTheme />
+
+    <!--
+      ColorPicker ships in its own package and FluentTheme does not carry its templates, so without
+      this the control resolves, binds, and lays out at zero size. It looks exactly like the XAML
+      having been ignored rather than like a missing style.
+
+      Declared before Controls.axaml so our own rules still win where they overlap.
+    -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+
     <StyleInclude Source="avares://TarkovMapCompanion/Theming/Controls.axaml" />
   </Application.Styles>
 

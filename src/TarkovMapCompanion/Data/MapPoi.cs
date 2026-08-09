@@ -121,6 +121,45 @@ public sealed class MapPoi
     /// <summary>Fades exits the current raid does not offer, without removing them.</summary>
     public double ListOpacity => AvailableThisRaid == false ? 0.4 : 1.0;
 
+    /// <summary>
+    /// Whether this row is showing its requirements underneath the name.
+    /// </summary>
+    /// <remarks>
+    /// Mutable for the same reason as <see cref="DistanceMeters"/>, and refreshed the same way: the
+    /// list is rebuilt when it changes. Per-row rather than global so collapsing the requirements on
+    /// one exit does not hide them on the next one you look at.
+    /// </remarks>
+    public bool DetailsExpanded { get; set; }
+
+    /// <summary>True when there is anything to show under the name at all.</summary>
+    public bool HasDetails => Details.Count > 0 || SubtitleLabel.Length > 0;
+
+    /// <summary>Shown only while the row is expanded and there is something to say.</summary>
+    public bool ShowDetails => DetailsExpanded && HasDetails;
+
+    /// <summary>
+    /// The line under the name: who may use it, or where a transit goes.
+    /// </summary>
+    /// <remarks>
+    /// Empty when the name already carries it. "Transit to Shoreline" does not need "Transit to
+    /// Shoreline" written underneath it -- the name of a transit is a complete sentence about where
+    /// it goes, and repeating it was pure column width.
+    /// </remarks>
+    public string SubtitleLabel
+    {
+        get
+        {
+            if (DestinationMap is not { } destination)
+                return FactionLabel;
+
+            var where = Maps.GameMap.ToDisplayName(destination);
+
+            return Name.Contains(where, StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : $"Leads to {where}";
+        }
+    }
+
     public bool IsExtract => Kind is PoiKind.ExtractPmc or PoiKind.ExtractScav or PoiKind.ExtractShared;
 
     /// <summary>Extracts usable by both factions, which is how co-op extracts are modeled.</summary>

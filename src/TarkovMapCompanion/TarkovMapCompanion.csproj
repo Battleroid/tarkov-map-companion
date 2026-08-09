@@ -23,6 +23,12 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <!--
+      Official Avalonia package, so it version-locks with the rest of the suite and brings no
+      SkiaSharp of its own. That is what makes it safe next to the pin in Directory.Build.props;
+      a third-party picker with its own Skia dependency would not be.
+    -->
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />

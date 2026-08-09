@@ -15,9 +15,6 @@ public partial class PreferencesWindow : Window
     private readonly MapSession? _session;
     private readonly Action _persist;
 
-    private ColorSwatchPicker? _playerColors;
-    private ColorSwatchPicker? _guideColors;
-
     private bool _loading = true;
 
     // Parameterless ctor exists only for the XAML previewer.
@@ -57,17 +54,16 @@ public partial class PreferencesWindow : Window
 
         SmoothCameraBox.IsChecked = _settings.SmoothCameraMovement;
 
-        _playerColors = new ColorSwatchPicker(PlayerColorSwatches);
-        _playerColors.Select(Rendering.ColorCodec.Parse(_settings.PlayerColor, Rendering.MarkerPalette.Player));
-        MarkColorsTakenBySquad();
+        PlayerColorPicker.Color = ToAvalonia(_settings.PlayerColor, Rendering.MarkerPalette.Player);
+        GuideColorPicker.Color = ToAvalonia(_settings.GuideLineColor, Rendering.MarkerPalette.ExtractLine);
 
-        _guideColors = new ColorSwatchPicker(GuideColorSwatches);
-        _guideColors.Select(Rendering.ColorCodec.Parse(_settings.GuideLineColor, Rendering.MarkerPalette.ExtractLine));
+        // The palette still seeds the swatch grid inside the picker, so the colors chosen for
+        // separation under color blindness stay one click away even though anything is now reachable.
+        foreach (var picker in new[] { PlayerColorPicker, GuideColorPicker })
+            picker.Palette = new MarkerColorPalette();
 
-        PlayerSizeSlider.Value = _settings.PlayerMarkerSize;
-        UpdatePlayerSizeLabel();
-
-        PeerTrailSlider.Value = _settings.PeerTrailLength;
+        PlayerSizeBox.Value = (decimal)_settings.PlayerMarkerSize;
+        PeerTrailBox.Value = _settings.PeerTrailLength;
         UpdatePeerTrailLabel();
 
         ShowConditionsBox.IsChecked = _settings.ShowExitConditions;
@@ -91,8 +87,7 @@ public partial class PreferencesWindow : Window
 
         PingSoundBox.IsChecked = _settings.PingSound;
 
-        ArrivalRadiusSlider.Value = _settings.WaypointArrivalRadiusMeters;
-        UpdateArrivalRadiusLabel();
+        ArrivalRadiusBox.Value = (decimal)_settings.WaypointArrivalRadiusMeters;
 
         ArrivalMarkThenRemove.IsChecked = _settings.WaypointArrival == WaypointArrival.MarkThenRemove;
         ArrivalRemoveOnArrival.IsChecked = _settings.WaypointArrival == WaypointArrival.RemoveOnArrival;
@@ -133,8 +128,12 @@ public partial class PreferencesWindow : Window
         CullCount.ValueChanged += (_, _) => Apply(() =>
             _settings.CullKeepCount = (int)(CullCount.Value ?? _settings.CullKeepCount));
 
-        _playerColors!.Picked += (_, color) => Apply(() =>
+        // ColorChanged rather than a property watch: the picker raises it once the user settles on a
+        // color, not for every pixel of a drag across the spectrum, which would otherwise rewrite
+        // the settings file a few hundred times per gesture.
+        PlayerColorPicker.ColorChanged += (_, e) => Apply(() =>
         {
+            var color = FromAvalonia(e.NewColor);
             _settings.PlayerColor = Rendering.ColorCodec.ToHex(color);
 
             // Straight onto the overlay as well as into the settings: this is the one preference
@@ -143,43 +142,31 @@ public partial class PreferencesWindow : Window
                 _session.Player.Color = color;
         });
 
-        _guideColors!.Picked += (_, color) => Apply(() =>
+        GuideColorPicker.ColorChanged += (_, e) => Apply(() =>
         {
+            var color = FromAvalonia(e.NewColor);
             _settings.GuideLineColor = Rendering.ColorCodec.ToHex(color);
 
             if (_session is not null)
                 _session.ExtractLine.Color = color;
         });
 
-        PlayerSizeSlider.PropertyChanged += (_, e) =>
+        PlayerSizeBox.ValueChanged += (_, _) => Apply(() =>
         {
-            if (e.Property != Slider.ValueProperty)
-                return;
+            _settings.PlayerMarkerSize = (double)(PlayerSizeBox.Value ?? (decimal)_settings.PlayerMarkerSize);
 
-            Apply(() =>
-            {
-                _settings.PlayerMarkerSize = Math.Round(PlayerSizeSlider.Value);
-                UpdatePlayerSizeLabel();
+            if (_session is not null)
+                _session.Player.MarkerSize = (float)_settings.PlayerMarkerSize;
+        });
 
-                if (_session is not null)
-                    _session.Player.MarkerSize = (float)_settings.PlayerMarkerSize;
-            });
-        };
-
-        PeerTrailSlider.PropertyChanged += (_, e) =>
+        PeerTrailBox.ValueChanged += (_, _) => Apply(() =>
         {
-            if (e.Property != Slider.ValueProperty)
-                return;
+            _settings.PeerTrailLength = (int)(PeerTrailBox.Value ?? _settings.PeerTrailLength);
+            UpdatePeerTrailLabel();
 
-            Apply(() =>
-            {
-                _settings.PeerTrailLength = (int)Math.Round(PeerTrailSlider.Value);
-                UpdatePeerTrailLabel();
-
-                if (_session is not null)
-                    _session.Peers.TrailLength = _settings.PeerTrailLength;
-            });
-        };
+            if (_session is not null)
+                _session.Peers.TrailLength = _settings.PeerTrailLength;
+        });
 
         ShowConditionsBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.ShowExitConditions = ShowConditionsBox.IsChecked ?? true);
@@ -228,21 +215,14 @@ public partial class PreferencesWindow : Window
         ArrivalMarkThenRemove.IsCheckedChanged += (_, _) => ApplyArrivalMode();
         ArrivalRemoveOnArrival.IsCheckedChanged += (_, _) => ApplyArrivalMode();
 
-        ArrivalRadiusSlider.PropertyChanged += (_, e) =>
+        ArrivalRadiusBox.ValueChanged += (_, _) => Apply(() =>
         {
-            if (e.Property != Slider.ValueProperty)
-                return;
+            _settings.WaypointArrivalRadiusMeters =
+                (double)(ArrivalRadiusBox.Value ?? (decimal)_settings.WaypointArrivalRadiusMeters);
 
-            Apply(() =>
-            {
-                _settings.WaypointArrivalRadiusMeters = Math.Round(ArrivalRadiusSlider.Value);
-
-                if (_session is not null)
-                    _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
-
-                UpdateArrivalRadiusLabel();
-            });
-        };
+            if (_session is not null)
+                _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
+        });
 
         SuggestMapBox.IsCheckedChanged += (_, _) => Apply(() =>
         {
@@ -491,34 +471,27 @@ public partial class PreferencesWindow : Window
 
     private void UpdateFontLabel() => FontLabel.Text = $"Text size: {_settings.FontSize:F0} px";
 
-    private void UpdatePlayerSizeLabel() =>
-        PlayerSizeLabel.Text = $"Marker size: {_settings.PlayerMarkerSize:F0} px";
-
+    /// <summary>Says "off" rather than "0", which is the one value that changes what happens.</summary>
     private void UpdatePeerTrailLabel() =>
-        PeerTrailLabel.Text = _settings.PeerTrailLength == 0
-            ? "Teammate trails: off"
-            : $"Teammate trails: last {_settings.PeerTrailLength} position{(_settings.PeerTrailLength == 1 ? "" : "s")}";
+        PeerTrailLabel.Text = _settings.PeerTrailLength == 0 ? "off" : "positions";
+
+    private static Avalonia.Media.Color ToAvalonia(string? stored, SkiaSharp.SKColor fallback)
+    {
+        var color = Rendering.ColorCodec.Parse(stored, fallback);
+        return Avalonia.Media.Color.FromRgb(color.Red, color.Green, color.Blue);
+    }
 
     /// <summary>
-    /// Notes which swatches somebody in the session is already using.
+    /// Alpha is dropped on the way in, not just on the way out.
     /// </summary>
     /// <remarks>
-    /// Advisory only, and only while a session is running. Nobody is prevented from picking a taken
-    /// color and nobody is ever reassigned -- but the moment to mention a clash is while somebody is
-    /// choosing, not after two markers on the map turn out to look identical.
+    /// The picker has an alpha slider and no obvious way to hide it, so somebody can genuinely drag
+    /// their own marker to invisible. The overlays already control transparency for staleness and
+    /// off-floor dimming, and a stored alpha would fight them; this is the same rule ColorCodec
+    /// applies to the settings file, enforced at the other end too.
     /// </remarks>
-    private void MarkColorsTakenBySquad()
-    {
-        if (_session is null || !_session.Party.IsActive)
-            return;
-
-        var taken = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var peer in _session.Party.Peers.Where(p => !p.IsSelf))
-            taken[peer.Name] = Rendering.ColorCodec.ToHex(_session.Peers.ColorFor(peer.Name));
-
-        _playerColors?.MarkTaken(taken);
-    }
+    private static SkiaSharp.SKColor FromAvalonia(Avalonia.Media.Color color) =>
+        new(color.R, color.G, color.B);
 
     private void ApplyArrivalMode() => Apply(() =>
     {
@@ -547,10 +520,6 @@ public partial class PreferencesWindow : Window
             ? $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to this PC."
             : $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to {lan} (this PC).";
     }
-
-    private void UpdateArrivalRadiusLabel() =>
-        ArrivalRadiusLabel.Text =
-            $"A marker counts as reached within {_settings.WaypointArrivalRadiusMeters:F0} m";
 
     private void UpdateRaidLengthText()
     {
