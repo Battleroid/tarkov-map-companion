@@ -21,9 +21,10 @@ public static class MarkerPalette
 {
     // ---- Player -------------------------------------------------------------
 
+    /// <summary>The default player color. Overridable per user; see <c>PlayerOverlay.Color</c>.</summary>
     public static readonly SKColor Player = new(0xF5, 0xC9, 0x42);
+
     public static readonly SKColor PlayerOutline = new(0x10, 0x10, 0x10);
-    public static readonly SKColor Trail = new(0xF5, 0xC9, 0x42);
 
     // ---- Extract factions ---------------------------------------------------
 
@@ -92,6 +93,37 @@ public static class MarkerPalette
     /// only a color one, since the faction colors already use the hue channel.
     /// </summary>
     public static readonly SKColor ConditionalRing = new(0xFF, 0xD5, 0x4F, 0xE0);
+
+    // ---- Colors a user can pick ---------------------------------------------
+
+    /// <summary>
+    /// The colors offered for your own marker and for the guide line.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A closed set rather than a free picker, for three reasons. It keeps the lightness separation
+    /// this file promises, which an arbitrary hue would throw away. It makes "somebody in your squad
+    /// already has that one" a question the picker can answer. And two players choosing colors four
+    /// hex digits apart is a worse outcome than either of them not getting their exact favorite.
+    /// </para>
+    /// <para>
+    /// Named because the roster and the picker both have to talk about them, and "the blue one" is
+    /// how people actually refer to a teammate's marker.
+    /// </para>
+    /// </remarks>
+    public static readonly (string Name, SKColor Color)[] PlayerChoices =
+    [
+        ("Amber", Player),
+        ("Sky", PeerColors[0]),
+        ("Moss", PeerColors[1]),
+        ("Orchid", PeerColors[2]),
+        ("Teal", PeerColors[3]),
+        ("Rose", PeerColors[4]),
+        ("Ice", new SKColor(0xE0, 0xE6, 0xED)),
+        ("Rust", new SKColor(0xE2, 0x72, 0x3B)),
+        ("Lime", new SKColor(0xC6, 0xE3, 0x4A)),
+        ("Violet", new SKColor(0x8C, 0x7A, 0xE6)),
+    ];
 
     /// <summary>Applied to markers on a floor other than the one being viewed.</summary>
     public static SKColor Dimmed(SKColor color) => color.WithAlpha(0x50);

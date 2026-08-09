@@ -28,6 +28,16 @@ public sealed class ExtractLineOverlay : IMapOverlay
     public MapPoi? Target { get; set; }
 
     /// <summary>
+    /// Color of the line when it points at an exit. The waypoint case is not configurable.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately asymmetric. The exit color is a preference; the waypoint color is a signal that
+    /// the line has switched to routing you along your own marks, and letting someone set the two
+    /// the same would remove the one cue that distinguishes them.
+    /// </remarks>
+    public SKColor Color { get; set; } = MarkerPalette.ExtractLine;
+
+    /// <summary>
     /// The next waypoint on the player's own route. Takes precedence over <see cref="Target"/>.
     /// </summary>
     /// <remarks>
@@ -75,15 +85,19 @@ public sealed class ExtractLineOverlay : IMapOverlay
 
         // Colored by what it is pointing at, so "am I being routed to a pin or to the exit" is
         // answerable without reading the label.
-        var color = Waypoint is null ? MarkerPalette.ExtractLine : MarkerPalette.Waypoint;
+        var color = Waypoint is null ? Color : MarkerPalette.Waypoint;
 
+        // Solid and heavy. This is the one line on the map you are meant to follow while glancing
+        // at a second monitor, and a dashed 2px stroke lost that argument against the map artwork
+        // at anything below full zoom. Alpha stays at 0xCC -- at 3px, solid is already far more ink
+        // than the dashes were, and taking it to full opacity as well would swamp what is beneath.
         using var line = new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = 2f,
+            StrokeWidth = 3f,
+            StrokeCap = SKStrokeCap.Round,
             Color = color.WithAlpha(0xCC),
-            PathEffect = SKPathEffect.CreateDash([8f, 6f], 0),
         };
 
         canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, line);

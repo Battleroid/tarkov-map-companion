@@ -37,6 +37,16 @@ public sealed class PlayerOverlay : IMapOverlay
     public float MarkerSize { get; set; } = 22f;
 
     /// <summary>
+    /// The player's chosen color, used for the chevron and the trail behind it.
+    /// </summary>
+    /// <remarks>
+    /// A property rather than a palette constant because it is a preference, and the same value is
+    /// what the squad sees. The trail is deliberately not separately configurable: a trail in a
+    /// different color from the marker it belongs to reads as two things rather than one.
+    /// </remarks>
+    public SKColor Color { get; set; } = MarkerPalette.Player;
+
+    /// <summary>
     /// Floors currently displayed. A fix whose height belongs to some other floor is drawn
     /// dimmed rather than hidden -- losing the player marker entirely because they walked into a
     /// basement would be worse than showing it faintly.
@@ -185,7 +195,7 @@ public sealed class PlayerOverlay : IMapOverlay
             var to = viewport.ToScreen(map.ToBase(points[i].Position));
 
             var age = (double)i / points.Length;
-            paint.Color = MarkerPalette.Trail.WithAlpha((byte)(30 + 150 * age));
+            paint.Color = Color.WithAlpha((byte)(30 + 150 * age));
 
             canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, paint);
         }
@@ -193,7 +203,7 @@ public sealed class PlayerOverlay : IMapOverlay
         // A small dot at each past fix makes stops distinguishable from a straight run.
         using var dot = new SKPaint
         {
-            Color = MarkerPalette.Trail.WithAlpha(0x90),
+            Color = Color.WithAlpha(0x90),
             IsAntialias = true,
         };
 
@@ -210,7 +220,7 @@ public sealed class PlayerOverlay : IMapOverlay
         var angle = map.Projection.ScreenAngleDegrees(fix.YawDegrees);
 
         var onFloor = IsOnDisplayedFloor(map, fix);
-        var fillColor = onFloor ? MarkerPalette.Player : MarkerPalette.Dimmed(MarkerPalette.Player);
+        var fillColor = onFloor ? Color : MarkerPalette.Dimmed(Color);
 
         using var fill = new SKPaint { Color = fillColor, IsAntialias = true };
         using var outline = new SKPaint

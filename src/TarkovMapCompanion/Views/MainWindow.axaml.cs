@@ -464,8 +464,10 @@ public partial class MainWindow : Window
             var p => $"{p.AgeSeconds / 60:F0}m ago",
         };
 
+        // Your own row shows the color you actually draw in, so the roster and the map agree.
+        var own = _session.Player.Color;
         var swatch = peer.IsSelf
-            ? new SolidColorBrush(Color.FromRgb(0xF5, 0xC9, 0x42))
+            ? new SolidColorBrush(Color.FromRgb(own.Red, own.Green, own.Blue))
             : new SolidColorBrush(Color.FromRgb(color.Red, color.Green, color.Blue));
 
         return new PartyRow(peer.Name, detail, swatch);

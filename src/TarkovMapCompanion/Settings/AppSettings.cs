@@ -195,6 +195,58 @@ public sealed class AppSettings
     /// <summary>Number of past fixes drawn as a fading trail. 0 disables the trail.</summary>
     public int HistoryTrailLength { get; set; } = 12;
 
+    // ---- Markers -----------------------------------------------------------
+
+    /// <summary>
+    /// Your own marker color, as <c>#RRGGBB</c>. Also the color you appear as to your squad.
+    /// </summary>
+    /// <remarks>
+    /// One setting, not two. Being one color on your own map and another on everyone else's is the
+    /// kind of thing that only ever confuses people mid-raid.
+    /// </remarks>
+    public string PlayerColor { get; set; } = "#F5C942";
+
+    /// <summary>Size of the player chevron in screen pixels, independent of zoom.</summary>
+    public double PlayerMarkerSize { get; set; } = 22.0;
+
+    /// <summary>Color of the line drawn to the selected exit, as <c>#RRGGBB</c>.</summary>
+    public string GuideLineColor { get; set; } = "#F5C942";
+
+    /// <summary>
+    /// How many past positions to keep per teammate. 0 turns peer trails off.
+    /// </summary>
+    /// <remarks>
+    /// Much shorter than your own trail on purpose. Teammates only report when they take a
+    /// screenshot, so their history is sparse to begin with, and the useful signal is "which way has
+    /// he been drifting" rather than a step-by-step record.
+    /// </remarks>
+    public int PeerTrailLength { get; set; } = 5;
+
+    /// <summary>
+    /// Point an arrow at teammates who are off the edge of the view.
+    /// </summary>
+    public bool ShowOffScreenPeers { get; set; } = true;
+
+    /// <summary>
+    /// March arrowheads along the route toward the next marker.
+    /// </summary>
+    /// <remarks>
+    /// Turning it off still draws the arrowheads, it just stops them moving -- which is also what
+    /// lets the shared render clock stop, so this is the knob for anyone who would rather the app
+    /// did nothing at all while they are not looking at it.
+    /// </remarks>
+    public bool AnimateRouteArrows { get; set; } = true;
+
+    /// <summary>
+    /// Show an exit's conditions in the detail panel and the map tooltip.
+    /// </summary>
+    /// <remarks>
+    /// Only the prose. The "!" in the list and the dashed ring on the map are not affected: folding
+    /// away the clutter is decluttering, but hiding the fact that an exit has conditions at all
+    /// would be a trap.
+    /// </remarks>
+    public bool ShowExitConditions { get; set; } = true;
+
     // ---- Appearance --------------------------------------------------------
 
     /// <summary>
@@ -218,6 +270,15 @@ public sealed class AppSettings
     /// is half a feature, since the point is to get your attention while you are in the game.
     /// </summary>
     public bool PingSound { get; set; } = true;
+
+    /// <summary>
+    /// Send your route markers to the rest of the squad.
+    /// </summary>
+    /// <remarks>
+    /// On by default, but refusable: a squad that has already agreed to share positions has made
+    /// the harder call, and yet a route is a plan rather than a fact about where you are.
+    /// </remarks>
+    public bool ShareRouteWithParty { get; set; } = true;
 
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
@@ -272,6 +333,16 @@ public sealed class AppSettings
         HeatmapRadiusMeters = Math.Clamp(HeatmapRadiusMeters, 1.0, 500.0);
         HeatmapOpacity = Math.Clamp(HeatmapOpacity, 0.0, 1.0);
         HistoryTrailLength = Math.Clamp(HistoryTrailLength, 0, 500);
+
+        // Below about 10px the heading is unreadable; above about 48 the marker hides the ground
+        // it is standing on, which is the one thing you were looking at.
+        PlayerMarkerSize = Math.Clamp(PlayerMarkerSize, 10.0, 48.0);
+        PeerTrailLength = Math.Clamp(PeerTrailLength, 0, 20);
+
+        // Anything unparseable becomes the default rather than a transparent marker.
+        PlayerColor = Rendering.ColorCodec.Canonical(PlayerColor, Rendering.MarkerPalette.Player);
+        GuideLineColor = Rendering.ColorCodec.Canonical(GuideLineColor, Rendering.MarkerPalette.ExtractLine);
+
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);
 

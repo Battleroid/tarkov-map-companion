@@ -73,14 +73,22 @@ public sealed class MapSession : IDisposable
         Party.Status += (_, message) => Status?.Invoke(this, message);
         Party.PingReceived += (_, ping) => OnPingReceived(ping);
 
-        Player = new PlayerOverlay { TrailLength = settings.HistoryTrailLength };
+        Player = new PlayerOverlay
+        {
+            TrailLength = settings.HistoryTrailLength,
+            MarkerSize = (float)settings.PlayerMarkerSize,
+            Color = ColorCodec.Parse(settings.PlayerColor, MarkerPalette.Player),
+        };
 
         // Which exits a raid offers is decided when that raid starts, so a list read in the last
         // one says nothing about this one.
         Player.RaidStarted += (_, _) => ClearExitAvailability();
 
         Pois = new PoiOverlay();
-        ExtractLine = new ExtractLineOverlay();
+        ExtractLine = new ExtractLineOverlay
+        {
+            Color = ColorCodec.Parse(settings.GuideLineColor, MarkerPalette.ExtractLine),
+        };
 
         Heatmap = new HeatmapOverlay
         {
@@ -524,7 +532,7 @@ public sealed class MapSession : IDisposable
             Name = ping.Name,
             Map = ping.Map,
             Position = new GamePosition(ping.X, ping.Y, ping.Z),
-            Color = mine ? Rendering.MarkerPalette.Player : Peers.ColorFor(ping.Name),
+            Color = mine ? Player.Color : Peers.ColorFor(ping.Name),
         };
 
         Pings.Add(placed);
