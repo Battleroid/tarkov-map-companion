@@ -315,11 +315,21 @@ public sealed class PeerOverlay : IMapOverlay
     }
 
     /// <summary>
-    /// The color a squad member is drawn in, by their place in the roster.
+    /// The color a squad member is drawn in: their own choice, or their roster slot.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Exposed so the roster list can show the same swatch as the map. A name in a list is not much
     /// use if you cannot tell which wedge on the map it belongs to.
+    /// </para>
+    /// <para>
+    /// A declared color always wins, and alpha is forced opaque because this string came off a
+    /// socket from a program we did not write. The index fallback below is only stable while nobody
+    /// leaves: the walk skips self and enumerates in name order, so one person quitting recolors
+    /// everybody after them, and two clients holding slightly different rosters draw the same
+    /// teammate two different colors. Which is exactly the confusion the colors exist to prevent,
+    /// and exactly why they are now sent rather than worked out.
+    /// </para>
     /// </remarks>
     public SKColor ColorFor(string name)
     {
@@ -327,10 +337,15 @@ public sealed class PeerOverlay : IMapOverlay
 
         foreach (var peer in _peers)
         {
+            var match = string.Equals(peer.Name, name, StringComparison.OrdinalIgnoreCase);
+
+            if (match && peer.Color is { } declared && ColorCodec.TryParse(declared, out var chosen))
+                return chosen;
+
             if (peer.IsSelf)
                 continue;
 
-            if (string.Equals(peer.Name, name, StringComparison.OrdinalIgnoreCase))
+            if (match)
                 return MarkerPalette.PeerColors[index % MarkerPalette.PeerColors.Length];
 
             index++;

@@ -73,11 +73,20 @@ public sealed class MapSession : IDisposable
         };
 
         Pings = new PingOverlay();
-        Party = new PartySession();
+
+        // Set before any session starts, so it rides along on the Hello rather than needing an
+        // announcement the moment anybody joins.
+        Party = new PartySession { SelfColor = settings.PlayerColor };
+
+        Party.RoutesChanged += (_, _) => RebuildSharedRoutes();
 
         Party.Changed += (_, _) =>
         {
             Peers.SetPeers(Party.Peers);
+
+            // Colors are carried on the roster, so a change to one arrives here rather than with
+            // the routes. Rebuild so a teammate's route follows their new color.
+            RebuildSharedRoutes();
 
             // Ending a session has to take the trails with it. SetPeers prunes anyone missing from
             // the roster, and leaving empties the roster, so this is belt and braces -- but a stale
@@ -170,9 +179,14 @@ public sealed class MapSession : IDisposable
 
         // Height is not recoverable from a map click, and nothing needs it: arrival is judged on
         // ground distance, the same as every other distance the app reports.
-        Waypoints.Add(new GamePosition(x, 0, z), basePoint);
+        if (!Waypoints.Add(new GamePosition(x, 0, z), basePoint))
+        {
+            Status?.Invoke(this, $"A route holds at most {WaypointOverlay.MaxWaypoints} markers.");
+            return;
+        }
 
         RefreshGuideTarget();
+        PublishRoute();
         WaypointsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -180,6 +194,7 @@ public sealed class MapSession : IDisposable
     {
         Waypoints.Clear();
         RefreshGuideTarget();
+        PublishRoute();
         WaypointsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -189,7 +204,67 @@ public sealed class MapSession : IDisposable
             return;
 
         RefreshGuideTarget();
+        PublishRoute();
         WaypointsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Resends the route, for when the sharing preference changes rather than the route.</summary>
+    public void RepublishRoute() => PublishRoute();
+
+    /// <summary>
+    /// Projects the session's routes into the overlay, dropping our own.
+    /// </summary>
+    /// <remarks>
+    /// Ours is already drawn from the local waypoint list, in full color and with the arrival ring.
+    /// Drawing it twice would put a faint copy under the real one.
+    /// </remarks>
+    private void RebuildSharedRoutes()
+    {
+        var mine = Party.SelfName;
+
+        var routes = Party.Routes
+            .Where(r => !string.Equals(r.Name, mine, StringComparison.OrdinalIgnoreCase))
+            .Select(r => new WaypointOverlay.SharedRoute(
+                r.Name,
+                r.Map,
+                Peers.ColorFor(r.Name),
+                r.Points.Select(p => new GamePosition(p.X, 0, p.Z)).ToArray()))
+            .ToArray();
+
+        Waypoints.SetSharedRoutes(routes);
+    }
+
+    /// <summary>
+    /// Sends our route to the squad, or an empty one when there is nothing left to send.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only the points not yet reached. Under the default arrival mode a pin lingers for one extra
+    /// fix as your own confirmation that you got there; a teammate seeing a ghost pin with a tick
+    /// they cannot interpret is just noise. You get the confirmation, everyone else sees it go.
+    /// </para>
+    /// <para>
+    /// The empty case still sends. Clearing your markers has to reach everybody, and treating
+    /// "nothing to say" as "say nothing" would leave your route drawn on their maps until the
+    /// session ended.
+    /// </para>
+    /// </remarks>
+    private void PublishRoute()
+    {
+        // Opting out publishes an empty route rather than going quiet, so turning the setting off
+        // withdraws what the squad is already drawing instead of freezing it there.
+        if (!_settings.ShareRouteWithParty)
+        {
+            Party.PublishRoute(CurrentMap.NormalizedName, []);
+            return;
+        }
+
+        var points = Waypoints.Waypoints
+            .Where(w => !w.Visited)
+            .Select(w => (w.Position.X, w.Position.Z))
+            .ToArray();
+
+        Party.PublishRoute(CurrentMap.NormalizedName, points);
     }
 
     public HeatmapOverlay Heatmap { get; }
@@ -468,6 +543,10 @@ public sealed class MapSession : IDisposable
             if (Waypoints.ApplyFix(fix.Position))
             {
                 RefreshGuideTarget();
+
+                // Reaching your own marker is what retires it for everybody. Nobody else's arrival
+                // touches it, so there is no agreement to reach and no radius to guess at.
+                PublishRoute();
                 WaypointsChanged?.Invoke(this, EventArgs.Empty);
             }
 

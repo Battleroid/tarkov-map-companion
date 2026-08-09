@@ -68,6 +68,7 @@ public partial class PreferencesWindow : Window
 
         ShowConditionsBox.IsChecked = _settings.ShowExitConditions;
         ShowOffScreenPeersBox.IsChecked = _settings.ShowOffScreenPeers;
+        ShareRouteBox.IsChecked = _settings.ShareRouteWithParty;
         AnimateArrowsBox.IsChecked = _settings.AnimateRouteArrows;
         SuggestMapBox.IsChecked = _settings.SuggestMapFromPosition;
         AutoSwitchBox.IsChecked = _settings.AutoSwitchMap;
@@ -138,8 +139,13 @@ public partial class PreferencesWindow : Window
 
             // Straight onto the overlay as well as into the settings: this is the one preference
             // whose effect you want to see on the map while the dialog is still open.
-            if (_session is not null)
-                _session.Player.Color = color;
+            if (_session is null)
+                return;
+
+            _session.Player.Color = color;
+
+            // And out to the squad, which is a no-op unless a session is running.
+            _session.Party.SelfColor = _settings.PlayerColor;
         });
 
         GuideColorPicker.ColorChanged += (_, e) => Apply(() =>
@@ -177,6 +183,16 @@ public partial class PreferencesWindow : Window
 
             if (_session is not null)
                 _session.Peers.ShowOffScreen = _settings.ShowOffScreenPeers;
+        });
+
+        ShareRouteBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ShareRouteWithParty = ShareRouteBox.IsChecked ?? true;
+
+            // Turning it off has to withdraw what is already out there, not merely stop sending.
+            // Leaving your last route drawn on everyone's map after you opted out would be the
+            // worst reading of the setting.
+            _session?.RepublishRoute();
         });
 
         AnimateArrowsBox.IsCheckedChanged += (_, _) => Apply(() =>

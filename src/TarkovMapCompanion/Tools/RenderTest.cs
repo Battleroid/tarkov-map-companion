@@ -186,6 +186,26 @@ public static class RenderTest
 
                     route.ApplyFix(lastFix.Position);
 
+                    // A teammate's route alongside your own, so the two can be told apart at a
+                    // glance -- which is the whole question shared routes raise. Offset sideways
+                    // from the player's line so they do not simply overlap.
+                    var shared = new List<GamePosition>();
+
+                    for (var step = 1; step <= 3; step++)
+                    {
+                        var t = step / 4.0;
+                        var x = lastFix.Position.X + ((target.Position.X - lastFix.Position.X) * t);
+                        var z = lastFix.Position.Z + ((target.Position.Z - lastFix.Position.Z) * t) + 90;
+
+                        shared.Add(new GamePosition(x, 0, z));
+                    }
+
+                    route.SetSharedRoutes(
+                    [
+                        new WaypointOverlay.SharedRoute(
+                            "Rudmere", map.NormalizedName, MarkerPalette.PeerColors[0], shared),
+                    ]);
+
                     line.Waypoint = route.Next;
                     overlays.Add(route);
 

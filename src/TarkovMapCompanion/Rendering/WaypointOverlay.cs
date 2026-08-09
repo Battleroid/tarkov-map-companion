@@ -84,7 +84,30 @@ public sealed class WaypointOverlay : IAnimatedOverlay
     public bool AnimateArrows { get; set; } = true;
 
     /// <summary>Frames are only wanted while there is a route long enough to march along.</summary>
-    public bool Advance() => AnimateArrows && Count >= 2;
+    public bool Advance() => AnimateArrows && (Count >= 2 || _shared.Any(r => r.Points.Count >= 2));
+
+    /// <summary>
+    /// A teammate's route, as they last published it.
+    /// </summary>
+    /// <remarks>
+    /// Held in game coordinates and projected every frame rather than at receipt. A route outlives
+    /// a map change on either end, and base pixel space belongs to one map, so keeping the game
+    /// coordinates means there is no stale projection to invalidate -- for the cost of a handful of
+    /// multiplies on at most a few dozen points.
+    /// </remarks>
+    public sealed record SharedRoute(string Owner, string Map, SKColor Color, IReadOnlyList<GamePosition> Points);
+
+    private IReadOnlyList<SharedRoute> _shared = [];
+
+    /// <summary>
+    /// Replaces every teammate route. Ours is never among them.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately draw-only. These never touch <see cref="Next"/>, the guide line, or focus
+    /// framing: a teammate dropping a pin must not redirect where your app is pointing or move your
+    /// camera mid-raid, which would make the feature a griefing tool rather than a convenience.
+    /// </remarks>
+    public void SetSharedRoutes(IReadOnlyList<SharedRoute> routes) => _shared = routes;
 
     public int Count
     {
@@ -108,12 +131,27 @@ public sealed class WaypointOverlay : IAnimatedOverlay
         get { lock (_gate) return _waypoints.FirstOrDefault(w => !w.Visited); }
     }
 
-    public void Add(GamePosition position, MapPoint basePoint)
+    /// <summary>
+    /// Ceiling on a route, matching what one shared-route frame can carry.
+    /// </summary>
+    /// <remarks>
+    /// Far past any real route. It exists because an unbounded one eventually produces a frame the
+    /// receiving end rejects as corrupt, and the host answers corruption by dropping the peer --
+    /// so without a cap, drawing enough markers quietly disconnects your squad.
+    /// </remarks>
+    public const int MaxWaypoints = 64;
+
+    /// <summary>Adds a waypoint. Returns false when the route is already at its ceiling.</summary>
+    public bool Add(GamePosition position, MapPoint basePoint)
     {
         lock (_gate)
         {
+            if (_waypoints.Count >= MaxWaypoints)
+                return false;
+
             _waypoints.Add(new Waypoint { Position = position, Base = basePoint });
             Renumber();
+            return true;
         }
     }
 
@@ -182,6 +220,9 @@ public sealed class WaypointOverlay : IAnimatedOverlay
 
     public void Draw(SKCanvas canvas, Viewport viewport)
     {
+        // Teammates first, so your own route always draws over theirs.
+        DrawSharedRoutes(canvas, viewport);
+
         var waypoints = Waypoints;
         if (waypoints.Count == 0)
             return;
@@ -236,6 +277,105 @@ public sealed class WaypointOverlay : IAnimatedOverlay
         canvas.DrawPath(path, thread);
 
         DrawArrowheads(canvas, path, MarkerPalette.Waypoint.WithAlpha(0xC0));
+    }
+
+    /// <summary>Teammates' routes, in their own colors, quieter than your own.</summary>
+    private void DrawSharedRoutes(SKCanvas canvas, Viewport viewport)
+    {
+        if (Map is not { } map)
+            return;
+
+        foreach (var route in _shared)
+        {
+            // Map-gated like peers and pings, and for the same reason: coordinates from another
+            // map mean something else entirely in this one.
+            if (route.Points.Count == 0
+                || !string.Equals(route.Map, map.NormalizedName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            using var path = new SKPath();
+
+            for (var i = 0; i < route.Points.Count; i++)
+            {
+                var screen = viewport.ToScreen(map.ToBase(route.Points[i]));
+
+                if (i == 0)
+                    path.MoveTo((float)screen.X, (float)screen.Y);
+                else
+                    path.LineTo((float)screen.X, (float)screen.Y);
+            }
+
+            if (route.Points.Count > 1)
+            {
+                using var thread = new SKPaint
+                {
+                    IsAntialias = true,
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = 1.2f,
+                    Color = route.Color.WithAlpha(0x40),
+                };
+
+                canvas.DrawPath(path, thread);
+                DrawArrowheads(canvas, path, route.Color.WithAlpha(0x80));
+            }
+
+            DrawSharedPins(canvas, viewport, map, route);
+        }
+    }
+
+    private static void DrawSharedPins(SKCanvas canvas, Viewport viewport, GameMap map, SharedRoute route)
+    {
+        using var fill = new SKPaint { IsAntialias = true, Color = route.Color.WithAlpha(0x9A) };
+        using var edge = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.4f,
+            Color = MarkerPalette.Halo.WithAlpha(0x9A),
+        };
+
+        for (var i = 0; i < route.Points.Count; i++)
+        {
+            var screen = viewport.ToScreen(map.ToBase(route.Points[i]));
+            var x = (float)screen.X;
+            var y = (float)screen.Y;
+
+            // Smaller than your own pins, so a squad's worth of routes cannot bury the one you
+            // are actually following.
+            canvas.DrawCircle(x, y, PinRadius * 0.62f, fill);
+            canvas.DrawCircle(x, y, PinRadius * 0.62f, edge);
+
+            // The owner's name on the first pin only. On every pin it would be a wall of text the
+            // moment two people share a four-point route.
+            if (i == 0)
+                DrawOwnerLabel(canvas, x + (PinRadius * 0.62f) + 4, y + 4, route.Owner);
+        }
+    }
+
+    private static void DrawOwnerLabel(SKCanvas canvas, float x, float y, string text)
+    {
+        using var halo = new SKPaint
+        {
+            IsAntialias = true,
+            Typeface = Typeface,
+            TextSize = 11,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 3,
+            Color = MarkerPalette.Halo,
+        };
+
+        using var body = new SKPaint
+        {
+            IsAntialias = true,
+            Typeface = Typeface,
+            TextSize = 11,
+            Color = MarkerPalette.LabelText.WithAlpha(0xCC),
+        };
+
+        canvas.DrawText(text, x, y, halo);
+        canvas.DrawText(text, x, y, body);
     }
 
     /// <summary>Chevrons spaced along a path, pointing the way it runs.</summary>

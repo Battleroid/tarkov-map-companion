@@ -158,10 +158,28 @@ mean losing track of everyone else. A teammate whose position has gone properly 
 at all, because pointing insistently at where somebody was three minutes ago is worse than saying
 nothing.
 
+**Shared routes.** Your route markers go out to the squad in your color, and each pin disappears
+for everybody the moment *you* reach it — nobody else's arrival touches it, so there is nothing to
+agree on and no radius to guess at. Teammates' routes are drawn smaller and fainter than your own,
+named once at the first pin, and they **never** redirect your guide line or move your camera. A
+feature that lets somebody else steer your view would be a griefing tool rather than a convenience.
+Turn it off in **Settings**, which also withdraws whatever you have already shared rather than
+freezing it on their maps.
+
+**Everyone's color is their own.** The color you pick is sent to the squad rather than worked out
+from your place in the roster, so every client draws you the same — including your pings. Two
+clients used to be able to disagree the moment somebody left, which is exactly the confusion colors
+are supposed to prevent.
+
 There is no server. The code contains the host's address and a shared key, so the squad connects
 directly and the traffic is encrypted with a key nobody else has. Everyone dials the host, which
 means only one person needs to be reachable from outside their router — and the host does not even
 have to be playing.
+
+> **Everyone needs v0.8.0 or newer to share a session.** Colors and routes changed the wire format,
+> and the key derivation moved with it, so an older build cannot connect at all rather than
+> connecting and then failing halfway through a raid. Failing at the door is the kinder half of a
+> break that was going to happen either way.
 
 **If you have to forward a port**, it is one: **`TCP 24601`, inbound, to the hosting PC**. Only the
 host needs it; people joining you open nothing. While hosting, the panel says exactly where you are
@@ -201,7 +219,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 391 tests
+dotnet test              # 413 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

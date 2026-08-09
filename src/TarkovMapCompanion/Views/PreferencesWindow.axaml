@@ -162,6 +162,9 @@
 
           <CheckBox Name="ShowOffScreenPeersBox" Content="Point an arrow at teammates off the edge of the view"
                     Margin="0,6,0,0" />
+          <CheckBox Name="ShareRouteBox" Content="Share your route markers with the squad" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Teammates see your markers in your color, and each one disappears for everybody as you reach it. Theirs never redirect your guide line." />
 
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
             <TextBlock Text="Trail" VerticalAlignment="Center" Width="70" FontSize="12" />

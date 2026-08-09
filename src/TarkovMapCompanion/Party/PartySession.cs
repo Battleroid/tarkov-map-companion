@@ -33,6 +33,15 @@ public sealed class PartyPeer
     /// <summary>Whether this entry is us; the player overlay already draws that one.</summary>
     public bool IsSelf { get; init; }
 
+    /// <summary>
+    /// Their chosen marker color as <c>#RRGGBB</c>, or null when they have not picked one.
+    /// </summary>
+    /// <remarks>
+    /// A string at this layer on purpose, so <c>Party</c> keeps its zero SkiaSharp dependency and
+    /// the parsing happens where the drawing does.
+    /// </remarks>
+    public string? Color { get; init; }
+
     /// <summary>Age at the moment the host sent it.</summary>
     public double AgeAtSend { get; init; }
 
@@ -73,6 +82,17 @@ public sealed class PartySession : IDisposable
     private readonly Dictionary<string, PartyPeer> _peers = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<HostedClient> _clients = [];
 
+    /// <summary>Declared marker colors, by name. Held apart from peers so one survives the other.</summary>
+    /// <remarks>
+    /// A color arrives with Hello, before the first screenshot has produced a peer entry with a
+    /// position. Keeping it on <see cref="PartyPeer"/> alone would lose it every time that record
+    /// is rebuilt, which is on every update.
+    /// </remarks>
+    private readonly Dictionary<string, string?> _colors = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every route the session knows about, by owner.</summary>
+    private readonly Dictionary<string, PeerRoute> _routes = new(StringComparer.OrdinalIgnoreCase);
+
     private CancellationTokenSource? _cancellation;
     private TcpListener? _listener;
     private PortMapper? _mapper;
@@ -94,6 +114,7 @@ public sealed class PartySession : IDisposable
     private string _role = "idle";
 
     private string _selfName = "Player";
+    private string? _selfColor;
     private int _published;
     private PeerPosition? _selfPosition;
     private bool _disposed;
@@ -143,10 +164,42 @@ public sealed class PartySession : IDisposable
     /// <summary>Our own name as the host knows it, which may be suffixed to avoid a clash.</summary>
     public string SelfName => _selfName;
 
+    /// <summary>
+    /// Our own marker color as <c>#RRGGBB</c>, shared with the squad.
+    /// </summary>
+    /// <remarks>
+    /// Assigning while a session is running announces it. Set before hosting or joining and it
+    /// simply rides along on the Hello.
+    /// </remarks>
+    public string? SelfColor
+    {
+        get => _selfColor;
+        set
+        {
+            if (string.Equals(_selfColor, value, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _selfColor = value;
+            AnnounceColor();
+        }
+    }
+
     public bool IsActive => State is PartyState.Hosting or PartyState.Joined;
+
+    /// <summary>Every route the session knows about, ours included.</summary>
+    public IReadOnlyList<PeerRoute> Routes
+    {
+        get { lock (_gate) return _routes.Values.ToArray(); }
+    }
 
     /// <summary>Raised whenever the roster or the connection state changes.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>
+    /// Raised when somebody's route changes. Separate from <see cref="Changed"/> on purpose: a
+    /// position arrives every few seconds and rebuilding routes on each one would be pure waste.
+    /// </summary>
+    public event EventHandler? RoutesChanged;
 
     /// <summary>Human-readable progress and problems.</summary>
     public event EventHandler<string>? Status;
@@ -243,6 +296,13 @@ public sealed class PartySession : IDisposable
 
         _selfName = PartyProtocol.CleanName(displayName);
         State = PartyState.Starting;
+
+        // Leave() cleared the color table, and the host's own entry is never filled in by a Hello
+        // the way a guest's is, so it has to be put back here or the host is the one person in the
+        // squad drawn from the fallback palette.
+        lock (_gate)
+            _colors[_selfName] = _selfColor;
+
         Raise();
 
         var secret = SessionCode.NewSecret();
@@ -395,13 +455,20 @@ public sealed class PartySession : IDisposable
             hosted = new HostedClient(client, stream, name);
 
             lock (_gate)
+            {
                 _clients.Add(hosted);
+                _colors[name] = hello.Color;
+            }
 
-            LogParty($"\"{name}\" joined from {Mask(((IPEndPoint)client.Client.RemoteEndPoint!).Address)}");
+            LogParty(
+                $"\"{name}\" joined from {Mask(((IPEndPoint)client.Client.RemoteEndPoint!).Address)}, "
+                + $"speaking v{hello.Version}");
+
             Status?.Invoke(this, $"{name} joined.");
 
             SetPeer(name, null, isSelf: false, generation);
             await BroadcastAsync(cancellationToken).ConfigureAwait(false);
+            await BroadcastRoutesAsync(cancellationToken).ConfigureAwait(false);
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -421,8 +488,32 @@ public sealed class PartySession : IDisposable
                     continue;
                 }
 
+                if (message.Kind == PartyMessageKind.Color)
+                {
+                    // Applied to the connection's name, never the payload's, for the same reason
+                    // pings are: otherwise anybody could recolor anybody.
+                    Recolor(name, message.Color);
+                    await BroadcastAsync(cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (message.Kind == PartyMessageKind.Route)
+                {
+                    var route = message.Route ?? new PeerRoute();
+                    route.Name = name;
+
+                    StoreRoute(route, generation);
+                    await BroadcastRoutesAsync(cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
                 if (message.Kind != PartyMessageKind.Position || message.Position is null)
                     continue;
+
+                // A position carries the sender's color too, so a color set before anybody was
+                // listening still arrives without needing its own message.
+                if (message.Position.Color is { } declared)
+                    Recolor(name, declared);
 
                 SetPeer(name, message.Position, isSelf: false, generation);
                 await BroadcastAsync(cancellationToken).ConfigureAwait(false);
@@ -447,6 +538,8 @@ public sealed class PartySession : IDisposable
                 {
                     _clients.Remove(hosted);
                     _peers.Remove(hosted.Name);
+                    _colors.Remove(hosted.Name);
+                    _routes.Remove(hosted.Name);
                 }
 
                 LogParty($"\"{hosted.Name}\" left; {_clients.Count} still connected");
@@ -454,6 +547,7 @@ public sealed class PartySession : IDisposable
                 hosted.Dispose();
 
                 await BroadcastAsync(CancellationToken.None).ConfigureAwait(false);
+                await BroadcastRoutesAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
             client.Dispose();
@@ -494,6 +588,70 @@ public sealed class PartySession : IDisposable
         }
     }
 
+    /// <summary>
+    /// Sends every route the host knows to everyone, self included.
+    /// </summary>
+    /// <remarks>
+    /// The whole set each time, like the roster, so a client that missed one self-corrects on the
+    /// next and a late joiner needs no special path. Receivers filter their own back out.
+    /// </remarks>
+    private async Task BroadcastRoutesAsync(CancellationToken cancellationToken)
+    {
+        RaiseRoutes();
+
+        HostedClient[] clients;
+        lock (_gate)
+            clients = _clients.ToArray();
+
+        if (clients.Length == 0 || _key is not { } key)
+            return;
+
+        var routes = SnapshotRoutes();
+
+        foreach (var client in clients)
+        {
+            try
+            {
+                var message = new PartyMessage { Kind = PartyMessageKind.Routes, Routes = routes };
+                await PartyProtocol.WriteAsync(client.Stream, key, message, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"could not send routes to {client.Name}: {ex.Message}");
+            }
+        }
+    }
+
+    private List<PeerRoute> SnapshotRoutes()
+    {
+        lock (_gate)
+            return _routes.Values.Take(PartyProtocol.MaxSharedRoutes).ToList();
+    }
+
+    /// <summary>Records one player's route, truncating rather than letting a frame grow unbounded.</summary>
+    private void StoreRoute(PeerRoute route, int generation)
+    {
+        if (route.Points.Count > PartyProtocol.MaxRoutePoints)
+        {
+            Log.Warn($"truncating {route.Name}'s route from {route.Points.Count} points");
+            route.Points = route.Points.Take(PartyProtocol.MaxRoutePoints).ToList();
+        }
+
+        lock (_gate)
+        {
+            if (generation != _generation)
+                return;
+
+            // An empty route is a real message, not an absence: it is how clearing your markers
+            // reaches everybody. Dropping it would leave a phantom route on every other map until
+            // the session ended.
+            if (route.Points.Count == 0)
+                _routes.Remove(route.Name);
+            else
+                _routes[route.Name] = route;
+        }
+    }
+
     private List<PeerPosition> SnapshotRoster()
     {
         lock (_gate)
@@ -502,6 +660,7 @@ public sealed class PartySession : IDisposable
             {
                 Name = p.Name,
                 Map = p.Map,
+                Color = _colors.GetValueOrDefault(p.Name),
                 X = p.Position.X,
                 Y = p.Position.Y,
                 Z = p.Position.Z,
@@ -574,7 +733,7 @@ public sealed class PartySession : IDisposable
             await PartyProtocol.WriteAsync(
                 stream,
                 _key,
-                new PartyMessage { Kind = PartyMessageKind.Hello, Name = _selfName },
+                new PartyMessage { Kind = PartyMessageKind.Hello, Name = _selfName, Color = _selfColor },
                 cancellationToken).ConfigureAwait(false);
 
             State = PartyState.Joined;
@@ -627,6 +786,21 @@ public sealed class PartySession : IDisposable
                 {
                     LogParty($"ping from \"{ping.Name}\" at {ping.X:F0},{ping.Z:F0} on {ping.Map}");
                     PingReceived?.Invoke(this, ping);
+                    continue;
+                }
+
+                if (message.Kind == PartyMessageKind.Routes)
+                {
+                    ApplyRoutes(message.Routes ?? [], generation);
+                    RaiseRoutes();
+                    continue;
+                }
+
+                // Anything a later build invented. Skipped rather than fatal, which is the whole
+                // point of the tolerant kind converter.
+                if (message.Kind == PartyMessageKind.Unknown)
+                {
+                    LogParty("ignoring a message kind this build does not know");
                     continue;
                 }
 
@@ -690,10 +864,117 @@ public sealed class PartySession : IDisposable
                     Yaw = entry.Yaw,
                     HasPosition = entry.AgeSeconds >= 0,
                     AgeAtSend = Math.Max(entry.AgeSeconds, 0),
+                    Color = entry.Color,
                     IsSelf = string.Equals(entry.Name, _selfName, StringComparison.OrdinalIgnoreCase),
                 };
             }
         }
+    }
+
+    /// <summary>Replaces every known route with what the host just sent.</summary>
+    internal void ApplyRoutes(List<PeerRoute> routes, int generation)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation)
+                return;
+
+            _routes.Clear();
+
+            foreach (var route in routes.Take(PartyProtocol.MaxSharedRoutes))
+            {
+                if (route.Points.Count > PartyProtocol.MaxRoutePoints)
+                    route.Points = route.Points.Take(PartyProtocol.MaxRoutePoints).ToList();
+
+                if (route.Points.Count > 0)
+                    _routes[route.Name] = route;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Shares our own route, replacing whatever the squad last heard from us.
+    /// </summary>
+    /// <remarks>
+    /// An empty list is a real message and has to be sent: it is how clearing your markers, or
+    /// walking the last one off, reaches everybody else. Treating "nothing to say" as "say nothing"
+    /// would leave a phantom route on every teammate's map until the session ended.
+    /// </remarks>
+    public void PublishRoute(string map, IReadOnlyList<(double X, double Z)> points)
+    {
+        var route = new PeerRoute
+        {
+            Name = _selfName,
+            Map = map,
+            Points = points
+                .Take(PartyProtocol.MaxRoutePoints)
+                .Select(p => new RoutePoint { X = p.X, Z = p.Z })
+                .ToList(),
+        };
+
+        if (!IsActive)
+            return;
+
+        if (_role == "host")
+        {
+            StoreRoute(route, CurrentGeneration);
+            _ = BroadcastRoutesAsync(_cancellation?.Token ?? CancellationToken.None);
+            return;
+        }
+
+        Send(new PartyMessage { Kind = PartyMessageKind.Route, Route = route });
+    }
+
+    /// <summary>
+    /// Records somebody's color, and rebuilds their roster entry to match.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are needed. The table is what the fan-out reads, but the host's own view of the
+    /// squad comes from the peer records, which are only rebuilt when a position arrives -- so
+    /// without this a color change would be visible to everybody except the person hosting, until
+    /// the next screenshot happened to land.
+    /// </remarks>
+    private void Recolor(string name, string? color)
+    {
+        lock (_gate)
+        {
+            _colors[name] = color;
+
+            if (!_peers.TryGetValue(name, out var peer))
+                return;
+
+            _peers[name] = new PartyPeer
+            {
+                Name = peer.Name,
+                Map = peer.Map,
+                Position = peer.Position,
+                Yaw = peer.Yaw,
+                HasPosition = peer.HasPosition,
+                IsSelf = peer.IsSelf,
+                AgeAtSend = peer.AgeAtSend,
+
+                // Carried over rather than reset, or recoloring somebody would make their position
+                // look freshly reported when nothing about it has changed.
+                ReceivedAtUtc = peer.ReceivedAtUtc,
+                Color = color,
+            };
+        }
+    }
+
+    /// <summary>Tells the squad our color changed, when there is no screenshot due to carry it.</summary>
+    private void AnnounceColor()
+    {
+        if (!IsActive)
+            return;
+
+        if (_role == "host")
+        {
+            Recolor(_selfName, _selfColor);
+            _ = BroadcastAsync(_cancellation?.Token ?? CancellationToken.None);
+            return;
+        }
+
+        Send(new PartyMessage { Kind = PartyMessageKind.Color, Color = _selfColor });
     }
 
     // ---- Position sharing ---------------------------------------------------
@@ -712,6 +993,10 @@ public sealed class PartySession : IDisposable
             Y = position.Y,
             Z = position.Z,
             Yaw = yaw,
+
+            // Riding along here means a color set before anybody was listening still lands, without
+            // needing its own message on every join.
+            Color = _selfColor,
         };
 
         if (!IsActive)
@@ -804,6 +1089,12 @@ public sealed class PartySession : IDisposable
                 HasPosition = position is not null,
                 IsSelf = isSelf,
                 AgeAtSend = 0,
+
+                // Read back from the color table rather than from the position, because a color
+                // arrives with the Hello and this record is rebuilt on every update. Taking it from
+                // the position alone would blank it every time somebody moved, and leave the host
+                // the one machine in the squad that could not see its own squad's colors.
+                Color = _colors.GetValueOrDefault(name),
             };
         }
     }
@@ -859,6 +1150,16 @@ public sealed class PartySession : IDisposable
         // connect to next, before a screenshot has said we are anywhere.
         _selfPosition = null;
 
+        // Colors and routes are session state as much as the roster is. A route left behind would
+        // be republished to whoever we connect to next, before anybody has drawn a marker.
+        lock (_gate)
+        {
+            _colors.Clear();
+            _routes.Clear();
+        }
+
+        RaiseRoutes();
+
         if (State != PartyState.Failed)
             State = PartyState.Idle;
 
@@ -866,6 +1167,8 @@ public sealed class PartySession : IDisposable
     }
 
     private void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+
+    private void RaiseRoutes() => RoutesChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Every party line carries the session tag and which side of it we are.

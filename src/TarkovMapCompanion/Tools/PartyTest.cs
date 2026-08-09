@@ -38,6 +38,22 @@ public static class PartyTest
             Console.WriteLine($"  roster: {string.Join(", ", peers.Select(Describe))}");
         };
 
+        // Routes get their own line, because they change on a different schedule from positions and
+        // "did my route reach them" is its own question when something is wrong.
+        session.RoutesChanged += (_, _) =>
+        {
+            var routes = session.Routes;
+
+            Console.WriteLine(routes.Count == 0
+                ? "  routes: none"
+                : "  routes: " + string.Join(
+                    ", ", routes.Select(r => $"{r.Name} {r.Points.Count} point(s) on {r.Map}")));
+        };
+
+        // A distinct color per harness, so two of these on one machine prove colors cross the wire
+        // rather than both falling back to the same palette slot.
+        session.SelfColor = joining ? "#64B5F6" : "#F5C942";
+
         if (joining)
         {
             Console.WriteLine($"joining as {name}...");
@@ -94,6 +110,19 @@ public static class PartyTest
             // And a ping every fourth update, to exercise the relay across processes.
             if (step % 4 == 0)
                 session.SendPing("customs", new Maps.GamePosition(step * 10, 2, -60));
+
+            // A route that grows, then clears, then grows again. The clear is the interesting part:
+            // an empty route has to reach the other end, or a stale one stays drawn there forever.
+            if (step % 3 == 0)
+            {
+                var length = step / 3 % 4;
+
+                session.PublishRoute(
+                    "customs",
+                    Enumerable.Range(0, length)
+                        .Select(i => ((step * 10.0) + (i * 40), -140.0))
+                        .ToArray());
+            }
         }
 
         return 0;
