@@ -66,7 +66,7 @@ small enough that whole rows go unseen rather than misread. If a read ever goes 
 
 **Guide line and focus mode.** Pick an exit and a solid line is drawn to it, labeled with the
 distance and how far you have to turn (`348 m, 18° right`). Its color is yours to choose. Clicking
-the same exit again lets it go. Turn on **Focus exit** and the view frames you and the exit
+the same exit again lets it go. Turn on **Focus Exit** and the view frames you and the exit
 together, tightening as you close in so the screen only shows what matters. Turning it off puts your
 previous view back exactly as it was.
 

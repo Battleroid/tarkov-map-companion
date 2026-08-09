@@ -30,13 +30,13 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                     Margin="16,0,0,0" VerticalAlignment="Center">
           <Button Name="FitButton" Content="Fit" ToolTip.Tip="Zoom out to the whole map" />
-          <!-- Buttons rather than checkboxes: these arm a mode that changes what the map does with
-               your clicks and your view, and a filled button says "on" from across a room in a way
-               a tick in a box does not. -->
+          <!-- Buttons rather than checkboxes: all three arm a mode that changes what the map does
+               with your clicks or your view, and a filled button says "on" from across a room in a
+               way a tick in a box does not. -->
           <ToggleButton Name="FollowToggle" Content="Follow Player"
                         ToolTip.Tip="Recenter on the player when a new screenshot arrives. Panning and zooming will not switch this off." />
-          <CheckBox Name="FocusToggle" Content="Focus exit"
-                    ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer" />
+          <ToggleButton Name="FocusToggle" Content="Focus Exit"
+                        ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer. Turning it off puts your previous view back." />
           <ToggleButton Name="MarkToggle" Content="Mark Route"
                         ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark Route again, or press Escape, to finish." />
           <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"

@@ -12,7 +12,7 @@
       Fallback for local builds only. Release builds override this from the git tag
       (see .github/workflows/release.yml), so do not rely on it to identify a shipped binary.
     -->
-    <Version>0.6.3</Version>
+    <Version>0.7.0</Version>
 
     <!-- The SDK otherwise appends "+<commit sha>", which the About window would show verbatim. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

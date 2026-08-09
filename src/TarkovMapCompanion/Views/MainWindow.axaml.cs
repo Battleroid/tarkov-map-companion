@@ -219,7 +219,7 @@ public partial class MainWindow : Window
         // means taking over. In a raid it means the opposite: you look at a corner of the map
         // between screenshots precisely because you expect to be put back when the next one lands,
         // and having to notice a checkbox had silently unticked itself was worse than any amount of
-        // being recentered. Only the button turns it off now, and Focus exit has always worked this
+        // being recentered. Only the button turns it off now, and Focus Exit has always worked this
         // way -- so both view-owning modes finally obey one rule.
         Escape();
     }
