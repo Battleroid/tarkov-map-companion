@@ -64,17 +64,24 @@ lists. Small frames are upscaled before reading, because below about 900 lines t
 small enough that whole rows go unseen rather than misread. If a read ever goes wrong,
 `--read-exits` prints every stage of it.
 
-**Guide line and focus mode.** Pick an exit and a line is drawn to it, labeled with the distance
-and how far you have to turn (`348 m, 18° right`). Turn on **Focus exit** and the view frames you
-and the exit together, tightening as you close in so the screen only shows what matters. Turning it
-off puts your previous view back exactly as it was.
+**Guide line and focus mode.** Pick an exit and a solid line is drawn to it, labeled with the
+distance and how far you have to turn (`348 m, 18° right`). Its color is yours to choose. Clicking
+the same exit again lets it go. Turn on **Focus exit** and the view frames you and the exit
+together, tightening as you close in so the screen only shows what matters. Turning it off puts your
+previous view back exactly as it was.
 
-**Route markers.** Press **Mark**, then click the map in the order you mean to visit — quest
+Selecting an exit lists what it needs, and **Hide conditions** folds that away when four requirement
+lines under a co-op extract are pushing everything else off screen. The warning marker in the list
+and the ring on the map stay either way — hiding the clutter should not hide the fact that there is
+a condition.
+
+**Route markers.** Press **Mark Route**, then click the map in the order you mean to visit — quest
 objectives, a stash worth the detour, wherever you dropped something. Each click leaves a numbered
-pin; press **Mark** again to finish. The guide line then walks the route in order and only goes
-back to pointing at your exit once the route is done, so the exit can stay selected the whole time
-without getting in the way. Focus mode frames the next marker rather than the exit, for the same
-reason.
+pin; press **Mark Route** again, or <kbd>Esc</kbd>, to finish. Arrowheads march along the route
+toward the next pin, so which way around it goes is legible without reading the numbers. The guide
+line walks the route in order and only goes back to pointing at your exit once the route is done, so
+the exit can stay selected the whole time without getting in the way. Focus mode frames the next
+marker rather than the exit, for the same reason.
 
 A pin retires once you come within 50 m of it, adjustable in **Settings**. By default it shows as
 reached for one screenshot and is gone on the next: the confirmation is the point, since a pin that
@@ -82,10 +89,15 @@ simply vanishes leaves you unsure whether you got close enough or had misplaced 
 option removes it the moment you are inside the radius. **Clear marks** drops the whole route and
 hands the line back to the exit.
 
-**Smooth camera.** With **Follow** on, the view glides to your new position instead of jumping. A
-jump costs you your bearings — you have to find yourself on the map again every screenshot —
-where a move you can follow does not. It applies to focus mode's reframing too, and never to your
-own panning and zooming, which stay locked to the pointer. Toggle it in **Settings**.
+**Smooth camera.** With **Follow Player** on, the view glides to your new position instead of
+jumping. A jump costs you your bearings — you have to find yourself on the map again every
+screenshot — where a move you can follow does not. It applies to focus mode's reframing too, and
+never to your own panning and zooming, which stay locked to the pointer. Toggle it in **Settings**.
+
+Panning and zooming do **not** switch following off. Looking at a corner of the map between
+screenshots is exactly when you expect to be put back, and the app used to quietly disarm itself
+instead. Only the button turns it off, and it lights up while it is on so being recentered is never
+a surprise.
 
 **Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use — on
 Customs that is 16 of 31 gone. **Nearest first** reorders the list by distance from your last known
@@ -107,28 +119,42 @@ Lighthouse, Reserve, Shoreline, Streets of Tarkov, Terminal, Woods.
 
 **Floor switching, including the ground floor.** The map artwork stacks floors as opaque geometry,
 so an underground level is hidden behind the ground floor. Turning **Ground** off is what reveals
-it — Factory's Tunnels being the obvious case.
+it — Factory's Tunnels being the obvious case. The **Levels** control floats over the top-left of
+the map and stays collapsed until you need it, since most maps have nothing to switch and a whole
+side pane was a lot of window for two checkboxes.
 
 **Map detection.** Pick your map from the dropdown, or let a position that cannot be on the current
 map offer you the right one. It proposes rather than switches, because several maps overlap in world
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
 
-**Squad positions.** Press **Host session** and the app hands you a code like `K7QM4-3FHB9-8TZR9-M4X7Q`.
+**Squad positions.** The **Party** panel floats over the top-right of the map, collapsed to a pill
+until you open it. Press **Host session** and the app hands you a code like `K7QM4-3FHB9-8TZR9-M4X7Q`.
 Anyone who pastes it into **Join** appears on your map, and you on theirs. People can join part-way
 through a raid and get everybody's current positions straight away, and you can stop and restart a
-session at any point if something goes wrong.
+session at any point if something goes wrong. Collapsed, the pill still shows how many of you there
+are, and it opens itself when there is a code to copy or something has gone wrong.
 
 **Shift-click to ping.** Marks a spot for the whole squad, with a pulse, your name, and a countdown.
 It lasts 30 seconds and clears itself, so nothing has to be tidied up mid-raid, and it makes a noise
-so a teammate notices while they are looking at the game rather than the map. Turn the sound off in
-**Settings** if you would rather. Pings work solo too, as a scratch mark that expires on its own.
+so a teammate notices while they are looking at the game rather than the map. The rings keep
+radiating for the whole 30 seconds, calming as it ages rather than stopping — a ping matters most to
+someone who looks at the map fifteen seconds later and has to find it among three others. Turn the
+sound off in **Settings** if you would rather. Pings work solo too, as a scratch mark that expires
+on its own.
 
 Teammates are only drawn when they are on the same map as you — a position from another raid means
 nothing in this one's coordinates. They stay in the roster, labeled with where they actually are.
 Every marker also carries its age and fades as it gets older, because peers only report when they
 take a screenshot: a minute-old dot drawn at full strength reads as "he is there now", which is how
 you end up trusting an angle nobody is covering.
+
+Each teammate leaves a short trail — five positions by default, spaced out so it shows which way
+they have been drifting rather than every step. And when someone is outside the view, an arrow at
+the edge points at them with their name and distance, so zooming in on your own corner does not
+mean losing track of everyone else. A teammate whose position has gone properly stale gets no arrow
+at all, because pointing insistently at where somebody was three minutes ago is worse than saying
+nothing.
 
 There is no server. The code contains the host's address and a shared key, so the squad connects
 directly and the traffic is encrypted with a key nobody else has. Everyone dials the host, which
@@ -151,6 +177,11 @@ which case you are in.
 
 **Light and dark, at a readable size.** Monospaced throughout, with a text-size slider, and an
 always-on-top toggle for when it shares a screen with something else.
+
+**Your marker, your color.** Pick from ten named colors and set the marker size, in **Settings**.
+The same color is what your squad sees you as, and while a session is running the picker marks the
+colors somebody else is already using — nobody is stopped from picking one, and nobody is ever
+silently reassigned, but the moment to mention a clash is while you are choosing.
 
 ## First run
 

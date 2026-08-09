@@ -15,6 +15,9 @@ public partial class PreferencesWindow : Window
     private readonly MapSession? _session;
     private readonly Action _persist;
 
+    private ColorSwatchPicker? _playerColors;
+    private ColorSwatchPicker? _guideColors;
+
     private bool _loading = true;
 
     // Parameterless ctor exists only for the XAML previewer.
@@ -53,6 +56,23 @@ public partial class PreferencesWindow : Window
         UpdateCullWarning();
 
         SmoothCameraBox.IsChecked = _settings.SmoothCameraMovement;
+
+        _playerColors = new ColorSwatchPicker(PlayerColorSwatches);
+        _playerColors.Select(Rendering.ColorCodec.Parse(_settings.PlayerColor, Rendering.MarkerPalette.Player));
+        MarkColorsTakenBySquad();
+
+        _guideColors = new ColorSwatchPicker(GuideColorSwatches);
+        _guideColors.Select(Rendering.ColorCodec.Parse(_settings.GuideLineColor, Rendering.MarkerPalette.ExtractLine));
+
+        PlayerSizeSlider.Value = _settings.PlayerMarkerSize;
+        UpdatePlayerSizeLabel();
+
+        PeerTrailSlider.Value = _settings.PeerTrailLength;
+        UpdatePeerTrailLabel();
+
+        ShowConditionsBox.IsChecked = _settings.ShowExitConditions;
+        ShowOffScreenPeersBox.IsChecked = _settings.ShowOffScreenPeers;
+        AnimateArrowsBox.IsChecked = _settings.AnimateRouteArrows;
         SuggestMapBox.IsChecked = _settings.SuggestMapFromPosition;
         AutoSwitchBox.IsChecked = _settings.AutoSwitchMap;
         AutoSwitchBox.IsEnabled = _settings.SuggestMapFromPosition;
@@ -112,6 +132,73 @@ public partial class PreferencesWindow : Window
         CullAfterRead.IsCheckedChanged += (_, _) => ApplyCullMode();
         CullCount.ValueChanged += (_, _) => Apply(() =>
             _settings.CullKeepCount = (int)(CullCount.Value ?? _settings.CullKeepCount));
+
+        _playerColors!.Picked += (_, color) => Apply(() =>
+        {
+            _settings.PlayerColor = Rendering.ColorCodec.ToHex(color);
+
+            // Straight onto the overlay as well as into the settings: this is the one preference
+            // whose effect you want to see on the map while the dialog is still open.
+            if (_session is not null)
+                _session.Player.Color = color;
+        });
+
+        _guideColors!.Picked += (_, color) => Apply(() =>
+        {
+            _settings.GuideLineColor = Rendering.ColorCodec.ToHex(color);
+
+            if (_session is not null)
+                _session.ExtractLine.Color = color;
+        });
+
+        PlayerSizeSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Slider.ValueProperty)
+                return;
+
+            Apply(() =>
+            {
+                _settings.PlayerMarkerSize = Math.Round(PlayerSizeSlider.Value);
+                UpdatePlayerSizeLabel();
+
+                if (_session is not null)
+                    _session.Player.MarkerSize = (float)_settings.PlayerMarkerSize;
+            });
+        };
+
+        PeerTrailSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Slider.ValueProperty)
+                return;
+
+            Apply(() =>
+            {
+                _settings.PeerTrailLength = (int)Math.Round(PeerTrailSlider.Value);
+                UpdatePeerTrailLabel();
+
+                if (_session is not null)
+                    _session.Peers.TrailLength = _settings.PeerTrailLength;
+            });
+        };
+
+        ShowConditionsBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.ShowExitConditions = ShowConditionsBox.IsChecked ?? true);
+
+        ShowOffScreenPeersBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ShowOffScreenPeers = ShowOffScreenPeersBox.IsChecked ?? true;
+
+            if (_session is not null)
+                _session.Peers.ShowOffScreen = _settings.ShowOffScreenPeers;
+        });
+
+        AnimateArrowsBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.AnimateRouteArrows = AnimateArrowsBox.IsChecked ?? true;
+
+            if (_session is not null)
+                _session.Waypoints.AnimateArrows = _settings.AnimateRouteArrows;
+        });
 
         SmoothCameraBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.SmoothCameraMovement = SmoothCameraBox.IsChecked ?? false);
@@ -403,6 +490,35 @@ public partial class PreferencesWindow : Window
             : $"Trail: last {_settings.HistoryTrailLength} positions";
 
     private void UpdateFontLabel() => FontLabel.Text = $"Text size: {_settings.FontSize:F0} px";
+
+    private void UpdatePlayerSizeLabel() =>
+        PlayerSizeLabel.Text = $"Marker size: {_settings.PlayerMarkerSize:F0} px";
+
+    private void UpdatePeerTrailLabel() =>
+        PeerTrailLabel.Text = _settings.PeerTrailLength == 0
+            ? "Teammate trails: off"
+            : $"Teammate trails: last {_settings.PeerTrailLength} position{(_settings.PeerTrailLength == 1 ? "" : "s")}";
+
+    /// <summary>
+    /// Notes which swatches somebody in the session is already using.
+    /// </summary>
+    /// <remarks>
+    /// Advisory only, and only while a session is running. Nobody is prevented from picking a taken
+    /// color and nobody is ever reassigned -- but the moment to mention a clash is while somebody is
+    /// choosing, not after two markers on the map turn out to look identical.
+    /// </remarks>
+    private void MarkColorsTakenBySquad()
+    {
+        if (_session is null || !_session.Party.IsActive)
+            return;
+
+        var taken = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var peer in _session.Party.Peers.Where(p => !p.IsSelf))
+            taken[peer.Name] = Rendering.ColorCodec.ToHex(_session.Peers.ColorFor(peer.Name));
+
+        _playerColors?.MarkTaken(taken);
+    }
 
     private void ApplyArrivalMode() => Apply(() =>
     {

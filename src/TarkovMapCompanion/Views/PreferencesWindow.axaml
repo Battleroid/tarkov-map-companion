@@ -92,6 +92,33 @@
           <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- Your marker -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="YOUR MARKER" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="How you are drawn on your own map, and the color your squad sees you as." />
+
+          <TextBlock Text="Color" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
+          <WrapPanel Name="PlayerColorSwatches" />
+
+          <TextBlock Name="PlayerSizeLabel" Classes="secondary" FontSize="11" />
+          <Slider Name="PlayerSizeSlider" Minimum="10" Maximum="48" TickFrequency="1"
+                  IsSnapToTickEnabled="True" />
+        </StackPanel>
+
+        <!-- Exits -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="EXITS" />
+          <CheckBox Name="ShowConditionsBox" Content="List an exit's conditions when it is selected" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Off folds the requirement text away. The warning marker in the list and the ring on the map stay either way, so you can still tell which exits have conditions." />
+
+          <TextBlock Text="Guide line" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
+          <WrapPanel Name="GuideColorSwatches" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="The line only uses this when it is pointing at an exit. While it is routing you along your own markers it stays pink, so the two are never confused." />
+        </StackPanel>
+
         <!-- Party -->
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="PARTY" />
@@ -110,13 +137,20 @@
           <CheckBox Name="PingSoundBox" Content="Play a sound when someone pings" Margin="0,6,0,0" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      Text="Shift-click the map to ping a spot. It lasts 30 seconds and everyone in the session sees it." />
+
+          <CheckBox Name="ShowOffScreenPeersBox" Content="Point an arrow at teammates off the edge of the view"
+                    Margin="0,6,0,0" />
+
+          <TextBlock Name="PeerTrailLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
+          <Slider Name="PeerTrailSlider" Minimum="0" Maximum="20" TickFrequency="1"
+                  IsSnapToTickEnabled="True" />
         </StackPanel>
 
         <!-- Route markers -->
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="ROUTE MARKERS" />
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="Markers you place with the Mark button. The guide line visits them in order before pointing at your chosen exit." />
+                     Text="Markers you place with the Mark Route button. The guide line visits them in order before pointing at your chosen exit." />
 
           <TextBlock Name="ArrivalRadiusLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
           <Slider Name="ArrivalRadiusSlider" Minimum="5" Maximum="200" TickFrequency="5"
@@ -126,6 +160,10 @@
                        Content="Show a marker as reached for one screenshot, then remove it" />
           <RadioButton Name="ArrivalRemoveOnArrival" GroupName="Arrival"
                        Content="Remove a marker as soon as you are inside the radius" />
+
+          <CheckBox Name="AnimateArrowsBox" Content="Move the arrows along the route" Margin="0,6,0,0" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Off still draws the arrows, they just hold still. It also lets the map stop redrawing entirely when nothing else is moving." />
         </StackPanel>
 
         <!-- Appearance -->

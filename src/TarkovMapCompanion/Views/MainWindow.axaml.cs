@@ -34,6 +34,20 @@ public partial class MainWindow : Window
     /// <summary>Ticks peer ages, which change with no event to hang off.</summary>
     private DispatcherTimer? _partyClock;
 
+    /// <summary>Whether the floating map panels are open. Kept across map switches, not restarts.</summary>
+    private bool _floorOverlayExpanded;
+    private bool _partyOverlayExpanded;
+
+    /// <summary>
+    /// Whether the party panel has already opened itself once for the session that is running.
+    /// </summary>
+    /// <remarks>
+    /// It opens on the way into hosting, joining or failing, so a session code is there to copy
+    /// rather than behind a click. Once only: reopening a panel the user has deliberately shut,
+    /// every time the roster changes, would be its own kind of irritating.
+    /// </remarks>
+    private bool _partyOverlayAutoExpanded;
+
     /// <summary>Repaints for everything that animates, and stops when nothing does.</summary>
     private MapClock? _mapClock;
 
@@ -54,7 +68,12 @@ public partial class MainWindow : Window
 
         // The canvas letterbox color comes from the MapCanvas style in Theming/Controls.axaml,
         // so it follows the theme without any wiring here.
-        MapHost.Children.Add(_canvas);
+        //
+        // Index 0, not Add: MapHost's XAML children are the panels floating over the map, and a
+        // Panel z-orders by child order. Appending the canvas buries them underneath it, where they
+        // are both invisible and unclickable -- which looks exactly like the XAML having done
+        // nothing at all.
+        MapHost.Children.Insert(0, _canvas);
 
         BuildMapSelector();
         WireControls();
@@ -163,6 +182,27 @@ public partial class MainWindow : Window
             _settings.ShowExitConditions = !_settings.ShowExitConditions;
             UpdateExtractDetail();
         });
+
+        // Both map overlays start collapsed and are not persisted. Like marker mode, an expanded
+        // panel is a thing you are doing now rather than a preference -- but the state is kept in a
+        // field across map switches, so somebody playing Factory all evening is not reopening the
+        // level list every raid.
+        FloorOverlayToggle.IsCheckedChanged += (_, _) =>
+            FloorBody.IsVisible = _floorOverlayExpanded = FloorOverlayToggle.IsChecked ?? false;
+
+        PartyOverlayToggle.IsCheckedChanged += (_, _) =>
+            PartyBody.IsVisible = _partyOverlayExpanded = PartyOverlayToggle.IsChecked ?? false;
+
+        // At the minimum window width, minus the 290px sidebar, the map is about 530px across and
+        // an open 250px party panel takes half of it. Shut it rather than cover the map; the pill
+        // stays, so nothing becomes unreachable.
+        MapHost.SizeChanged += (_, e) =>
+        {
+            if (e.NewSize.Width >= 640 || !_partyOverlayExpanded)
+                return;
+
+            PartyOverlayToggle.IsChecked = false;
+        };
 
         BuildLayerToggles();
         BuildHeatmapControls();
@@ -484,6 +524,28 @@ public partial class MainWindow : Window
             PartyState.Joined => "Connected. Your position goes out with each screenshot.",
             _ => "Shares only your own position, and only with people you give the code to.",
         };
+
+        // The pill carries the roster count, so collapsed still answers "is anyone here".
+        PartyOverlayToggle.Content = active ? $"Party · {party.Peers.Count}" : "Party";
+
+        // Anything that has to be read comes to full strength. The rest of the time it stays out of
+        // the way of the map, which is the thing actually being looked at.
+        var needsAttention = party.State is PartyState.Starting or PartyState.Joining or PartyState.Failed
+                             || needsForward;
+
+        PartyOverlay.Classes.Set("attention", needsAttention);
+
+        // Open once when a session starts or fails, so the code is there to copy and a failure is
+        // not hidden behind a collapsed panel.
+        if (party.State is PartyState.Idle)
+        {
+            _partyOverlayAutoExpanded = false;
+        }
+        else if (!_partyOverlayAutoExpanded)
+        {
+            _partyOverlayAutoExpanded = true;
+            PartyOverlayToggle.IsChecked = true;
+        }
     }
 
     private PartyRow BuildRow(PartyPeer peer)
@@ -1057,7 +1119,7 @@ public partial class MainWindow : Window
     private void BuildFloorList(GameMap map)
     {
         FloorList.Children.Clear();
-        FloorPanel.IsVisible = map.Floors.Count > 0;
+        FloorOverlay.IsVisible = map.Floors.Count > 0;
 
         if (map.Floors.Count == 0)
             return;
@@ -1119,6 +1181,20 @@ public partial class MainWindow : Window
 
         FloorHint.IsVisible = nothingShown;
         FloorHint.Text = nothingShown ? "All levels are off, so the map is blank." : "";
+
+        // The collapsed pill has to carry the state, or a map showing an underground level with the
+        // panel shut looks like the artwork is simply wrong.
+        var shown = _canvas.ActiveFloors.Count + (_canvas.ShowBaseLayer ? 1 : 0);
+        FloorOverlayToggle.Content = shown switch
+        {
+            0 => "Levels · none",
+            1 when _canvas.ShowBaseLayer => "Levels",
+            1 => $"Levels · {_canvas.ActiveFloors.First()}",
+            _ => $"Levels · {shown}",
+        };
+
+        // Blank map is worth reading even when the panel is collapsed and translucent.
+        FloorOverlay.Classes.Set("attention", nothingShown);
     }
 
     // ---- Fixes ------------------------------------------------------------

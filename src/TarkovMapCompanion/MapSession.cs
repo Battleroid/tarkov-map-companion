@@ -66,11 +66,26 @@ public sealed class MapSession : IDisposable
             AnimateArrows = settings.AnimateRouteArrows,
         };
 
-        Peers = new PeerOverlay();
+        Peers = new PeerOverlay
+        {
+            TrailLength = settings.PeerTrailLength,
+            ShowOffScreen = settings.ShowOffScreenPeers,
+        };
+
         Pings = new PingOverlay();
         Party = new PartySession();
 
-        Party.Changed += (_, _) => Peers.SetPeers(Party.Peers);
+        Party.Changed += (_, _) =>
+        {
+            Peers.SetPeers(Party.Peers);
+
+            // Ending a session has to take the trails with it. SetPeers prunes anyone missing from
+            // the roster, and leaving empties the roster, so this is belt and braces -- but a stale
+            // trail left drawn across the map after a session ends is exactly the sort of thing
+            // that gets reported as "it is showing me someone who is not there".
+            if (!Party.IsActive)
+                Peers.ClearTrails();
+        };
         Party.Status += (_, message) => Status?.Invoke(this, message);
         Party.PingReceived += (_, ping) => OnPingReceived(ping);
 
@@ -443,6 +458,10 @@ public sealed class MapSession : IDisposable
 
             ExtractLine.PlayerPosition = fix.Position;
             ExtractLine.PlayerYawDegrees = fix.YawDegrees;
+
+            // Off-screen teammate arrows are labeled with how far away they are, which needs a
+            // position to measure from.
+            Peers.PlayerPosition = fix.Position;
 
             // Before FixApplied, so the window draws and measures against the route as it stands
             // after this fix rather than one update behind it.

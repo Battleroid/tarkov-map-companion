@@ -24,6 +24,30 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
   </Style>
 
+  <!--
+    Chrome floating over the map: present enough to read, faint enough that it is not competing
+    with the thing it is sitting on top of. Never set Opacity on one of these from code-behind; a
+    local value beats a style setter permanently and the hover state silently stops working. Use
+    Classes.Set("attention", ...) instead.
+  -->
+  <Style Selector="Border.mapOverlay">
+    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="Opacity" Value="0.72" />
+  </Style>
+
+  <Style Selector="Border.mapOverlay:pointerover">
+    <Setter Property="Opacity" Value="1.0" />
+  </Style>
+
+  <!-- Declared last so it wins: something that needs reading is never translucent. -->
+  <Style Selector="Border.mapOverlay.attention">
+    <Setter Property="Opacity" Value="1.0" />
+  </Style>
+
   <Style Selector="TextBlock.secondary">
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
