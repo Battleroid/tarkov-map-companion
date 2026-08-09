@@ -60,6 +60,41 @@
     <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
+  <!--
+    ToggleButton needs its own copy of all of this. Avalonia type selectors match the exact type,
+    not derived ones, so the Button rules above never reach a ToggleButton even though a
+    ToggleButton is a Button. That presents as a couple of toolbar buttons arriving in raw Fluent
+    styling for no visible reason. By the same rule this does not leak onto CheckBox or
+    RadioButton, which also derive from ToggleButton and are styled separately below.
+  -->
+  <Style Selector="ToggleButton">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+  </Style>
+
+  <Style Selector="ToggleButton:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <!--
+    Armed has to be unmistakable. While Mark Route is on, a click on the map drops a pin instead of
+    selecting an exit, and while Follow Player is on the view will move on its own. Both are states
+    you need to be able to see without hunting for a tick mark.
+  -->
+  <Style Selector="ToggleButton:checked /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+  </Style>
+
   <Style Selector="CheckBox, RadioButton, ComboBox, TextBox, NumericUpDown, Slider">
     <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
   </Style>

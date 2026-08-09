@@ -30,12 +30,15 @@
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                     Margin="16,0,0,0" VerticalAlignment="Center">
           <Button Name="FitButton" Content="Fit" ToolTip.Tip="Zoom out to the whole map" />
-          <CheckBox Name="FollowToggle" Content="Follow"
-                    ToolTip.Tip="Recenter on the player when a new screenshot arrives" />
+          <!-- Buttons rather than checkboxes: these arm a mode that changes what the map does with
+               your clicks and your view, and a filled button says "on" from across a room in a way
+               a tick in a box does not. -->
+          <ToggleButton Name="FollowToggle" Content="Follow Player"
+                        ToolTip.Tip="Recenter on the player when a new screenshot arrives. Panning and zooming will not switch this off." />
           <CheckBox Name="FocusToggle" Content="Focus exit"
                     ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer" />
-          <CheckBox Name="MarkToggle" Content="Mark"
-                    ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark again to finish." />
+          <ToggleButton Name="MarkToggle" Content="Mark Route"
+                        ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark Route again, or press Escape, to finish." />
           <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"
                   ToolTip.Tip="Remove every marker and point the guide line back at the selected exit" />
         </StackPanel>
@@ -247,6 +250,10 @@
             <TextBlock Name="DetailName" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock Name="DetailFaction" Classes="secondary" FontSize="12" TextWrapping="Wrap" />
             <TextBlock Name="DetailDistance" FontSize="12" TextWrapping="Wrap" />
+            <!-- Folds the requirement prose away without hiding that there are requirements: the
+                 "!" in the list and the ring on the map are not affected. -->
+            <Button Name="DetailConditionsToggle" IsVisible="False" FontSize="11" Padding="6,1"
+                    HorizontalAlignment="Left" />
             <ItemsControl Name="DetailConditions">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>

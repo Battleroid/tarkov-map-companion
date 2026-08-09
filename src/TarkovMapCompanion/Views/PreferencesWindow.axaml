@@ -77,9 +77,9 @@
         <!-- View -->
         <StackPanel Spacing="6">
           <TextBlock Classes="heading" Text="VIEW" />
-          <CheckBox Name="FollowPlayerBox" Content="Recenter on the player when a new screenshot arrives" />
-          <CheckBox Name="SmoothCameraBox" Content="Glide the view to its destination instead of jumping"
-                    Margin="24,0,0,0" />
+          <CheckBox Name="SmoothCameraBox" Content="Glide the view to its destination instead of jumping" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Follow Player lives on the toolbar. Panning and zooming no longer switch it off; only the button does." />
           <CheckBox Name="SuggestMapBox" Content="Offer to switch maps when a position lands off the current one" />
           <CheckBox Name="AutoSwitchBox" Content="Switch automatically instead of asking" Margin="24,0,0,0" />
 

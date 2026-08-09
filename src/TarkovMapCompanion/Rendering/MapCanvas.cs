@@ -95,9 +95,6 @@ public sealed class MapCanvas : Control
     /// </summary>
     public bool SmoothMovement { get; set; }
 
-    /// <summary>Raised after a user gesture changes the view, so focus modes can disengage.</summary>
-    public event EventHandler? UserInteracted;
-
     /// <summary>Raised on a click that was not the end of a drag.</summary>
     /// <remarks>
     /// Carries the modifier keys, because a plain click and a modified one mean different things
@@ -316,7 +313,6 @@ public sealed class MapCanvas : Control
                 Viewport.PanByScreenDelta(dx, dy);
                 _dragOrigin = position;
                 _userHasAdjustedView = true;
-                UserInteracted?.Invoke(this, EventArgs.Empty);
                 InvalidateVisual();
             }
         }
@@ -358,7 +354,6 @@ public sealed class MapCanvas : Control
         StopMoving();
         Viewport.ZoomAt(position.X, position.Y, factor);
         _userHasAdjustedView = true;
-        UserInteracted?.Invoke(this, EventArgs.Empty);
         InvalidateVisual();
         e.Handled = true;
     }

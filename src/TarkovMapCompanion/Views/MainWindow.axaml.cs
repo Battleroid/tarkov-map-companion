@@ -94,15 +94,18 @@ public partial class MainWindow : Window
     private void WireControls()
     {
         AlwaysOnTopToggle.IsChecked = _settings.AlwaysOnTop;
-        AlwaysOnTopToggle.IsCheckedChanged += (_, _) =>
+        AlwaysOnTopToggle.IsCheckedChanged += (_, _) => Apply(() =>
         {
             _settings.AlwaysOnTop = AlwaysOnTopToggle.IsChecked ?? false;
             Topmost = _settings.AlwaysOnTop;
-        };
+        });
 
+        // Through Apply so it lands on disk when it changes. Both of these used to write the
+        // setting and rely on the save at shutdown, which meant an ungraceful exit silently
+        // reverted them.
         FollowToggle.IsChecked = _settings.FollowPlayer;
-        FollowToggle.IsCheckedChanged += (_, _) =>
-            _settings.FollowPlayer = FollowToggle.IsChecked ?? false;
+        FollowToggle.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.FollowPlayer = FollowToggle.IsChecked ?? false);
 
         ThemeButton.Click += OnThemeClicked;
         FitButton.Click += (_, _) => _canvas.FitAll();
@@ -155,6 +158,12 @@ public partial class MainWindow : Window
         ExtractList.SelectionChanged += OnExtractSelectionChanged;
         ClearSelection.Click += (_, _) => ExtractList.SelectedItem = null;
 
+        DetailConditionsToggle.Click += (_, _) => Apply(() =>
+        {
+            _settings.ShowExitConditions = !_settings.ShowExitConditions;
+            UpdateExtractDetail();
+        });
+
         BuildLayerToggles();
         BuildHeatmapControls();
         WireParty();
@@ -166,16 +175,24 @@ public partial class MainWindow : Window
         SuggestionAccept.Click += OnSuggestionAccepted;
         SuggestionDismiss.Click += (_, _) => HideSuggestion();
 
-        // Any manual pan or zoom means the user has taken over; stop yanking the view around.
-        _canvas.UserInteracted += (_, _) =>
-        {
-            if (!FollowToggle.IsChecked.GetValueOrDefault())
-                return;
-
-            FollowToggle.IsChecked = false;
-            _settings.FollowPlayer = false;
-        };
+        // Panning and zooming used to switch Follow Player off, on the theory that touching the map
+        // means taking over. In a raid it means the opposite: you look at a corner of the map
+        // between screenshots precisely because you expect to be put back when the next one lands,
+        // and having to notice a checkbox had silently unticked itself was worse than any amount of
+        // being recentered. Only the button turns it off now, and Focus exit has always worked this
+        // way -- so both view-owning modes finally obey one rule.
+        Escape();
     }
+
+    /// <summary>Escape leaves marker mode, which is easy to forget you are in.</summary>
+    private void Escape() => KeyDown += (_, e) =>
+    {
+        if (e.Key is not Avalonia.Input.Key.Escape || MarkToggle.IsChecked != true)
+            return;
+
+        MarkToggle.IsChecked = false;
+        e.Handled = true;
+    };
 
     private void WireSession()
     {
@@ -247,8 +264,8 @@ public partial class MainWindow : Window
         await new PreferencesWindow(_settings, _session, PersistSettings).ShowDialog(this);
 
         // Preferences can change things the main window mirrors, so re-read rather than trying to
-        // keep the two in sync field by field.
-        FollowToggle.IsChecked = _settings.FollowPlayer;
+        // keep the two in sync field by field. Follow Player is deliberately absent: it lives on
+        // the toolbar and nowhere else, so there is nothing to sync back.
         AlwaysOnTopToggle.IsChecked = _settings.AlwaysOnTop;
         FontSize = _settings.FontSize;
 
@@ -256,7 +273,14 @@ public partial class MainWindow : Window
         Audio.PingSound.Enabled = _settings.PingSound;
         _session.Waypoints.ArrivalRadiusMeters = _settings.WaypointArrivalRadiusMeters;
         _session.Waypoints.Arrival = _settings.WaypointArrival;
+        _session.Waypoints.AnimateArrows = _settings.AnimateRouteArrows;
+        _session.Player.MarkerSize = (float)_settings.PlayerMarkerSize;
+        _session.Player.Color = ColorCodec.Parse(_settings.PlayerColor, MarkerPalette.Player);
+        _session.ExtractLine.Color = ColorCodec.Parse(_settings.GuideLineColor, MarkerPalette.ExtractLine);
 
+        // The roster's own swatch follows the player color, and a route may have started animating.
+        UpdatePartyPanel();
+        _mapClock?.Wake();
         _canvas.InvalidateVisual();
     }
 
@@ -851,7 +875,16 @@ public partial class MainWindow : Window
             DetailDistance.Text = $"{distance:F0} m away, {turn}{route}";
         }
 
-        DetailConditions.ItemsSource = selected.Details;
+        var conditions = selected.Details;
+        var showing = _settings.ShowExitConditions;
+
+        DetailConditionsToggle.IsVisible = conditions.Count > 0;
+        DetailConditionsToggle.Content = showing
+            ? "Hide conditions"
+            : $"Show {conditions.Count} condition{(conditions.Count == 1 ? "" : "s")}";
+
+        DetailConditions.IsVisible = showing;
+        DetailConditions.ItemsSource = conditions;
 
         DetailElevation.IsVisible = selected.Elevation is not null;
         if (selected.Elevation is { } elevation)
@@ -905,7 +938,12 @@ public partial class MainWindow : Window
         if (_session.Player.Current is { } fix)
             lines.Add($"{fix.Position.GroundDistanceTo(poi.Position):F0} m away");
 
-        lines.AddRange(poi.Details);
+        // Folded away with the detail panel's copy, or hovering would put back the clutter the
+        // panel was just told to hide.
+        if (_settings.ShowExitConditions)
+            lines.AddRange(poi.Details);
+        else if (poi.Details.Count > 0)
+            lines.Add($"{poi.Details.Count} condition{(poi.Details.Count == 1 ? "" : "s")}");
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -938,7 +976,10 @@ public partial class MainWindow : Window
         if (hit is null || (!hit.IsExtract && hit.Kind != PoiKind.Transit))
             return;
 
-        ExtractList.SelectedItem = hit;
+        // Clicking the exit that is already chosen lets it go. Otherwise the only way to drop a
+        // selection is a Clear button on the far side of the window, a long way from the marker you
+        // were already looking at.
+        ExtractList.SelectedItem = ReferenceEquals(hit, _session.SelectedExtract) ? null : hit;
     }
 
     private async void OnOpened(object? sender, EventArgs e)

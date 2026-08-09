@@ -52,7 +52,6 @@ public partial class PreferencesWindow : Window
         CullCount.Value = _settings.CullKeepCount;
         UpdateCullWarning();
 
-        FollowPlayerBox.IsChecked = _settings.FollowPlayer;
         SmoothCameraBox.IsChecked = _settings.SmoothCameraMovement;
         SuggestMapBox.IsChecked = _settings.SuggestMapFromPosition;
         AutoSwitchBox.IsChecked = _settings.AutoSwitchMap;
@@ -113,9 +112,6 @@ public partial class PreferencesWindow : Window
         CullAfterRead.IsCheckedChanged += (_, _) => ApplyCullMode();
         CullCount.ValueChanged += (_, _) => Apply(() =>
             _settings.CullKeepCount = (int)(CullCount.Value ?? _settings.CullKeepCount));
-
-        FollowPlayerBox.IsCheckedChanged += (_, _) => Apply(() =>
-            _settings.FollowPlayer = FollowPlayerBox.IsChecked ?? false);
 
         SmoothCameraBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.SmoothCameraMovement = SmoothCameraBox.IsChecked ?? false);
