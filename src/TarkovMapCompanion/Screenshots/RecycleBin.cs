@@ -1,4 +1,4 @@
-using Microsoft.VisualBasic.FileIO;
+using Windows.Storage;
 
 namespace TarkovMapCompanion.Screenshots;
 
@@ -19,8 +19,17 @@ namespace TarkovMapCompanion.Screenshots;
 /// screenshot triggered a cull, with nothing logged.
 /// </para>
 /// <para>
-/// The runtime already ships a correct, tested implementation of exactly this. Using it removes
-/// the marshalling from our hands entirely, which is worth more here than avoiding the dependency.
+/// The replacement for that was VisualBasic's FileSystem.DeleteFile with UIOption.OnlyErrorDialogs,
+/// which fixed the crash but introduced a quieter fault: "only error dialogs" still means dialogs.
+/// A failed delete raised a modal Windows error box -- "The parameter is incorrect" and friends --
+/// from the folder-watcher thread, which blocks that thread on a window the user never asked for
+/// and, from the outside, is indistinguishable from the app having thrown an error at them
+/// mid-raid. The stray "the operation was canceled" warnings in the logs were those dialogs being
+/// dismissed.
+/// </para>
+/// <para>
+/// WinRT's StorageFile.DeleteAsync with StorageDeleteOption.Default recycles the file and shows no
+/// UI at all, which is what was wanted from the start. No struct marshalling, and no windows.
 /// </para>
 /// </remarks>
 public static class RecycleBin
@@ -38,19 +47,17 @@ public static class RecycleBin
 
         try
         {
-            // OnlyErrorDialogs: no progress or confirmation UI, but a genuine failure still
-            // surfaces rather than being swallowed.
-            FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            // StorageDeleteOption.Default is the Recycle Bin, and this shows no UI of any kind.
+            var file = StorageFile.GetFileFromPathAsync(path).AsTask().GetAwaiter().GetResult();
+            file.DeleteAsync(StorageDeleteOption.Default).AsTask().GetAwaiter().GetResult();
+
             return true;
         }
-        catch (Exception ex) when (ex is IOException
-                                       or UnauthorizedAccessException
-                                       or OperationCanceledException
-                                       or ArgumentException
-                                       or NotSupportedException
-                                       or FileNotFoundException)
+        catch (Exception ex)
         {
-            Diagnostics.Log.Warn($"could not recycle {path}: {ex.Message}");
+            // Deliberately broad. This runs on the folder-watcher thread, where an escaping
+            // exception ends the process, and the shell can surface almost anything through here.
+            Diagnostics.Log.Warn($"could not recycle {Path.GetFileName(path)}: {ex.GetType().Name}: {ex.Message}");
             return false;
         }
     }
