@@ -11,14 +11,20 @@
         ShowInTaskbar="False"
         SystemDecorations="None"
         CanResize="True"
-        Background="{DynamicResource SurfaceBaseBrush}">
+        TransparencyLevelHint="Transparent"
+        Background="Transparent">
 
   <!--
     Frameless on purpose. This sits on top of a game, where a title bar is thirty wasted pixels and
     a Windows chrome that does not match anything around it. Dragging the strip moves it, the
     bottom-right grip resizes it, and Escape closes it.
+
+    The window itself is transparent so the opacity slider can fade the map alone. Background is a
+    real Transparent brush rather than null, because a real brush still hit-tests, and that is what
+    keeps a press on an empty part of the window able to drag it.
   -->
-  <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+  <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+          Background="Transparent">
     <DockPanel>
 
       <!--

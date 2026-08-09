@@ -37,6 +37,7 @@ public partial class MinimapWindow : Window
 
     private IMapImageSource? _imageSource;
     private bool _loading = true;
+    private bool _loggedTransparency;
 
     // Parameterless ctor exists only for the XAML previewer.
     public MinimapWindow() : this(new AppSettings(), null!, () => { })
@@ -59,7 +60,6 @@ public partial class MinimapWindow : Window
         // select an exit behind your back while you are trying to move the window.
         _canvas.IsHitTestVisible = false;
 
-        Opacity = _settings.MinimapOpacity;
         OpacitySlider.Value = _settings.MinimapOpacity;
 
         RestorePlacement();
@@ -116,14 +116,61 @@ public partial class MinimapWindow : Window
                 return;
 
             _settings.MinimapOpacity = Math.Round(OpacitySlider.Value, 2);
-            Opacity = _settings.MinimapOpacity;
+            ApplyOpacity();
             _persist();
         };
+    }
+
+    /// <summary>
+    /// Fades the map, leaving the header alone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Setting <c>Window.Opacity</c> is the obvious way to do this and the wrong one: it takes the
+    /// whole window with it, so at the setting that finally lets you see the game through the map
+    /// the buttons and the range readout have gone faint too. The point of the slider is to see
+    /// what is behind the <em>map</em>, and nothing is behind the header worth seeing.
+    /// </para>
+    /// <para>
+    /// That needs a genuinely transparent window rather than a translucent element on an opaque
+    /// one, so the fallback matters: if the compositor refuses transparency the panel would be
+    /// fading toward black instead of toward the game, and fading the whole window is at least
+    /// still what the slider claims to do.
+    /// </para>
+    /// </remarks>
+    private void ApplyOpacity()
+    {
+        var wanted = _settings.MinimapOpacity;
+        var transparent = ActualTransparencyLevel == WindowTransparencyLevel.Transparent;
+
+        // Logged once, because which branch this takes decides whether the slider fades the map
+        // toward the game or the whole window toward the desktop, and the two look similar enough
+        // in a screenshot to argue about.
+        if (!_loggedTransparency)
+        {
+            _loggedTransparency = true;
+            Diagnostics.Log.Info($"[minimap] transparency granted: {ActualTransparencyLevel}");
+        }
+
+        if (transparent)
+        {
+            Opacity = 1.0;
+            MinimapHost.Opacity = wanted;
+        }
+        else
+        {
+            MinimapHost.Opacity = 1.0;
+            Opacity = wanted;
+        }
     }
 
     private async Task StartAsync()
     {
         ApplyClickThrough();
+
+        // Not in the constructor: ActualTransparencyLevel is whatever the compositor granted, and
+        // it is not decided until the window exists.
+        ApplyOpacity();
 
         _session.FixApplied += OnFixApplied;
         _session.MapChanged += OnMapChanged;
