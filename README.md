@@ -108,7 +108,9 @@ meters, so zooming changes how much you see rather than what the data says, and 
 against its own peak so a sparse group stays visible next to a dense one.
 
 **Other layers.** Loot containers, hazards, locked doors, switches, mounted guns, BTR stops, boss
-zones and transits, each independently toggleable.
+zones and transits, each independently toggleable. Layers and the heatmap live in a **Layers** panel
+floating over the bottom-left of the map, alongside **Levels** — what is drawn on the map is a thing
+about the map, so that is where the switches are.
 
 **Screenshot cleanup.** Optional and **off by default**. When enabled it keeps only the newest N
 screenshots, or removes each one after reading it. Deleted files go to the Recycle Bin, never
@@ -162,12 +164,12 @@ means only one person needs to be reachable from outside their router — and th
 have to be playing.
 
 **If you have to forward a port**, it is one: **`TCP 24601`, inbound, to the hosting PC**. Only the
-host needs it; people joining you open nothing. The party panel prints the exact port and your PC's
-address on the network when the router will not do it for itself, and the same line is in
-**Settings** before you ever need it. The port is configurable there if 24601 clashes with
-something, and hosting refuses to start rather than quietly moving to another port — a forward
-pinned to a number that has silently changed is the worst kind of broken. `--party-test` tells you
-which case you are in.
+host needs it; people joining you open nothing. While hosting, the panel says exactly where you are
+reachable — `Hosting on 203.0.113.4:24601 (TCP)` — and turns amber with the forwarding details on
+hover when your router would not open it for itself. The same line is in **Settings** before you
+ever need it. The port is configurable there if 24601 clashes with something, and hosting refuses to
+start rather than quietly moving to another port — a forward pinned to a number that has silently
+changed is the worst kind of broken. `--party-test` tells you which case you are in.
 
 > **Worth thinking about before you use it.** Position sharing keeps the app's "never touches the
 > game" property, but it does change who knows what. With your own squad it is hard to object to —
@@ -199,7 +201,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 342 tests
+dotnet test              # 391 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
