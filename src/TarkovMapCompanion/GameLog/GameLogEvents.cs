@@ -19,6 +19,17 @@ public enum GameLogEventKind
     RaidStarted,
 
     /// <summary>
+    /// A character was loaded, and which one.
+    /// </summary>
+    /// <remarks>
+    /// One account has more than one profile -- PVE and PVP are separate characters with separate
+    /// levels and separate quests -- and switching between them is a profile load, not a restart.
+    /// Every trader message in the notification log belongs to whichever one was loaded at the
+    /// time, and nothing in the message says which.
+    /// </remarks>
+    ProfileLoaded,
+
+    /// <summary>
     /// The profile reloaded, which is what returning to the menu looks like from out here.
     /// </summary>
     /// <remarks>
@@ -46,6 +57,9 @@ public sealed record GameLogEvent
 
     /// <summary><c>Online</c> or <c>Pve</c>, when the line says. Recorded, not acted on.</summary>
     public string? RaidMode { get; init; }
+
+    /// <summary>The BSG profile id, on the lines that name one.</summary>
+    public string? ProfileId { get; init; }
 
     /// <summary>The line it came from, so diagnostics can show its work.</summary>
     public string Line { get; init; } = "";

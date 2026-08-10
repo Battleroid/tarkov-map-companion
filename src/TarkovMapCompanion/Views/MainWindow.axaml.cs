@@ -2567,7 +2567,16 @@ public partial class MainWindow : Window
         BuildQuestKit();
 
         if (shown is { } count)
-            QuestOrigin.Text = $"{count} of {_session.Tasks.Tasks.Count} tasks shown · data from {_session.Tasks.Origin}";
+        {
+            var origin = $"{count} of {_session.Tasks.Tasks.Count} tasks shown · data from {_session.Tasks.Origin}";
+
+            // Only when there is a choice to be confused about. On a one-character account this
+            // would be a hex string in the corner saying nothing.
+            if (_session.QuestProfileCount > 1 && _session.QuestProfile is { Length: > 8 } profile)
+                origin += $" · following character {profile[^8..]} of {_session.QuestProfileCount}";
+
+            QuestOrigin.Text = origin;
+        }
     }
 
     /// <summary>

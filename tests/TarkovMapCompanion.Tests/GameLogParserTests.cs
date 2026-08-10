@@ -125,8 +125,34 @@ public sealed class GameLogParserTests
     [InlineData("2026-08-03 17:46:22.136|1.1.0.0.46608|Debug|application|TRACE-NetworkGameCreate 0")]
     [InlineData("2026-08-04 16:16:23.233|1.1.0.0.46624|Debug|application|GC::Collect")]
     [InlineData("2026-08-04 16:25:42.948|1.1.0.0.46624|Info|application|LocationLoaded:14.16 real:22.26 diff:8.1")]
-    [InlineData("2026-08-04 16:16:21.531|1.1.0.0.46624|Info|application|PrepareSelectedProfileLocally ProfileId:6a6f")]
     public void OrdinaryLinesYieldNothing(string line) => Assert.Null(GameLogLineParser.Parse(line));
+
+    /// <summary>
+    /// A profile load names a character, and a truncated one names nobody.
+    /// </summary>
+    /// <remarks>
+    /// This line used to be in the list above, back when nothing downstream cared who was playing.
+    /// It matters now: one account has a PVE and a PVP character with separate quests and separate
+    /// levels, and this is the only line that says which of them the trader messages belong to.
+    /// The truncated case still yields an event -- the kind is knowable from the line's first
+    /// words -- but no profile, which is the honest answer rather than half an id.
+    /// </remarks>
+    [Fact]
+    public void AProfileLoadNamesTheCharacter()
+    {
+        var full = GameLogLineParser.Parse(
+            "2026-08-04 16:16:21.531|1.1.0.0.46624|Info|application|PrepareSelectedProfileLocally ProfileId:6a6fb03826e91a600e08fed9 AccountId:5369768");
+
+        Assert.NotNull(full);
+        Assert.Equal(GameLogEventKind.ProfileLoaded, full!.Kind);
+        Assert.Equal("6a6fb03826e91a600e08fed9", full.ProfileId);
+
+        var cut = GameLogLineParser.Parse(
+            "2026-08-04 16:16:21.531|1.1.0.0.46624|Info|application|PrepareSelectedProfileLocally ProfileId:6a6f");
+
+        Assert.Equal(GameLogEventKind.ProfileLoaded, cut?.Kind);
+        Assert.Null(cut?.ProfileId);
+    }
 
     /// <summary>
     /// Every name these lines carry reaches a map the app can actually draw.

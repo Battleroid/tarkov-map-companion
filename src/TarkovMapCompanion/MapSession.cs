@@ -866,6 +866,19 @@ public sealed class MapSession : IDisposable
     internal void ApplyQuestStateForTesting(IReadOnlyDictionary<string, QuestProgress> state) =>
         _questLog.SetStateForTesting(state);
 
+    /// <summary>
+    /// The character the quest log is answering about, short enough to show.
+    /// </summary>
+    /// <remarks>
+    /// Worth showing whenever there is more than one, because the alternative is a level and a
+    /// quest list that describe somebody you are not currently playing, with nothing on screen
+    /// saying so. That is exactly how this was found.
+    /// </remarks>
+    public string? QuestProfile => _questLog.Profile;
+
+    /// <summary>How many characters the logs have quests for.</summary>
+    public int QuestProfileCount => _questLog.ByProfile.Count(p => p.Value.Count > 0);
+
     /// <summary>Whether the log says this quest is accepted right now.</summary>
     public bool IsActivePerLog(string taskId) =>
         _questLog.State.TryGetValue(taskId, out var progress) && progress == QuestProgress.Active;
@@ -979,7 +992,7 @@ public sealed class MapSession : IDisposable
     {
         try
         {
-            _questState.Save(_questLog.State);
+            _questState.Save(_questLog.ByProfile);
 
             // Before the tracking decision and outside it: the level floor is what the log implies
             // about you, not about which quests are drawn, and it holds even with tracking off.
@@ -1080,7 +1093,17 @@ public sealed class MapSession : IDisposable
                     RaidStateChanged?.Invoke(this, true);
                     break;
 
+                case GameLogEventKind.ProfileLoaded:
+                    // Which character is being played, which decides whose quests these are. Free
+                    // to notice here: this watcher is already tailing the file it is written in.
+                    _questLog.Profile = entry.ProfileId;
+                    return;
+
                 case GameLogEventKind.MenuReturned:
+                    // The same line also names a character, and switching between PVE and PVP is a
+                    // profile load rather than a restart.
+                    _questLog.Profile = entry.ProfileId;
+
                     // Fires on the way into a session as well as out of one, and twice in a row on
                     // the way out, so it only means anything while a raid is known to be running.
                     if (!_inRaidPerLog)

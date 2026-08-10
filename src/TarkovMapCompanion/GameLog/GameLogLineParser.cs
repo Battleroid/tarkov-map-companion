@@ -42,7 +42,29 @@ public static partial class GameLogLineParser
             return new GameLogEvent { Kind = GameLogEventKind.RaidStarted, At = ReadTimestamp(line), Line = line };
 
         if (line.Contains("|CompleteSelectedProfile", StringComparison.Ordinal))
-            return new GameLogEvent { Kind = GameLogEventKind.MenuReturned, At = ReadTimestamp(line), Line = line };
+        {
+            return new GameLogEvent
+            {
+                Kind = GameLogEventKind.MenuReturned,
+                At = ReadTimestamp(line),
+                ProfileId = ReadProfileId(line),
+                Line = line,
+            };
+        }
+
+        // The other half of the same pair, and the one that means "from here on, the trader
+        // messages belong to this character". Switching between PVE and PVP is a profile load
+        // rather than a restart, and nothing in a trader message says who it was addressed to.
+        if (line.Contains("|PrepareSelectedProfileLocally", StringComparison.Ordinal))
+        {
+            return new GameLogEvent
+            {
+                Kind = GameLogEventKind.ProfileLoaded,
+                At = ReadTimestamp(line),
+                ProfileId = ReadProfileId(line),
+                Line = line,
+            };
+        }
 
         return null;
     }
@@ -156,4 +178,13 @@ public static partial class GameLogLineParser
         @"\bRaidMode:\s*(?<mode>[^,']+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex RaidModePattern();
+
+    /// <summary>The profile id out of a profile-select line, or null.</summary>
+    private static string? ReadProfileId(string line) =>
+        ProfileIdPattern().Match(line) is { Success: true } match ? match.Groups["id"].Value : null;
+
+    [GeneratedRegex(
+        @"ProfileId:(?<id>[0-9a-f]{24})",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ProfileIdPattern();
 }

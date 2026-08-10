@@ -25,7 +25,24 @@ public sealed class QuestLogWatcher : IDisposable
     private readonly TimeSpan _interval;
     private readonly LogTail _tail = new(NewestLog);
 
-    private readonly Dictionary<string, QuestProgress> _state = new(StringComparer.Ordinal);
+    /// <summary>
+    /// Quest state per character, keyed by BSG profile id.
+    /// </summary>
+    /// <remarks>
+    /// One account has more than one. On the machine this was found on, a PVE character carried
+    /// 143 quests and a PVP character carried none of them, and merging the two answered every
+    /// question about the wrong one.
+    /// </remarks>
+    private readonly Dictionary<string, Dictionary<string, QuestProgress>> _byProfile =
+        new(StringComparer.Ordinal);
+
+    /// <summary>The character the log last loaded, and so the one being played.</summary>
+    private string? _profile;
+
+    /// <summary>
+    /// Anything the logs could not attribute, which is what a pre-profile-aware cache looks like.
+    /// </summary>
+    private const string UnknownProfile = "";
 
     private Timer? _timer;
     private string? _folder;
@@ -39,10 +56,76 @@ public sealed class QuestLogWatcher : IDisposable
     /// <summary>Raised when anything about a quest changed, with the events that changed it.</summary>
     public event EventHandler<IReadOnlyList<QuestLogEvent>>? Changed;
 
-    /// <summary>Where each quest stands, as far as the logs know.</summary>
+    /// <summary>Where each quest stands for the character being played, as far as the logs know.</summary>
+    /// <remarks>
+    /// One character's worth, not the account's. Anything the logs could not pin to a profile is
+    /// folded in underneath, so a cache written by an older build still counts for something.
+    /// </remarks>
     public IReadOnlyDictionary<string, QuestProgress> State
     {
-        get { lock (_gate) return new Dictionary<string, QuestProgress>(_state, StringComparer.Ordinal); }
+        get
+        {
+            lock (_gate)
+            {
+                var state = new Dictionary<string, QuestProgress>(StringComparer.Ordinal);
+
+                if (_byProfile.TryGetValue(UnknownProfile, out var unattributed))
+                {
+                    foreach (var (id, progress) in unattributed)
+                        state[id] = progress;
+                }
+
+                if (_profile is { } profile && _byProfile.TryGetValue(profile, out var mine))
+                {
+                    foreach (var (id, progress) in mine)
+                        state[id] = progress;
+                }
+
+                return state;
+            }
+        }
+    }
+
+    /// <summary>Everything, by profile, for the diagnostics that have to show their work.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, QuestProgress>> ByProfile
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _byProfile.ToDictionary(
+                    p => p.Key,
+                    p => (IReadOnlyDictionary<string, QuestProgress>)
+                        new Dictionary<string, QuestProgress>(p.Value, StringComparer.Ordinal),
+                    StringComparer.Ordinal);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The character being played, as the log last reported it.
+    /// </summary>
+    /// <remarks>
+    /// Settable because the live path learns it from the raid watcher, which is already tailing the
+    /// application log where profile loads are written. Setting it swaps which character the app is
+    /// answering about, so it raises <see cref="Changed"/>.
+    /// </remarks>
+    public string? Profile
+    {
+        get { lock (_gate) return _profile; }
+        set
+        {
+            lock (_gate)
+            {
+                if (value is not { Length: > 0 } || string.Equals(_profile, value, StringComparison.Ordinal))
+                    return;
+
+                _profile = value;
+            }
+
+            Diagnostics.Log.Info($"[quests] following profile {value}");
+            Changed?.Invoke(this, []);
+        }
     }
 
     public bool IsWatching
@@ -58,15 +141,27 @@ public sealed class QuestLogWatcher : IDisposable
     /// parser all over again rather than what happens downstream of it. The parser has its own
     /// tests against verbatim lines from real logs.
     /// </remarks>
-    internal void SetStateForTesting(IReadOnlyDictionary<string, QuestProgress> state)
+    internal void SetStateForTesting(IReadOnlyDictionary<string, QuestProgress> state, string? profile = null)
     {
         lock (_gate)
         {
-            _state.Clear();
+            _byProfile.Clear();
+            _profile = profile;
+
+            var into = For(profile ?? UnknownProfile);
 
             foreach (var (id, progress) in state)
-                _state[id] = progress;
+                into[id] = progress;
         }
+    }
+
+    /// <summary>The bucket for one profile, created on first use. Call under the lock.</summary>
+    private Dictionary<string, QuestProgress> For(string profile)
+    {
+        if (!_byProfile.TryGetValue(profile, out var found))
+            _byProfile[profile] = found = new Dictionary<string, QuestProgress>(StringComparer.Ordinal);
+
+        return found;
     }
 
     /// <summary>Task ids the logs say are accepted and unfinished.</summary>
@@ -74,8 +169,7 @@ public sealed class QuestLogWatcher : IDisposable
     {
         get
         {
-            lock (_gate)
-                return _state.Where(p => p.Value == QuestProgress.Active).Select(p => p.Key).ToArray();
+            return State.Where(p => p.Value == QuestProgress.Active).Select(p => p.Key).ToArray();
         }
     }
 
@@ -85,7 +179,9 @@ public sealed class QuestLogWatcher : IDisposable
     /// <param name="seed">
     /// What was worked out last time, so a cleared log folder does not lose everything already known.
     /// </param>
-    public void Start(string logsFolder, IReadOnlyDictionary<string, QuestProgress>? seed = null)
+    public void Start(
+        string logsFolder,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, QuestProgress>>? seed = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -94,12 +190,17 @@ public sealed class QuestLogWatcher : IDisposable
         lock (_gate)
         {
             _folder = logsFolder;
-            _state.Clear();
+            _byProfile.Clear();
 
             if (seed is not null)
             {
-                foreach (var (id, progress) in seed)
-                    _state[id] = progress;
+                foreach (var (profile, state) in seed)
+                {
+                    var into = For(profile);
+
+                    foreach (var (id, progress) in state)
+                        into[id] = progress;
+                }
             }
         }
 
@@ -192,15 +293,26 @@ public sealed class QuestLogWatcher : IDisposable
                 .Select(f => f.Path)
                 .ToArray();
 
+            string? lastProfile = null;
+
             foreach (var file in files)
             {
                 try
                 {
+                    // Its own launch's profile loads, read first, so every message in this file can
+                    // be pinned to whoever was loaded when it arrived. The two files are written by
+                    // one process against one clock, which is what makes their stamps comparable.
+                    var profiles = ProfilesIn(Path.GetDirectoryName(file)!);
+
                     using var stream = new FileStream(
                         file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     using var reader = new StreamReader(stream);
 
-                    events.AddRange(QuestLogParser.Read(ReadLines(reader)));
+                    // The previous launch's last character carries into a launch whose own log says
+                    // nothing: you close the game on one character and open it on the same one.
+                    events.AddRange(QuestLogParser.Read(ReadLines(reader), profiles, lastProfile));
+
+                    lastProfile = profiles.Latest ?? lastProfile;
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -208,7 +320,19 @@ public sealed class QuestLogWatcher : IDisposable
                 }
             }
 
-            Diagnostics.Log.Info($"[quests] read {events.Count} quest event(s) from {files.Length} log(s)");
+            // Whoever was loaded last across the whole history is who is being played, until the
+            // live tail says otherwise.
+            if (lastProfile is { Length: > 0 })
+            {
+                lock (_gate)
+                    _profile ??= lastProfile;
+            }
+
+            var profileCount = events.Select(e => e.Profile).Where(p => p is not null).Distinct(StringComparer.Ordinal).Count();
+
+            Diagnostics.Log.Info(
+                $"[quests] read {events.Count} quest event(s) from {files.Length} log(s) "
+                + $"across {profileCount} profile(s); following {_profile ?? "no profile in particular"}");
         }
         catch (Exception ex)
         {
@@ -232,12 +356,14 @@ public sealed class QuestLogWatcher : IDisposable
         {
             foreach (var entry in events)
             {
+                var bucket = For(entry.Profile ?? _profile ?? UnknownProfile);
+
                 // Only the ones that actually move something. A log re-read reports every event it
                 // ever saw, and waking the UI for each would be a few hundred no-ops per startup.
-                if (_state.TryGetValue(entry.TaskId, out var current) && current == entry.Progress)
+                if (bucket.TryGetValue(entry.TaskId, out var current) && current == entry.Progress)
                     continue;
 
-                _state[entry.TaskId] = entry.Progress;
+                bucket[entry.TaskId] = entry.Progress;
                 changed.Add(entry);
             }
         }
@@ -247,6 +373,45 @@ public sealed class QuestLogWatcher : IDisposable
     }
 
     /// <summary>The push-notification logs inside one launch folder.</summary>
+    /// <summary>
+    /// When each character was loaded during one launch, from that launch's application log.
+    /// </summary>
+    /// <remarks>
+    /// The application log rather than the output log: they carry the same lines, and the raid
+    /// watcher already knows how to find the application one.
+    /// </remarks>
+    internal static ProfileTimeline ProfilesIn(string folder)
+    {
+        var timeline = new ProfileTimeline();
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(folder, "*application*.log", SearchOption.TopDirectoryOnly)
+                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            {
+                using var stream = new FileStream(
+                    file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+
+                foreach (var line in ReadLines(reader))
+                {
+                    if (!line.Contains("SelectedProfile", StringComparison.Ordinal))
+                        continue;
+
+                    if (GameLogLineParser.Parse(line) is { ProfileId: { Length: > 0 } id, At: { } at })
+                        timeline.Add(at.DateTime, id);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // No timeline is a worse answer than a timeline, not a broken one: events fall back to
+            // whatever the previous launch said.
+        }
+
+        return timeline;
+    }
+
     public static IReadOnlyList<string> NotificationLogsIn(string folder)
     {
         try

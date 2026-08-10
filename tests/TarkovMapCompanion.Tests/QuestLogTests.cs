@@ -260,9 +260,12 @@ public sealed class QuestLogTests
         {
             Write(logs, "log_fresh", 1, "");
 
-            var seed = new Dictionary<string, QuestProgress>(StringComparer.Ordinal)
+            var seed = new Dictionary<string, IReadOnlyDictionary<string, QuestProgress>>(StringComparer.Ordinal)
             {
-                ["657315ddab5a49b71f098853"] = QuestProgress.Active,
+                [""] = new Dictionary<string, QuestProgress>(StringComparer.Ordinal)
+                {
+                    ["657315ddab5a49b71f098853"] = QuestProgress.Active,
+                },
             };
 
             using var watcher = new QuestLogWatcher(TimeSpan.FromMinutes(10));
