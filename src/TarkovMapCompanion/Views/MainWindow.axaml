@@ -176,9 +176,12 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
               <TextBlock Name="ReadExitsText" Grid.Column="0" FontSize="11" TextWrapping="Wrap"
                          VerticalAlignment="Center" />
-              <Button Name="ClearReadExitsButton" Grid.Column="1" Content="Clear"
+              <!-- Not "Clear": there is another Clear four rows down that drops the selected exit,
+                   and two identical labels a few pixels apart doing different destructive things
+                   is a trap. This one says what it does. -->
+              <Button Name="ClearReadExitsButton" Grid.Column="1" Content="Show all"
                       FontSize="11" Padding="7,2" VerticalAlignment="Center"
-                      ToolTip.Tip="Show every exit again" />
+                      ToolTip.Tip="Forget what the screenshot said and un-dim every exit" />
             </Grid>
           </Border>
 
@@ -192,9 +195,9 @@
             <TextBlock Grid.Column="0" Name="ExitHint" Classes="secondary" FontSize="11"
                        TextWrapping="Wrap" VerticalAlignment="Center"
                        Text="Pick one to draw a guide line from the player." />
-            <Button Grid.Column="1" Name="ClearSelectionButton" Content="Clear" IsVisible="False"
+            <Button Grid.Column="1" Name="ClearSelectionButton" Content="Clear exit" IsVisible="False"
                     FontSize="11" Padding="7,2" VerticalAlignment="Center"
-                    ToolTip.Tip="Stop pointing at this exit" />
+                    ToolTip.Tip="Stop pointing at this exit. Leaves the screenshot reading alone." />
           </Grid>
         </StackPanel>
 
