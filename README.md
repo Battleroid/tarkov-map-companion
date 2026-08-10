@@ -152,7 +152,14 @@ out is cached, so a cleaned log folder costs the history rather than everything.
 **Read a quest properly.** Click a task's name and it opens in a pane on the left: objectives at a
 size you can actually read, one per block, each saying whether it is on the map in front of you and
 carrying its own **Route** button. Prerequisites are listed with a tick against the ones already
-done. The pane resizes and closes.
+done, keys are grouped by the map they open something on with the one for *this* map first, and
+each objective names the items it wants — including the alternatives its own wording glosses over,
+since "Obtain the item: Rye croutons" also accepts Emelya rye croutons. The pane resizes and closes.
+
+**What to take with you.** Above the task list, the Quests tab totals up what everything you have
+ticked needs on the map you are looking at: the keys, and the items you have to be carrying rather
+than the ones you hand over at a counter. Planting an MS2000 needs the marker in your rig; handing
+in five MP-133s does not mean taking five shotguns into Customs, and the list knows the difference.
 
 **Quest tracking.** The **Quests** tab lists all 510 tasks, grouped by trader, with a search box and
 filters for *on this map*, *at or below my level*, and *Kappa*. Tick one and its objectives are drawn
@@ -166,8 +173,8 @@ profile on BSG's servers, and this app reads files rather than accounts.
 
 Press **Route** on a task, or click one of its markers on the map, and its objectives become numbered
 route markers — which means they inherit arrival detection, the guide line, and sharing to your
-squad in your color. Objectives with nowhere to be are still listed with their text, because "hand
-over 5 MP-133" is worth reading next to the map even though it is not on it.
+squad in your color. Objectives with nowhere to be are still listed in the reading pane, because
+"hand over 5 MP-133" is worth reading next to the map even though it is not on it.
 
 **Write on the map.** Press **Add Note**, click a spot, type. Labels are saved to disk and stay on
 the map you wrote them on, so the names your squad actually uses — *Big Red*, *the sniper shack*,

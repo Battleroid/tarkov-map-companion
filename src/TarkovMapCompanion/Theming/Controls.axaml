@@ -187,6 +187,20 @@
     <Setter Property="TextBlock.Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
 
+  <!--
+    Text that is a control. A quest name in the list opens the reading pane, which is not something
+    a plain run of text advertises: the first build of that panel had people ticking the box to
+    read a task, because the tick was the only thing that looked pressable. Accent plus an
+    underline on hover, which is the one affordance nobody has to be taught.
+  -->
+  <Style Selector="TextBlock.link">
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.link:pointerover">
+    <Setter Property="TextDecorations" Value="Underline" />
+  </Style>
+
   <Style Selector="CheckBox, RadioButton, ComboBox, TextBox, NumericUpDown, Slider">
     <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
   </Style>

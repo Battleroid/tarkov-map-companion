@@ -1561,6 +1561,9 @@ public partial class MainWindow : Window
         if (task.Requires.Count > 0)
             QuestPane.Children.Add(BuildPrerequisites(task));
 
+        if (task.Keys.Count > 0)
+            QuestPane.Children.Add(BuildKeys(task));
+
         QuestPane.Children.Add(Heading("OBJECTIVES", 12));
 
         var here = 0;
@@ -1692,6 +1695,39 @@ public partial class MainWindow : Window
         return block;
     }
 
+    /// <summary>
+    /// The keys this task needs, grouped by the map they open something on.
+    /// </summary>
+    /// <remarks>
+    /// Upstream scopes keys per map, so this is its grouping rather than one invented here. The
+    /// current map sorts first and says so; a key for somewhere else is still worth knowing about
+    /// before you commit to the task, but it is not what you are packing for right now.
+    /// </remarks>
+    private Control BuildKeys(Data.Models.TaskData task)
+    {
+        var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 10) };
+        block.Children.Add(Heading("KEYS", 12));
+
+        foreach (var group in task.Keys.OrderByDescending(k => _session.IsOnCurrentMap(k.MapId)))
+        {
+            var here = _session.IsOnCurrentMap(group.MapId);
+            var where = here ? "here" : _session.MapNameFor(group.MapId) ?? "a map this build does not know";
+
+            block.Children.Add(new TextBlock
+            {
+                Text = $"{string.Join(", ", group.Names)} ({where})",
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+
+                // Same habit as the prerequisites: the one that matters on this map is the one at
+                // full strength, and the rest are dimmed rather than dropped.
+                Opacity = here ? 1.0 : 0.65,
+            });
+        }
+
+        return block;
+    }
+
     private Control BuildObjective(Data.Models.TaskData task, Data.Models.TaskObjectiveData objective, int onThisMap)
     {
         var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 9) };
@@ -1703,6 +1739,23 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Opacity = objective.Optional ? 0.7 : 1.0,
         });
+
+        // The items by name, under the objective that wants them. The description usually names
+        // one of them in passing; this is the list, including the alternatives it does not mention
+        // — "Obtain the item: Rye croutons" also accepts Emelya rye croutons, and only this says so.
+        if (objective.Items.Count > 0)
+        {
+            var carried = Data.TaskRequirements.CarriedTypes.Contains(objective.Type);
+
+            block.Children.Add(new TextBlock
+            {
+                Text = (carried ? "Bring: " : "Items: ") + string.Join(", ", objective.Items),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 1, 0, 0),
+                Opacity = objective.Optional ? 0.7 : 0.9,
+            });
+        }
 
         var notes = new List<string>();
 
@@ -2199,12 +2252,13 @@ public partial class MainWindow : Window
         var title = new TextBlock
         {
             Text = task.Name,
+            Classes = { "link" },
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 0, 0),
             Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-            [ToolTip.TipProperty] = "Read this task",
+            [ToolTip.TipProperty] = "Click the name to read this task: objectives, keys and items",
         };
 
         title.PointerPressed += (_, _) => OpenQuest(task.Id);
@@ -2296,23 +2350,9 @@ public partial class MainWindow : Window
         row.Children.Add(header);
         row.Children.Add(subtitle);
 
-        // Objectives with no place on a map still list. "Hand over 5 MP-133" is worth reading next
-        // to the map even though it is not on it.
-        if (_session.IsTracked(task.Id))
-        {
-            foreach (var objective in task.Objectives.Where(o => !string.IsNullOrWhiteSpace(o.Description)))
-            {
-                row.Children.Add(new TextBlock
-                {
-                    Text = objective.Optional ? $"(optional) {objective.Description}" : objective.Description,
-                    FontSize = 10,
-                    Margin = new Thickness(24, 0, 0, 0),
-                    TextWrapping = TextWrapping.Wrap,
-                    Opacity = objective.Optional ? 0.7 : 1.0,
-                });
-            }
-        }
-
+        // Objective text used to expand inline here for every ticked task, which turned a list you
+        // scan into a wall you scroll. It lives in the reading pane now, one click away on the
+        // name, at a size you can actually read.
         return row;
     }
 
@@ -2353,11 +2393,62 @@ public partial class MainWindow : Window
         var drawn = _session.Quests.Marks.Count;
 
         QuestHint.Text = tracked == 0
-            ? "Tick a task to draw its objectives on the map."
-            : $"{tracked} tracked, {drawn} objective{(drawn == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}.";
+            ? "Tick a task to draw it on the map. Click its name to read it."
+            : $"{tracked} tracked, {drawn} objective{(drawn == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}."
+              + " Click a name to read the task.";
+
+        BuildQuestKit();
 
         if (shown is { } count)
             QuestOrigin.Text = $"{count} of {_session.Tasks.Tasks.Count} tasks shown · data from {_session.Tasks.Origin}";
+    }
+
+    /// <summary>
+    /// The "take this with you" block: what the tracked tasks need on the map being shown.
+    /// </summary>
+    /// <remarks>
+    /// Aggregated across tasks rather than per task, because the question it answers is asked once,
+    /// at the stash, about the whole trip. Empty means hidden — a box saying "nothing" is worse
+    /// than no box.
+    /// </remarks>
+    private void BuildQuestKit()
+    {
+        QuestKit.Children.Clear();
+
+        var tracked = _session.Tasks.Tasks.Where(t => _session.IsTracked(t.Id));
+        var kit = TaskRequirements.Gather(tracked, _session.IsOnCurrentMap);
+
+        QuestKitHost.IsVisible = !kit.IsEmpty;
+
+        if (kit.IsEmpty)
+            return;
+
+        QuestKit.Children.Add(Heading($"TAKE TO {_session.CurrentMap.DisplayName.ToUpperInvariant()}", 11));
+
+        if (kit.Keys.Count > 0)
+            QuestKit.Children.Add(KitLine("Keys", kit.Keys));
+
+        if (kit.Items.Count > 0)
+            QuestKit.Children.Add(KitLine("Items", kit.Items));
+
+        static Control KitLine(string label, IReadOnlyList<string> names)
+        {
+            // Capped, because a dozen tracked tasks can name more keys than the sidebar is wide.
+            // The count carries the rest rather than the list quietly ending.
+            const int Shown = 8;
+
+            var text = string.Join(", ", names.Take(Shown));
+
+            if (names.Count > Shown)
+                text += $" +{names.Count - Shown} more";
+
+            return new TextBlock
+            {
+                Text = $"{label}: {text}",
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+            };
+        }
     }
 
     private static void OpenUrl(string url)

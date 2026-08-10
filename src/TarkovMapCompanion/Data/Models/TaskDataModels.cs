@@ -48,6 +48,16 @@ public sealed class TaskData
     /// <summary>Ids of tasks that have to be finished first.</summary>
     [JsonPropertyName("requires")] public List<string> Requires { get; set; } = [];
 
+    /// <summary>
+    /// Keys this task needs, grouped by the map they open something on.
+    /// </summary>
+    /// <remarks>
+    /// Upstream already scopes these per map, which is what makes "what do I need on Customs"
+    /// answerable at all. A key is the one requirement that cannot be improvised once you are in
+    /// the raid.
+    /// </remarks>
+    [JsonPropertyName("keys")] public List<TaskKeyData> Keys { get; set; } = [];
+
     [JsonPropertyName("objectives")] public List<TaskObjectiveData> Objectives { get; set; } = [];
 }
 
@@ -78,6 +88,31 @@ public sealed class TaskObjectiveData
 
     /// <summary>Where on a map this happens. Empty for the many objectives that are not anywhere.</summary>
     [JsonPropertyName("points")] public List<TaskPointData> Points { get; set; } = [];
+
+    /// <summary>
+    /// The items this objective wants, by name.
+    /// </summary>
+    /// <remarks>
+    /// Only when the list is short enough to be a list. One objective upstream names 3,493 items,
+    /// which is a category rather than a shopping list, and its own description already says so.
+    /// The cut is at <see cref="MaxNamedItems"/>: measured against real data, 562 of the 580
+    /// objectives that reference items name twelve or fewer, and every one that names more is a
+    /// "hand over any of these" of some kind.
+    /// </remarks>
+    [JsonPropertyName("items")] public List<string> Items { get; set; } = [];
+
+    /// <summary>Beyond this many, an item list is a category rather than a list.</summary>
+    public const int MaxNamedItems = 12;
+}
+
+/// <summary>Keys needed on one map.</summary>
+public sealed class TaskKeyData
+{
+    /// <summary>BSG map id, matching the one on a point.</summary>
+    [JsonPropertyName("map")] public string MapId { get; set; } = "";
+
+    /// <summary>Key names, already resolved.</summary>
+    [JsonPropertyName("names")] public List<string> Names { get; set; } = [];
 }
 
 /// <summary>Somewhere an objective happens, in game coordinates.</summary>

@@ -28,6 +28,15 @@ public sealed class TaskStore
     public const string TradersUrl = "https://json.tarkov.dev/regular/traders";
     public const string TraderTranslationsUrl = "https://json.tarkov.dev/regular/traders_en";
 
+    /// <summary>
+    /// Item names only, which is 385 KB against the 16 MB the full item payload costs.
+    /// </summary>
+    /// <remarks>
+    /// The same flat shape as the other translation documents. Only the few hundred names tasks
+    /// actually reference survive into the snapshot.
+    /// </remarks>
+    public const string ItemTranslationsUrl = "https://json.tarkov.dev/regular/items_en";
+
     private const string SnapshotResourceName = "TarkovMapCompanion.Data.Snapshots.tasks.json.gz";
     private const string CacheFileName = "tasks.json";
 
@@ -126,8 +135,10 @@ public sealed class TaskStore
         var stringsTask = http.GetStringAsync(TranslationsUrl, cancellationToken);
         var tradersTask = http.GetStringAsync(TradersUrl, cancellationToken);
         var traderStringsTask = http.GetStringAsync(TraderTranslationsUrl, cancellationToken);
+        var itemStringsTask = http.GetStringAsync(ItemTranslationsUrl, cancellationToken);
 
-        await Task.WhenAll(tasksTask, stringsTask, tradersTask, traderStringsTask).ConfigureAwait(false);
+        await Task.WhenAll(tasksTask, stringsTask, tradersTask, traderStringsTask, itemStringsTask)
+            .ConfigureAwait(false);
 
         var upstream = Unwrap<UpstreamTaskDocument>(tasksTask.Result)
                        ?? throw new JsonException("task document had no 'data' member");
@@ -135,8 +146,9 @@ public sealed class TaskStore
         var strings = Unwrap<Dictionary<string, string>>(stringsTask.Result) ?? [];
         var traders = Unwrap<Dictionary<string, UpstreamTrader>>(tradersTask.Result) ?? [];
         var traderStrings = Unwrap<Dictionary<string, string>>(traderStringsTask.Result) ?? [];
+        var itemStrings = Unwrap<Dictionary<string, string>>(itemStringsTask.Result) ?? [];
 
-        return Project(upstream, strings, traders, traderStrings);
+        return Project(upstream, strings, traders, traderStrings, itemStrings);
     }
 
     private static T? Unwrap<T>(string json) =>
@@ -147,8 +159,18 @@ public sealed class TaskStore
         UpstreamTaskDocument upstream,
         IReadOnlyDictionary<string, string> strings,
         IReadOnlyDictionary<string, UpstreamTrader> traders,
-        IReadOnlyDictionary<string, string> traderStrings)
+        IReadOnlyDictionary<string, string> traderStrings,
+        IReadOnlyDictionary<string, string>? itemStrings = null)
     {
+        var itemNames = itemStrings ?? new Dictionary<string, string>();
+
+        // Keyed "<id> Name", the same convention the map and task documents use. An id with no
+        // name is dropped rather than shown as a hex blob.
+        string? ItemName(string? id) =>
+            id is not null && itemNames.TryGetValue(id + " Name", out var found) && found.Length > 0
+                ? found
+                : null;
+
         string Text(string? key) =>
             key is not null && strings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
                 ? value
@@ -192,8 +214,20 @@ public sealed class TaskStore
                     .ToList(),
             };
 
+            foreach (var group in task.NeededKeys ?? [])
+            {
+                var names = (group.Keys ?? [])
+                    .Select(ItemName)
+                    .Where(n => n is not null)
+                    .Select(n => n!)
+                    .ToList();
+
+                if (group.Map is { Length: > 0 } keyMap && names.Count > 0)
+                    projected.Keys.Add(new TaskKeyData { MapId = keyMap, Names = names });
+            }
+
             foreach (var objective in task.Objectives ?? [])
-                projected.Objectives.Add(ProjectObjective(objective, Text));
+                projected.Objectives.Add(ProjectObjective(objective, Text, ItemName));
 
             document.Tasks.Add(projected);
         }
@@ -202,7 +236,10 @@ public sealed class TaskStore
         return document;
     }
 
-    private static TaskObjectiveData ProjectObjective(UpstreamObjective objective, Func<string?, string> text)
+    private static TaskObjectiveData ProjectObjective(
+        UpstreamObjective objective,
+        Func<string?, string> text,
+        Func<string?, string?> itemName)
     {
         var projected = new TaskObjectiveData
         {
@@ -213,6 +250,20 @@ public sealed class TaskStore
             Count = objective.Count,
             FoundInRaid = objective.FoundInRaid ?? false,
         };
+
+        // The marker you plant is worth naming even when nothing else is: placing an MS2000 is a
+        // different errand from placing a WI-FI camera.
+        if (itemName(objective.MarkerItem) is { } marker)
+            projected.Items.Add(marker);
+
+        if (objective.Items is { Count: > 0 } wanted && wanted.Count <= TaskObjectiveData.MaxNamedItems)
+        {
+            foreach (var name in wanted.Select(itemName).Where(n => n is not null).Select(n => n!))
+            {
+                if (!projected.Items.Contains(name, StringComparer.OrdinalIgnoreCase))
+                    projected.Items.Add(name);
+            }
+        }
 
         foreach (var zone in objective.Zones ?? [])
         {
@@ -358,6 +409,13 @@ public sealed class UpstreamTask
     [JsonPropertyName("map")] public string? Map { get; set; }
     [JsonPropertyName("taskRequirements")] public List<UpstreamTaskRequirement>? TaskRequirements { get; set; }
     [JsonPropertyName("objectives")] public List<UpstreamObjective>? Objectives { get; set; }
+    [JsonPropertyName("neededKeys")] public List<UpstreamNeededKeys>? NeededKeys { get; set; }
+}
+
+public sealed class UpstreamNeededKeys
+{
+    [JsonPropertyName("map")] public string? Map { get; set; }
+    [JsonPropertyName("keys")] public List<string>? Keys { get; set; }
 }
 
 public sealed class UpstreamTaskRequirement
@@ -373,6 +431,8 @@ public sealed class UpstreamObjective
     [JsonPropertyName("optional")] public bool? Optional { get; set; }
     [JsonPropertyName("count")] public int? Count { get; set; }
     [JsonPropertyName("foundInRaid")] public bool? FoundInRaid { get; set; }
+    [JsonPropertyName("items")] public List<string>? Items { get; set; }
+    [JsonPropertyName("markerItem")] public string? MarkerItem { get; set; }
     [JsonPropertyName("zones")] public List<UpstreamZone>? Zones { get; set; }
     [JsonPropertyName("possibleLocations")] public List<UpstreamPossibleLocation>? PossibleLocations { get; set; }
 }

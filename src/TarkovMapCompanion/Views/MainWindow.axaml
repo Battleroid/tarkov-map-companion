@@ -275,6 +275,15 @@
                     ToolTip.Tip="Off still labels whichever marker the pointer is on" />
 
           <TextBlock Name="QuestHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+
+          <!--
+            What the tracked tasks want you to have brought. Keys especially: everything else can
+            be improvised in the raid, and a key you left in the stash is a wasted trip. Hidden
+            when it would be empty rather than sitting there saying nothing.
+          -->
+          <Border Name="QuestKitHost" Classes="panel" Padding="8,6" IsVisible="False">
+            <StackPanel Name="QuestKit" Spacing="3" />
+          </Border>
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Margin="6,0,0,0">

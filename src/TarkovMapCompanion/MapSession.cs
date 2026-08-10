@@ -736,6 +736,16 @@ public sealed class MapSession : IDisposable
         _catalog.ResolveByNameId(_mapData.NameIdForId(mapId)) is { } map
         && string.Equals(map.NormalizedName, CurrentMap.NormalizedName, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The display name for a BSG map id, or null when nothing in the catalog claims it.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than the raw id: a task's keys are grouped by map, and "a map this build does
+    /// not know" is a more honest label beside a key name than a hex string.
+    /// </remarks>
+    public string? MapNameFor(string? mapId) =>
+        _catalog.ResolveByNameId(_mapData.NameIdForId(mapId))?.DisplayName;
+
     private void RestoreSelectedExtract()
     {
         if (string.IsNullOrEmpty(_settings.SelectedExtractId))
