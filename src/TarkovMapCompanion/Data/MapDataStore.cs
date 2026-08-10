@@ -147,6 +147,17 @@ public sealed class MapDataStore
                 ?.NormalizedName;
 
     /// <summary>
+    /// Maps a BSG map id to the game's location id.
+    /// </summary>
+    /// <remarks>
+    /// The step that lets quest zones, which are keyed by BSG map id, land on a shipped map:
+    /// resolving the id to a normalized name is not enough, because upstream has seventeen maps to
+    /// this app's thirteen and the extra four are variants. Going via the location id folds them.
+    /// </remarks>
+    public string? NameIdForId(string? mapId) =>
+        mapId is not null && _document.Maps.TryGetValue(mapId, out var map) ? map.NameId : null;
+
+    /// <summary>
     /// The bundled snapshot, unfiltered. For tests that need to check the data itself rather than
     /// whatever happens to be cached on this machine.
     /// </summary>

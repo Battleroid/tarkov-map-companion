@@ -140,6 +140,21 @@ map offer you the right one. It proposes rather than switches, because several m
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
 
+**Quest tracking.** The **Quests** tab lists all 510 tasks, grouped by trader, with a search box and
+filters for *on this map*, *at or below my level*, and *Kappa*. Tick one and its objectives are drawn
+on the map: zones as their actual footprint rather than a dot, so a "visit" objective reads as *stand
+in this room* instead of *somewhere near here*. Where a quest item can spawn in several places, each
+is a hollow ring rather than a confident marker — you should not walk past four of them.
+
+Only ticked tasks draw, and that is the design rather than a shortcut: Lighthouse alone has 169
+positioned objectives. Ticking is by hand because which quests you have accepted lives in your
+profile on BSG's servers, and this app reads files rather than accounts.
+
+Press **Route** on a task, or click one of its markers on the map, and its objectives become numbered
+route markers — which means they inherit arrival detection, the guide line, and sharing to your
+squad in your color. Objectives with nowhere to be are still listed with their text, because "hand
+over 5 MP-133" is worth reading next to the map even though it is not on it.
+
 **The map, before you have taken a single screenshot.** Tick **Read the game's log** in Settings
 and the app follows the log Tarkov writes as it runs. The game names the map it is loading between
 twenty seconds and two minutes before you have control, so the second monitor is already on the
@@ -276,6 +291,7 @@ scripts\publish.ps1
 | --- | --- |
 | `--render-test <map> [out.png] [w] [h] [floors] [nobase] [bare] [marks]` | Renders a map to a PNG with no window. The quickest way to check a coordinate change. `floors` is a comma-separated list, `nobase` hides the ground floor, `bare` drops the markers, `marks` lays a route of waypoints across it. |
 | `--fetch-data [out]` | Rebuilds the embedded POI snapshot from tarkov.dev. |
+| `--fetch-tasks [out]` | Rebuilds the embedded quest snapshot from tarkov.dev. |
 | `--fetch-wiki [out]` | Rebuilds the embedded exit conditions from the EFT wiki. |
 | `--find-screenshots` | Prints every place Tarkov screenshots might be and what is in each. What to run when the map never moves. |
 | `--find-logs [folder] [all]` | Prints where Tarkov's own logs were found, what the parser made of the newest one, and any location name this build does not recognize. What to run when the map stops switching. `all` reads every launch's log rather than only the newest. |

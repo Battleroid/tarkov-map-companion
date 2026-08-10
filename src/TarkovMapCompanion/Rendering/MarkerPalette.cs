@@ -72,6 +72,19 @@ public static class MarkerPalette
 
     public static readonly SKColor WaypointLabel = new(0xFF, 0xFF, 0xFF);
 
+    // ---- Quests -------------------------------------------------------------
+
+    /// <summary>
+    /// Tracked quest objectives.
+    /// </summary>
+    /// <remarks>
+    /// One color for all of them, with a number in the marker where a task has several objectives
+    /// on one map. A color per task was the alternative and it does not survive contact with the
+    /// data: Lighthouse can have a dozen tracked objectives at once, which is more distinguishable
+    /// hues than exist once the exits, the squad and the player's own marker have taken theirs.
+    /// </remarks>
+    public static readonly SKColor Quest = new(0x8A, 0xB4, 0xFF);
+
     // ---- Squad --------------------------------------------------------------
 
     /// <summary>

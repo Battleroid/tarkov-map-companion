@@ -193,6 +193,26 @@ public sealed class AppSettings
     /// </remarks>
     public string GameLogFolder { get; set; } = "";
 
+    // ---- Quests ------------------------------------------------------------
+
+    /// <summary>
+    /// Ids of the tasks whose objectives are drawn on the map.
+    /// </summary>
+    /// <remarks>
+    /// Ticked by hand, because there is no honest way to know which quests you have accepted: that
+    /// lives in your profile on BSG's servers, and the app reads files rather than accounts. Ids
+    /// rather than names, so a task being renamed upstream does not silently untick it.
+    /// </remarks>
+    public List<string> TrackedTasks { get; set; } = [];
+
+    /// <summary>
+    /// Your PMC level. Only ever used to filter the quest list.
+    /// </summary>
+    public int PlayerLevel { get; set; } = 1;
+
+    /// <summary>Label quest markers with their task name, rather than only on hover.</summary>
+    public bool ShowQuestNames { get; set; } = true;
+
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }
@@ -413,6 +433,10 @@ public sealed class AppSettings
         // state nobody picks on purpose and anybody reaches by dragging a slider to the end.
         MinimapOpacity = Math.Clamp(MinimapOpacity, 0.25, 1.0);
         MinimapRangeMeters = Math.Clamp(MinimapRangeMeters, 25.0, 1000.0);
+
+        // The level cap at the time of writing. Only drives a filter, so being a patch behind
+        // costs a tick box rather than anything real.
+        PlayerLevel = Math.Clamp(PlayerLevel, 1, 79);
 
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);

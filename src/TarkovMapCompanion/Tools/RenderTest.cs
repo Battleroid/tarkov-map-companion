@@ -30,12 +30,14 @@ public static class RenderTest
         //   nobase  hide the ground level, the only way to see a floor underneath it
         //   bare    imagery only, no markers or heatmap, for comparing layers cleanly
         //   marks   lay a route of waypoints between the player and the exit
+        //   quests  draw every positioned quest objective on this map
         var flags = args.Select(a => a.ToLowerInvariant()).ToHashSet();
         var includeBase = !flags.Contains("nobase");
         var bare = flags.Contains("bare");
         var marks = flags.Contains("marks");
+        var quests = flags.Contains("quests");
 
-        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare" or "marks")
+        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare" or "marks" or "quests")
             ? args[4].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];
 
@@ -138,6 +140,9 @@ public static class RenderTest
                 overlay.Visible[kind] = kind != PoiKind.LootContainer;
 
             overlays.Add(overlay);
+
+            if (quests)
+                overlays.Add(BuildQuestOverlay(map, store));
 
             // Guide line to the furthest PMC exit from the last known position, which exercises
             // the distance and relative-bearing readout at a length that is easy to eyeball.
@@ -305,6 +310,74 @@ public static class RenderTest
     }
 
     /// <summary>Draws the recorded path, with a heading arrow at each fix.</summary>
+    /// <summary>
+    /// Every positioned quest objective on a map, as if all of them were tracked.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately unlike the app, which only ever draws the tasks you ticked. Everything at once
+    /// is the worst case for the marker geometry and the zone fills, which is what a render check
+    /// is for.
+    /// </remarks>
+    private static QuestOverlay BuildQuestOverlay(GameMap map, MapDataStore store)
+    {
+        var tasks = new TaskStore(new Settings.AppSettings());
+        tasks.LoadLocal();
+
+        var marks = new List<QuestMark>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var catalog = MapCatalog.LoadEmbedded();
+
+        foreach (var task in tasks.Tasks)
+        {
+            var forTask = new List<QuestMark>();
+
+            foreach (var objective in task.Objectives)
+            {
+                foreach (var point in objective.Points)
+                {
+                    var resolved = catalog.ResolveByNameId(store.NameIdForId(point.MapId));
+                    if (resolved is null || !string.Equals(resolved.NormalizedName, map.NormalizedName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!seen.Add($"{objective.Id}|{point.X}|{point.Z}|{point.OneOf}"))
+                        continue;
+
+                    forTask.Add(new QuestMark(
+                        task.Id,
+                        task.Name,
+                        objective.Id,
+                        objective.Description,
+                        MarkerPalette.Quest,
+                        new GamePosition(point.X, point.Y, point.Z),
+                        Index: 0,
+                        point.OneOf,
+                        point.OutlinePoints.ToArray()));
+                }
+            }
+
+            if (forTask.Count > 1)
+            {
+                for (var i = 0; i < forTask.Count; i++)
+                    forTask[i] = forTask[i] with { Index = i + 1 };
+            }
+
+            marks.AddRange(forTask);
+        }
+
+        Console.WriteLine(
+            $"quests     {marks.Count} objectives from "
+            + $"{marks.Select(m => m.TaskId).Distinct().Count()} tasks, "
+            + $"{marks.Count(m => m.Outline.Count > 2)} with a zone outline, "
+            + $"{marks.Count(m => m.OneOf)} maybe-here");
+
+        // Names off: with every task on the map at once the labels would be a solid wall of text,
+        // and this render is about the marker and zone geometry.
+        var overlay = new QuestOverlay { Map = map, ShowNames = false };
+        overlay.SetMarks(marks);
+
+        return overlay;
+    }
+
     private sealed class DebugTrackOverlay(IReadOnlyList<PlayerFix> fixes, GameMap map) : IMapOverlay
     {
         public int ZOrder => 100;

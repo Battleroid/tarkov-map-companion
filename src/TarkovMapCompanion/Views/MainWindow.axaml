@@ -84,12 +84,19 @@
       </Grid>
     </Border>
 
-    <!-- Exits, their requirements, and layer toggles. -->
+    <!--
+      Exits and quests, as tabs rather than two panels stacked in one column. Both are lists that
+      want the full height of the window, and a quest list folded into an expander above the exits
+      would have shown four rows out of five hundred.
+    -->
     <Border DockPanel.Dock="Right"
             Background="{DynamicResource SurfacePanelBrush}"
             BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="1,0,0,0"
             Width="290">
+      <TabControl Name="SidePanel" Padding="0">
+
+      <TabItem Header="Exits">
       <Grid RowDefinitions="Auto,*">
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
@@ -168,6 +175,59 @@
         </ListBox>
 
       </Grid>
+      </TabItem>
+
+      <!--
+        Quests. Ticked by hand, because which ones you have accepted lives in your profile on BSG's
+        servers and this app reads files rather than accounts. Only ticked tasks draw: Lighthouse
+        alone has 169 positioned objectives, so drawing them all would bury the map.
+      -->
+      <TabItem Header="Quests">
+      <Grid RowDefinitions="Auto,*,Auto">
+
+        <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
+          <TextBox Name="QuestSearchBox" FontSize="12" Watermark="Search tasks and objectives" />
+
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+            <CheckBox Grid.Column="0" Name="QuestThisMapBox" Content="This map" FontSize="12"
+                      ToolTip.Tip="Only tasks with an objective on the map you are looking at" />
+            <CheckBox Grid.Column="1" Name="QuestTrackedBox" Content="Tracked" FontSize="12"
+                      ToolTip.Tip="Only the tasks you have ticked" />
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+            <CheckBox Grid.Column="0" Name="QuestKappaBox" Content="Kappa" FontSize="12"
+                      ToolTip.Tip="Only tasks required for the Kappa container" />
+            <CheckBox Grid.Column="1" Name="QuestLevelBox" Content="My level" FontSize="12"
+                      ToolTip.Tip="Hide tasks above your level" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
+            <TextBlock Grid.Column="0" Text="Level" VerticalAlignment="Center" FontSize="12"
+                       Classes="secondary" />
+            <NumericUpDown Grid.Column="1" Name="PlayerLevelBox" Minimum="1" Maximum="79"
+                           Increment="1" Width="96" FormatString="0" />
+            <Button Grid.Column="2" Name="ClearQuestsButton" Content="Untrack all"
+                    HorizontalAlignment="Right" FontSize="11" Padding="7,2" />
+          </Grid>
+
+          <CheckBox Name="QuestLabelsBox" Content="Label markers on the map" FontSize="12"
+                    ToolTip.Tip="Off still labels whichever marker the pointer is on" />
+
+          <TextBlock Name="QuestHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="6,0,6,0">
+          <StackPanel Name="QuestList" Spacing="1" />
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2" Name="QuestOrigin" Classes="secondary" FontSize="10"
+                   Margin="10,4,10,8" TextWrapping="Wrap" />
+
+      </Grid>
+      </TabItem>
+
+      </TabControl>
     </Border>
 
     <!--

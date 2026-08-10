@@ -39,6 +39,7 @@ public sealed class MapSession : IDisposable
 
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
+    private readonly TaskStore _tasks;
 
     private IMapImageSource? _imageSource;
     private int _fixes;
@@ -66,6 +67,9 @@ public sealed class MapSession : IDisposable
 
         _extractNotes = new ExtractNotesStore();
         _extractNotes.Load();
+
+        _tasks = new TaskStore(settings);
+        _tasks.Updated += (_, _) => RebuildQuestMarks();
 
         _watcher = new ScreenshotWatcher();
         _watcher.FixDetected += OnFixDetected;
@@ -126,6 +130,8 @@ public sealed class MapSession : IDisposable
         Player.RaidStarted += (_, _) => ClearExitAvailability();
 
         Pois = new PoiOverlay();
+
+        Quests = new QuestOverlay { ShowNames = settings.ShowQuestNames };
         ExtractLine = new ExtractLineOverlay
         {
             Color = ColorCodec.Parse(settings.GuideLineColor, MarkerPalette.ExtractLine),
@@ -316,9 +322,18 @@ public sealed class MapSession : IDisposable
     /// reader needs no synchronization and cannot drift out of step with the first.
     /// </remarks>
     public IReadOnlyList<IMapOverlay> Overlays =>
-        [Heatmap, Pois, Waypoints, ExtractLine, Peers, Pings, Player];
+        [Heatmap, Pois, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
 
     public MapDataStore MapData => _mapData;
+
+    /// <summary>Tarkov's quests, and where on a map their objectives are.</summary>
+    public TaskStore Tasks => _tasks;
+
+    /// <summary>Objectives of the tracked quests, drawn on the map.</summary>
+    public QuestOverlay Quests { get; }
+
+    /// <summary>Raised when the drawn quest objectives change.</summary>
+    public event EventHandler? QuestsChanged;
 
     public ExtractNotesStore ExtractNotes => _extractNotes;
 
@@ -415,6 +430,7 @@ public sealed class MapSession : IDisposable
     {
         // Local data first so the map is usable immediately; the network refresh catches up later.
         _mapData.LoadLocal();
+        _tasks.LoadLocal();
 
         await SetMapAsync(CurrentMap, cancellationToken).ConfigureAwait(false);
         StartWatching();
@@ -432,6 +448,15 @@ public sealed class MapSession : IDisposable
         catch (Exception ex)
         {
             Status?.Invoke(this, $"Map data refresh failed: {ex.Message}");
+        }
+
+        try
+        {
+            await _tasks.RefreshIfStaleAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Status?.Invoke(this, $"Quest data refresh failed: {ex.Message}");
         }
     }
 
@@ -455,8 +480,138 @@ public sealed class MapSession : IDisposable
             Player.MaxRaidLength = TimeSpan.FromMinutes(minutes + 5);
 
         RestoreSelectedExtract();
+        RebuildQuestMarks();
+
         PoisChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// Whether a task's objectives are drawn on the map.
+    /// </summary>
+    public bool IsTracked(string taskId) =>
+        _settings.TrackedTasks.Contains(taskId, StringComparer.Ordinal);
+
+    /// <summary>Starts or stops drawing a task's objectives, and persists nothing by itself.</summary>
+    public void SetTracked(string taskId, bool tracked)
+    {
+        if (tracked == IsTracked(taskId))
+            return;
+
+        if (tracked)
+            _settings.TrackedTasks.Add(taskId);
+        else
+            _settings.TrackedTasks.RemoveAll(id => string.Equals(id, taskId, StringComparison.Ordinal));
+
+        RebuildQuestMarks();
+    }
+
+    /// <summary>Untracks everything.</summary>
+    public void ClearTrackedTasks()
+    {
+        if (_settings.TrackedTasks.Count == 0)
+            return;
+
+        _settings.TrackedTasks.Clear();
+        RebuildQuestMarks();
+    }
+
+    /// <summary>
+    /// Works out which tracked objectives are on the current map, and hands them to the overlay.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Zones are keyed by BSG map id, which does not correspond one-to-one with the maps that ship:
+    /// upstream has seventeen and four of them are variants of another. So the id goes through the
+    /// game's own location id, which folds them. Without that, every Ground Zero objective is
+    /// listed twice and half of them land nowhere.
+    /// </para>
+    /// <para>
+    /// That folding is also why the results are deduplicated. The same zone genuinely appears once
+    /// per variant upstream, at identical coordinates, and drawing it twice would put a darker
+    /// marker on some objectives for no reason a user could work out.
+    /// </para>
+    /// </remarks>
+    public void RebuildQuestMarks()
+    {
+        Quests.Map = CurrentMap;
+
+        if (_settings.TrackedTasks.Count == 0)
+        {
+            Quests.Clear();
+            QuestsChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        var marks = new List<QuestMark>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var taskId in _settings.TrackedTasks)
+        {
+            if (_tasks.Find(taskId) is not { } task)
+                continue;
+
+            var forThisTask = new List<QuestMark>();
+
+            foreach (var objective in task.Objectives)
+            {
+                foreach (var point in objective.Points)
+                {
+                    if (!IsOnCurrentMap(point.MapId))
+                        continue;
+
+                    // Coordinates are stored to the centimeter, so a variant's copy of a zone is
+                    // byte-identical rather than merely close.
+                    var key = $"{objective.Id}|{point.X}|{point.Z}|{point.OneOf}";
+                    if (!seen.Add(key))
+                        continue;
+
+                    forThisTask.Add(new QuestMark(
+                        task.Id,
+                        task.Name,
+                        objective.Id,
+                        objective.Description,
+                        MarkerPalette.Quest,
+                        new GamePosition(point.X, point.Y, point.Z),
+                        Index: 0,
+                        point.OneOf,
+                        point.OutlinePoints.ToArray()));
+                }
+            }
+
+            // Numbered only when there is more than one to tell apart. A lone objective with a "1"
+            // on it invites the question of where 2 is.
+            if (forThisTask.Count > 1)
+            {
+                for (var i = 0; i < forThisTask.Count; i++)
+                    forThisTask[i] = forThisTask[i] with { Index = i + 1 };
+            }
+
+            marks.AddRange(forThisTask);
+        }
+
+        Quests.SetMarks(marks);
+        QuestsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Switches the shown map without loading anything, for tests.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SetMapAsync"/> rasterizes an SVG and may reach for the network. A test about
+    /// which objectives belong to which map should not need either.
+    /// </remarks>
+    internal void SetMapForTesting(GameMap map) => CurrentMap = map;
+
+    /// <summary>
+    /// Whether a BSG map id refers to the map currently shown, variants included.
+    /// </summary>
+    /// <remarks>
+    /// Compared by name rather than by reference. There is one catalog in the app, so reference
+    /// equality would work and would be quietly wrong for anything holding a second one.
+    /// </remarks>
+    public bool IsOnCurrentMap(string? mapId) =>
+        _catalog.ResolveByNameId(_mapData.NameIdForId(mapId)) is { } map
+        && string.Equals(map.NormalizedName, CurrentMap.NormalizedName, StringComparison.OrdinalIgnoreCase);
 
     private void RestoreSelectedExtract()
     {

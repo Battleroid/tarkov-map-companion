@@ -20,6 +20,11 @@ internal static class Program
         if (args.Length > 0 && args[0] is "--fetch-data")
             return Tools.FetchData.RunAsync(args[1..]).GetAwaiter().GetResult();
 
+        // Regenerates the embedded quest snapshot from json.tarkov.dev.
+        //   TarkovMapCompanion --fetch-tasks [out.json.gz]
+        if (args.Length > 0 && args[0] is "--fetch-tasks")
+            return Tools.FetchTasks.RunAsync(args[1..]).GetAwaiter().GetResult();
+
         // Regenerates the bundled extract-conditions file from the Tarkov wiki.
         //   TarkovMapCompanion --fetch-wiki [out.json]
         if (args.Length > 0 && args[0] is "--fetch-wiki")

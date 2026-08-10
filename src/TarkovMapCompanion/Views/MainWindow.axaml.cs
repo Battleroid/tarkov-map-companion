@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
@@ -220,6 +221,8 @@ public partial class MainWindow : Window
         _canvas.PointerMovedOverMap += OnPointerMovedOverMap;
         _canvas.Clicked += OnMapClicked;
 
+        WireQuests();
+
         SuggestionAccept.Click += OnSuggestionAccepted;
         SuggestionDismiss.Click += (_, _) => HideSuggestion();
 
@@ -290,6 +293,14 @@ public partial class MainWindow : Window
         _session.PoisChanged += (_, _) => Post(() =>
         {
             RebuildExtractList();
+            _canvas.InvalidateVisual();
+        });
+
+        // The "this map" filter and the "on this map" note on every row both depend on which map is
+        // shown, so the whole list is rebuilt rather than just the overlay.
+        _session.QuestsChanged += (_, _) => Post(() =>
+        {
+            BuildQuestList();
             _canvas.InvalidateVisual();
         });
 
@@ -1058,18 +1069,44 @@ public partial class MainWindow : Window
 
     private void OnPointerMovedOverMap(object? sender, MapPoint? position)
     {
-        var hovered = position is { } p
-            ? _session.Pois.HitTest(_canvas.Viewport, _canvas.Viewport.ToScreen(p).X, _canvas.Viewport.ToScreen(p).Y)
-            : null;
+        var screen = position is { } p ? _canvas.Viewport.ToScreen(p) : (MapPoint?)null;
 
-        if (ReferenceEquals(hovered, _session.Pois.Hovered))
+        var hovered = screen is { } s ? _session.Pois.HitTest(_canvas.Viewport, s.X, s.Y) : null;
+
+        // Quest marks sit above the POI layers and are checked first, so a quest marker on top of a
+        // loot container is the one that answers.
+        var quest = screen is { } q ? _session.Quests.HitTest(_canvas.Viewport, q.X, q.Y) : null;
+
+        if (ReferenceEquals(hovered, _session.Pois.Hovered) && ReferenceEquals(quest, _session.Quests.Hovered))
             return;
 
         _session.Pois.Hovered = hovered;
+        _session.Quests.Hovered = quest;
 
         // A compact tooltip beats a panel round-trip for something that changes on every mouse move.
-        _canvas.SetValue(ToolTip.TipProperty, hovered is null ? null : DescribeForTooltip(hovered));
+        var tip = quest is not null
+            ? DescribeForTooltip(quest)
+            : hovered is null ? null : DescribeForTooltip(hovered);
+
+        _canvas.SetValue(ToolTip.TipProperty, tip);
         _canvas.InvalidateVisual();
+    }
+
+    private string DescribeForTooltip(QuestMark mark)
+    {
+        var lines = new List<string> { mark.TaskName };
+
+        if (!string.IsNullOrWhiteSpace(mark.Description))
+            lines.Add(mark.Description);
+
+        if (mark.OneOf)
+            lines.Add("One of several places it can be");
+
+        if (_session.Player.Current is { } fix)
+            lines.Add($"{fix.Position.GroundDistanceTo(mark.Position):F0} m away");
+
+        lines.Add("Click to add to your route");
+        return string.Join(Environment.NewLine, lines);
     }
 
     private string DescribeForTooltip(MapPoi poi)
@@ -1114,6 +1151,15 @@ public partial class MainWindow : Window
         }
 
         var screen = _canvas.Viewport.ToScreen(position);
+
+        // A quest marker is a small, deliberate target and the tooltip says what clicking it does,
+        // so this is not a click anybody lands on by accident. Undo marker takes it back.
+        if (_session.Quests.HitTest(_canvas.Viewport, screen.X, screen.Y) is { } mark)
+        {
+            AddQuestToRoute(mark);
+            return;
+        }
+
         var hit = _session.Pois.HitTest(_canvas.Viewport, screen.X, screen.Y);
 
         // Only exits are selectable; clicking a loot marker should not clear the current exit.
@@ -1130,6 +1176,7 @@ public partial class MainWindow : Window
     {
         _canvas.AddOverlay(_session.Heatmap);
         _canvas.AddOverlay(_session.Pois);
+        _canvas.AddOverlay(_session.Quests);
         _canvas.AddOverlay(_session.Waypoints);
         _canvas.AddOverlay(_session.ExtractLine);
         _canvas.AddOverlay(_session.Peers);
@@ -1196,6 +1243,275 @@ public partial class MainWindow : Window
         _suppressMapSelectorEvent = false;
 
         _canvas.InvalidateVisual();
+    }
+
+    // ---- Quests -----------------------------------------------------------
+
+    private void WireQuests()
+    {
+        PlayerLevelBox.Value = _settings.PlayerLevel;
+
+        // Defaults that make the panel useful on first open rather than a wall of five hundred
+        // tasks: what is on the map in front of you, at or below your level.
+        QuestThisMapBox.IsChecked = true;
+        QuestLevelBox.IsChecked = true;
+
+        foreach (var box in new[] { QuestThisMapBox, QuestTrackedBox, QuestKappaBox, QuestLevelBox })
+            box.IsCheckedChanged += (_, _) => BuildQuestList();
+
+        QuestSearchBox.TextChanged += (_, _) => BuildQuestList();
+
+        QuestLabelsBox.IsChecked = _settings.ShowQuestNames;
+        QuestLabelsBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ShowQuestNames = QuestLabelsBox.IsChecked ?? true;
+            _session.Quests.ShowNames = _settings.ShowQuestNames;
+            _canvas.InvalidateVisual();
+        });
+
+        PlayerLevelBox.ValueChanged += (_, _) => Apply(() =>
+        {
+            _settings.PlayerLevel = (int)(PlayerLevelBox.Value ?? _settings.PlayerLevel);
+            BuildQuestList();
+        });
+
+        ClearQuestsButton.Click += (_, _) => Apply(() =>
+        {
+            _session.ClearTrackedTasks();
+            BuildQuestList();
+            _canvas.InvalidateVisual();
+        });
+    }
+
+    /// <summary>
+    /// Rebuilds the quest list from the filters.
+    /// </summary>
+    /// <remarks>
+    /// Built in code rather than bound to a template, for the same reason the floor list is: it is
+    /// a flat panel of grouped rows whose grouping changes with the filters, and an
+    /// ItemsControl with a converter for each of the six things a row shows would be more
+    /// machinery than the whole panel is worth.
+    /// </remarks>
+    private void BuildQuestList()
+    {
+        QuestList.Children.Clear();
+
+        var search = (QuestSearchBox.Text ?? "").Trim();
+
+        var matching = _session.Tasks.Tasks.Where(Matches).ToArray();
+
+        foreach (var group in matching
+                     .GroupBy(t => t.Trader, StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            QuestList.Children.Add(new TextBlock
+            {
+                Text = group.Key.ToUpperInvariant(),
+                Classes = { "heading" },
+                FontSize = 11,
+                Margin = new Thickness(0, 8, 0, 2),
+            });
+
+            foreach (var task in group.OrderBy(t => t.MinPlayerLevel).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+                QuestList.Children.Add(BuildQuestRow(task));
+        }
+
+        UpdateQuestHint(matching.Length);
+        return;
+
+        bool Matches(Data.Models.TaskData task)
+        {
+            if (QuestTrackedBox.IsChecked == true && !_session.IsTracked(task.Id))
+                return false;
+
+            if (QuestKappaBox.IsChecked == true && !task.KappaRequired)
+                return false;
+
+            if (QuestLevelBox.IsChecked == true && task.MinPlayerLevel > _settings.PlayerLevel)
+                return false;
+
+            if (QuestThisMapBox.IsChecked == true && !HasObjectiveHere(task))
+                return false;
+
+            if (search.Length == 0)
+                return true;
+
+            return task.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                   || task.Trader.Contains(search, StringComparison.OrdinalIgnoreCase)
+                   || task.Objectives.Any(o => o.Description.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private bool HasObjectiveHere(Data.Models.TaskData task) =>
+        task.Objectives.Any(o => o.Points.Any(p => _session.IsOnCurrentMap(p.MapId)));
+
+    private Control BuildQuestRow(Data.Models.TaskData task)
+    {
+        var here = HasObjectiveHere(task);
+
+        var tick = new CheckBox
+        {
+            Content = task.Name,
+            IsChecked = _session.IsTracked(task.Id),
+            FontSize = 12,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+
+        tick.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _session.SetTracked(task.Id, tick.IsChecked ?? false);
+            UpdateQuestHint(null);
+            _canvas.InvalidateVisual();
+        });
+
+        var notes = new List<string> { $"level {task.MinPlayerLevel}" };
+
+        if (task.KappaRequired)
+            notes.Add("Kappa");
+
+        if (task.LightkeeperRequired)
+            notes.Add("Lightkeeper");
+
+        if (task.Faction is { Length: > 0 } faction)
+            notes.Add(faction);
+
+        // Said plainly rather than by omission. A ticked task whose objectives are all somewhere
+        // else draws nothing, and without this the panel looks broken rather than correct.
+        notes.Add(here ? "on this map" : "not on this map");
+
+        var subtitle = new TextBlock
+        {
+            Text = string.Join(" · ", notes),
+            Classes = { "secondary" },
+            FontSize = 10,
+            Margin = new Thickness(24, 0, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        var row = new StackPanel { Spacing = 1, Margin = new Thickness(0, 2, 0, 2) };
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+        Grid.SetColumn(tick, 0);
+        header.Children.Add(tick);
+
+        if (here)
+        {
+            var route = new Button
+            {
+                Content = "Route",
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                MinHeight = 0,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                [ToolTip.TipProperty] = "Add this task's objectives on this map to your route",
+            };
+
+            route.Click += (_, _) => AddTaskToRoute(task);
+
+            Grid.SetColumn(route, 1);
+            header.Children.Add(route);
+        }
+
+        if (task.WikiLink is { Length: > 0 } wiki)
+        {
+            var link = new Button
+            {
+                Content = "?",
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                MinHeight = 0,
+                Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                [ToolTip.TipProperty] = "Open the wiki page for this task",
+            };
+
+            link.Click += (_, _) => OpenUrl(wiki);
+
+            Grid.SetColumn(link, 2);
+            header.Children.Add(link);
+        }
+
+        row.Children.Add(header);
+        row.Children.Add(subtitle);
+
+        // Objectives with no place on a map still list. "Hand over 5 MP-133" is worth reading next
+        // to the map even though it is not on it.
+        if (_session.IsTracked(task.Id))
+        {
+            foreach (var objective in task.Objectives.Where(o => !string.IsNullOrWhiteSpace(o.Description)))
+            {
+                row.Children.Add(new TextBlock
+                {
+                    Text = objective.Optional ? $"(optional) {objective.Description}" : objective.Description,
+                    FontSize = 10,
+                    Margin = new Thickness(24, 0, 0, 0),
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = objective.Optional ? 0.7 : 1.0,
+                });
+            }
+        }
+
+        return row;
+    }
+
+    private void AddTaskToRoute(Data.Models.TaskData task)
+    {
+        var added = _session.Quests.Marks
+            .Where(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal))
+            .ToArray();
+
+        if (added.Length == 0)
+        {
+            // Only tracked tasks have marks, so this is the "ticked it and pressed Route in one
+            // motion" case rather than an error.
+            StatusText.Text = $"Tick {task.Name} first, then add it to your route.";
+            return;
+        }
+
+        foreach (var mark in added)
+            AddQuestToRoute(mark, quiet: true);
+
+        StatusText.Text = $"Added {added.Length} objective{(added.Length == 1 ? "" : "s")} from {task.Name} to your route.";
+    }
+
+    private void AddQuestToRoute(QuestMark mark, bool quiet = false)
+    {
+        if (_canvas.Map is not { } map)
+            return;
+
+        _session.AddWaypoint(map.ToBase(mark.Position));
+
+        if (!quiet)
+            StatusText.Text = $"Added {mark.TaskName} to your route. Undo marker takes it back.";
+    }
+
+    private void UpdateQuestHint(int? shown)
+    {
+        var tracked = _settings.TrackedTasks.Count;
+        var drawn = _session.Quests.Marks.Count;
+
+        QuestHint.Text = tracked == 0
+            ? "Tick a task to draw its objectives on the map."
+            : $"{tracked} tracked, {drawn} objective{(drawn == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}.";
+
+        if (shown is { } count)
+            QuestOrigin.Text = $"{count} of {_session.Tasks.Tasks.Count} tasks shown · data from {_session.Tasks.Origin}";
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Log.Warn($"could not open {url}: {ex.Message}");
+        }
     }
 
     private void BuildFloorList(GameMap map)
