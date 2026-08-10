@@ -126,42 +126,30 @@ public partial class MinimapWindow : Window
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Setting <c>Window.Opacity</c> is the obvious way to do this and the wrong one: it takes the
-    /// whole window with it, so at the setting that finally lets you see the game through the map
-    /// the buttons and the range readout have gone faint too. The point of the slider is to see
-    /// what is behind the <em>map</em>, and nothing is behind the header worth seeing.
+    /// Two wrong ways to do this were tried first, and both are worth naming. <c>Window.Opacity</c>
+    /// fades the whole window, so at the setting that finally lets you see the game through the map
+    /// the buttons and the range readout have gone faint with it. Putting the opacity on the panel
+    /// holding the canvas fades nothing at all: the map is drawn through a raw Skia lease that
+    /// Avalonia's opacity never reaches, so the setting appears to be ignored.
     /// </para>
     /// <para>
-    /// That needs a genuinely transparent window rather than a translucent element on an opaque
-    /// one, so the fallback matters: if the compositor refuses transparency the panel would be
-    /// fading toward black instead of toward the game, and fading the whole window is at least
-    /// still what the slider claims to do.
+    /// What works is the canvas applying the alpha itself. Both the header and the resize grip stay
+    /// solid, which is what you want on something sitting over a game.
     /// </para>
     /// </remarks>
     private void ApplyOpacity()
     {
-        var wanted = _settings.MinimapOpacity;
-        var transparent = ActualTransparencyLevel == WindowTransparencyLevel.Transparent;
+        _canvas.MapOpacity = _settings.MinimapOpacity;
+        _canvas.InvalidateVisual();
 
-        // Logged once, because which branch this takes decides whether the slider fades the map
-        // toward the game or the whole window toward the desktop, and the two look similar enough
-        // in a screenshot to argue about.
-        if (!_loggedTransparency)
-        {
-            _loggedTransparency = true;
-            Diagnostics.Log.Info($"[minimap] transparency granted: {ActualTransparencyLevel}");
-        }
+        // Logged once. Whether the compositor granted a transparent window decides whether the map
+        // fades toward the game or toward this window's own background, and the difference is hard
+        // to argue about from a screenshot.
+        if (_loggedTransparency)
+            return;
 
-        if (transparent)
-        {
-            Opacity = 1.0;
-            MinimapHost.Opacity = wanted;
-        }
-        else
-        {
-            MinimapHost.Opacity = 1.0;
-            Opacity = wanted;
-        }
+        _loggedTransparency = true;
+        Diagnostics.Log.Info($"[minimap] transparency granted: {ActualTransparencyLevel}");
     }
 
     private async Task StartAsync()

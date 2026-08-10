@@ -1251,10 +1251,12 @@ public partial class MainWindow : Window
     {
         PlayerLevelBox.Value = _settings.PlayerLevel;
 
-        // Defaults that make the panel useful on first open rather than a wall of five hundred
-        // tasks: what is on the map in front of you, at or below your level.
+        // What is on the map in front of you, which is a useful first open rather than a wall of
+        // five hundred tasks. The level filter stays off until you have told it your level:
+        // defaulting it on with the default level of 1 hides all but a handful of tasks, and the
+        // panel looks broken rather than filtered.
         QuestThisMapBox.IsChecked = true;
-        QuestLevelBox.IsChecked = true;
+        QuestLevelBox.IsChecked = false;
 
         foreach (var box in new[] { QuestThisMapBox, QuestTrackedBox, QuestKappaBox, QuestLevelBox })
             box.IsCheckedChanged += (_, _) => BuildQuestList();
@@ -1298,6 +1300,16 @@ public partial class MainWindow : Window
 
         var search = (QuestSearchBox.Text ?? "").Trim();
 
+        // Eight of the 510 tasks share a display name with another one. They are genuinely
+        // different tasks upstream and only their normalized name tells them apart, so those rows
+        // get it appended rather than sitting there as two identical lines. Computed over every
+        // task, not the filtered set, so a name does not stop being ambiguous when you search.
+        var ambiguous = _session.Tasks.Tasks
+            .GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var matching = _session.Tasks.Tasks.Where(Matches).ToArray();
 
         foreach (var group in matching
@@ -1313,7 +1325,7 @@ public partial class MainWindow : Window
             });
 
             foreach (var task in group.OrderBy(t => t.MinPlayerLevel).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
-                QuestList.Children.Add(BuildQuestRow(task));
+                QuestList.Children.Add(BuildQuestRow(task, ambiguous.Contains(task.Name)));
         }
 
         UpdateQuestHint(matching.Length);
@@ -1345,7 +1357,7 @@ public partial class MainWindow : Window
     private bool HasObjectiveHere(Data.Models.TaskData task) =>
         task.Objectives.Any(o => o.Points.Any(p => _session.IsOnCurrentMap(p.MapId)));
 
-    private Control BuildQuestRow(Data.Models.TaskData task)
+    private Control BuildQuestRow(Data.Models.TaskData task, bool ambiguous)
     {
         var here = HasObjectiveHere(task);
 
@@ -1364,7 +1376,15 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
         });
 
-        var notes = new List<string> { $"level {task.MinPlayerLevel}" };
+        var notes = new List<string>();
+
+        // Most tasks have no level requirement at all, and "level 0" reads as a fact rather than
+        // as the absence of one.
+        if (task.MinPlayerLevel > 0)
+            notes.Add($"level {task.MinPlayerLevel}");
+
+        if (ambiguous)
+            notes.Add(task.NormalizedName);
 
         if (task.KappaRequired)
             notes.Add("Kappa");

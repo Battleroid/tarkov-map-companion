@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
@@ -87,6 +88,25 @@ public sealed class MapCanvas : Control
     /// beneath the ground floor until it is hidden.
     /// </summary>
     public bool ShowBaseLayer { get; set; } = true;
+
+    /// <summary>
+    /// How solid the map is drawn, 0 to 1. Used by the minimap so the game shows through it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists because setting <see cref="Visual.Opacity"/> on this control, or on anything
+    /// containing it, does not fade the map. Everything below the background rectangle is drawn
+    /// through a raw <c>SKCanvas</c> lease inside a custom draw operation, and the opacity Avalonia
+    /// would apply never reaches it. The visible result is a control whose background fades while
+    /// the map painted on top of it stays completely solid, which reads as the setting doing
+    /// nothing at all.
+    /// </para>
+    /// <para>
+    /// So the alpha is applied here instead, in plain Skia, where it is not depending on how the
+    /// compositor chooses to treat a leased canvas.
+    /// </para>
+    /// </remarks>
+    public double MapOpacity { get; set; } = 1.0;
 
     /// <summary>
     /// Ease camera moves instead of jumping. Only affects moves the app makes on the user's
@@ -376,8 +396,18 @@ public sealed class MapCanvas : Control
 
     public override void Render(DrawingContext context)
     {
+        var opacity = Math.Clamp(MapOpacity, 0.0, 1.0);
+
         if (Background is { } background)
-            context.FillRectangle(background, new Rect(Bounds.Size));
+        {
+            // Faded by hand rather than through the control's Opacity, for the same reason the map
+            // itself is; see MapOpacity.
+            var brush = opacity < 1.0 && background is ISolidColorBrush solid
+                ? new ImmutableSolidColorBrush(solid.Color, solid.Opacity * opacity)
+                : background;
+
+            context.FillRectangle(brush, new Rect(Bounds.Size));
+        }
 
         if (_map is null || _imageSource is null)
             return;
@@ -388,7 +418,8 @@ public sealed class MapCanvas : Control
             Viewport,
             ActiveFloors.ToArray(),
             ShowBaseLayer,
-            _overlays.ToArray()));
+            _overlays.ToArray(),
+            opacity));
     }
 
     /// <summary>
@@ -404,7 +435,8 @@ public sealed class MapCanvas : Control
         Viewport viewport,
         IReadOnlyCollection<string> activeFloors,
         bool showBaseLayer,
-        IReadOnlyList<IMapOverlay> overlays) : ICustomDrawOperation
+        IReadOnlyList<IMapOverlay> overlays,
+        double opacity) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -423,7 +455,14 @@ public sealed class MapCanvas : Control
             using var api = lease.Lease();
             var canvas = api.SkCanvas;
 
-            var restore = canvas.Save();
+            // One offscreen layer for the whole map when it is translucent, so imagery and overlays
+            // fade together rather than each fading against the ones under it. Skipped entirely at
+            // full opacity, which is every frame the main window ever draws.
+            using var fade = opacity < 1.0
+                ? new SKPaint { Color = SKColors.White.WithAlpha((byte)Math.Round(opacity * 255)) }
+                : null;
+
+            var restore = fade is null ? canvas.Save() : canvas.SaveLayer(fade);
             try
             {
                 canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
