@@ -34,11 +34,10 @@ public sealed class QuestFromLogTests
     /// A quest with a level requirement cannot have been accepted below it.
     /// </summary>
     /// <remarks>
-    /// The whole basis of the estimate. Your real level is in no log Tarkov writes; this is the
-    /// only thing the logs let anyone say about it honestly.
+    /// The basis of the estimate, on a clean set where every entry agrees.
     /// </remarks>
     [Fact]
-    public void TheFloorIsTheHighestRequirementSeen()
+    public void TheEstimateFollowsTheQuestsSeen()
     {
         var settings = Settings();
         using var session = NewSession(settings);
@@ -51,7 +50,43 @@ public sealed class QuestFromLogTests
             [high.Id] = QuestProgress.Completed,
         });
 
-        Assert.Equal(high.MinPlayerLevel, session.LevelFloorFromQuestLog());
+        Assert.Equal(high.MinPlayerLevel, session.EstimateLevelFromQuestLog());
+    }
+
+    /// <summary>
+    /// One wild entry does not decide the answer.
+    /// </summary>
+    /// <remarks>
+    /// The bug this replaced: a real account belonging to a level 25 player read as 52, because a
+    /// single message named a level 52 quest whose reward items did not match the task the id
+    /// claims. Roughly one entry in twelve in that stream was noise of some kind, and the maximum
+    /// is decided entirely by the worst one.
+    /// </remarks>
+    [Fact]
+    public void ASingleWildEntryDoesNotSetTheLevel()
+    {
+        var settings = Settings();
+        using var session = NewSession(settings);
+
+        // Twenty quests at or below 25, and one outlier far above.
+        var ordinary = session.Tasks.Tasks
+            .Where(t => t.MinPlayerLevel is > 0 and <= 25)
+            .Take(20)
+            .ToArray();
+
+        Assert.Equal(20, ordinary.Length);
+
+        var wild = session.Tasks.Tasks.First(t => t.MinPlayerLevel >= 45);
+
+        var state = ordinary.ToDictionary(t => t.Id, _ => QuestProgress.Completed, StringComparer.Ordinal);
+        state[wild.Id] = QuestProgress.Completed;
+
+        session.ApplyQuestStateForTesting(state);
+
+        var estimate = session.EstimateLevelFromQuestLog();
+
+        Assert.True(estimate <= 25, $"one outlier dragged the estimate to {estimate}");
+        Assert.True(estimate > 0, "the estimate gave up entirely");
     }
 
     /// <summary>A failed quest still had to be accepted, so it still tells you a level.</summary>
@@ -68,7 +103,7 @@ public sealed class QuestFromLogTests
             [high.Id] = QuestProgress.Failed,
         });
 
-        Assert.Equal(high.MinPlayerLevel, session.LevelFloorFromQuestLog());
+        Assert.Equal(high.MinPlayerLevel, session.EstimateLevelFromQuestLog());
     }
 
     [Fact]
@@ -134,7 +169,7 @@ public sealed class QuestFromLogTests
 
         using var session = NewSession(settings);
 
-        Assert.Equal(0, session.LevelFloorFromQuestLog());
+        Assert.Equal(0, session.EstimateLevelFromQuestLog());
         Assert.False(session.ApplyLevelFloorFromQuestLog());
         Assert.Equal(30, settings.PlayerLevel);
     }

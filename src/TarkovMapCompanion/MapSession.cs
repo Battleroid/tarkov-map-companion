@@ -884,40 +884,78 @@ public sealed class MapSession : IDisposable
         _questLog.State.TryGetValue(taskId, out var progress) && progress == QuestProgress.Active;
 
     /// <summary>
-    /// The lowest level you can possibly be, going by the quests the log has seen you take.
+    /// Where the quests the log has seen you take put your level.
     /// </summary>
     /// <remarks>
-    /// A quest with a level requirement of 42 cannot be accepted at 41, so the highest requirement
-    /// across everything accepted or handed in is a floor. Failed quests count too: failing one
-    /// still means it was taken. Returns 0 when the log has nothing to say.
+    /// <para>
+    /// A quest with a level requirement of 42 cannot be accepted at 41, so in principle the highest
+    /// requirement across everything accepted is a floor. In practice the maximum is the worst
+    /// estimator available: it is decided entirely by the single worst entry, and the stream has
+    /// bad entries in it.
+    /// </para>
+    /// <para>
+    /// Measured on a real account whose owner was level 25: of 144 recognized quests, 132 sat at
+    /// or below 25 with a dense cluster of 19 in the low twenties, and the remaining 12 were
+    /// singletons scattered from 26 up to a lone 52 whose reward items did not match the task the
+    /// id claims. Eighteen further ids were not in the bundled data at all. So roughly one entry in
+    /// twelve is noise -- event tasks, dailies, and whatever else BSG routes through trader chat --
+    /// and the maximum picked the noisiest one.
+    /// </para>
+    /// <para>
+    /// A high percentile instead: the level that <see cref="LevelConfidence"/> of the evidence sits
+    /// at or below. On that same account it reads 25 exactly, and it stays right until more than a
+    /// tenth of the stream is wrong. Returns 0 when the log has nothing to say.
+    /// </para>
     /// </remarks>
-    public int LevelFloorFromQuestLog() =>
-        _questLog.State.Keys
+    public int EstimateLevelFromQuestLog()
+    {
+        var levels = _questLog.State.Keys
             .Select(_tasks.Find)
             .Where(t => t is not null)
             .Select(t => t!.MinPlayerLevel)
-            .DefaultIfEmpty(0)
-            .Max();
+            .Order()
+            .ToArray();
+
+        if (levels.Length == 0)
+            return 0;
+
+        // Trim a fixed fraction off the top rather than indexing a percentile directly, so a short
+        // list discards nothing: with three quests to go on there is no tail to be suspicious of,
+        // and the highest of them is the best answer available.
+        var trimmed = (int)(levels.Length * (1.0 - LevelConfidence));
+        return levels[levels.Length - 1 - trimmed];
+    }
+
+    /// <summary>
+    /// How much of the quest evidence the level estimate has to account for.
+    /// </summary>
+    /// <remarks>
+    /// A tenth is discarded as noise. Lower would throw away real progression on a small account;
+    /// higher lets the tail back in -- at 95% the same real data reads 33 instead of 25.
+    /// </remarks>
+    public const double LevelConfidence = 0.90;
 
     /// <summary>
     /// Raises the stored level to what the log implies, and says whether it moved.
     /// </summary>
     /// <remarks>
-    /// One direction only. The estimate is a floor that lags reality -- somebody at level 60 whose
-    /// hardest accepted quest wanted 42 reads as 42 -- and lowering a number the user typed in
-    /// because our guess is worse than their knowledge would be plainly wrong.
+    /// One direction only. The estimate lags reality -- somebody at 60 whose hardest accepted quest
+    /// wanted 42 reads as 42 -- and lowering a number the user typed in because our guess is worse
+    /// than their knowledge would be plainly wrong. It also means a single bad reading cannot be
+    /// walked back by a later good one, which is the other half of why the estimate discards its
+    /// own tail rather than trusting the maximum.
     /// </remarks>
     public bool ApplyLevelFloorFromQuestLog()
     {
         if (!_settings.PlayerLevelFromGameLog)
             return false;
 
-        var floor = Math.Clamp(LevelFloorFromQuestLog(), 1, 79);
+        var estimate = Math.Clamp(EstimateLevelFromQuestLog(), 1, 79);
 
-        if (floor <= _settings.PlayerLevel)
+        if (estimate <= _settings.PlayerLevel)
             return false;
 
-        _settings.PlayerLevel = floor;
+        _settings.PlayerLevel = estimate;
         return true;
     }
 
