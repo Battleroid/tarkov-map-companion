@@ -57,12 +57,9 @@ public sealed class GameLogWatcher : IDisposable
 
     private Timer? _timer;
 
+    private readonly LogTail _tail = new(NewestLog);
+
     private string? _folder;
-    private string? _currentFile;
-    private long _offset;
-    private string _partialLine = "";
-    private Decoder _decoder = Encoding.UTF8.GetDecoder();
-    private bool _attached;
     private bool _disposed;
 
     public GameLogWatcher(TimeSpan? reconcileInterval = null)
@@ -85,7 +82,7 @@ public sealed class GameLogWatcher : IDisposable
     /// <summary>The application log currently being tailed, for diagnostics.</summary>
     public string? CurrentFile
     {
-        get { lock (_gate) return _currentFile; }
+        get { lock (_gate) return _tail.CurrentFile; }
     }
 
     public bool IsWatching
@@ -109,11 +106,10 @@ public sealed class GameLogWatcher : IDisposable
         lock (_gate)
         {
             _folder = logsFolder;
-            _currentFile = null;
-            _offset = 0;
-            _partialLine = "";
-            _decoder = Encoding.UTF8.GetDecoder();
-            _attached = false;
+
+            // From the end: this watcher only cares what happens next, and replaying a session's
+            // worth of raids on startup would walk the map through every one of them.
+            _tail.Reset(logsFolder, fromStart: false);
         }
 
         if (!Directory.Exists(logsFolder))
@@ -256,92 +252,10 @@ public sealed class GameLogWatcher : IDisposable
         }
     }
 
-    /// <summary>
-    /// Complete lines appended since the last call, following a rollover if one happened.
-    /// </summary>
     private IReadOnlyList<string> ReadNewLines()
     {
-        string? folder;
         lock (_gate)
-            folder = _folder;
-
-        if (folder is null)
-            return [];
-
-        var newest = NewestLog(folder);
-        if (newest is null)
-            return [];
-
-        lock (_gate)
-        {
-            if (!string.Equals(newest, _currentFile, StringComparison.OrdinalIgnoreCase))
-            {
-                // The first file gets picked up mid-history, so start at its end and let the one
-                // backward scan in Backfill decide whether a raid is already under way. Every later
-                // file is a fresh launch or a rolled suffix, which we do want from byte zero.
-                _offset = _attached ? 0 : SafeLength(newest);
-                _currentFile = newest;
-                _partialLine = "";
-                _decoder = Encoding.UTF8.GetDecoder();
-                _attached = true;
-            }
-        }
-
-        return ReadFrom(newest);
-    }
-
-    private IReadOnlyList<string> ReadFrom(string path)
-    {
-        try
-        {
-            using var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-
-            long start;
-            lock (_gate)
-            {
-                // A shorter file than last time means it was truncated or replaced under us.
-                if (stream.Length < _offset)
-                {
-                    _offset = 0;
-                    _partialLine = "";
-                    _decoder = Encoding.UTF8.GetDecoder();
-                }
-
-                start = _offset;
-            }
-
-            if (stream.Length <= start)
-                return [];
-
-            stream.Seek(start, SeekOrigin.Begin);
-
-            var buffer = new byte[stream.Length - start];
-            var read = stream.Read(buffer, 0, buffer.Length);
-
-            lock (_gate)
-            {
-                _offset = start + read;
-
-                var chars = new char[_decoder.GetCharCount(buffer, 0, read, flush: false)];
-                _decoder.GetChars(buffer, 0, read, chars, 0, flush: false);
-
-                var text = _partialLine + new string(chars);
-                var lines = text.Split('\n');
-
-                // The last element is whatever came after the final newline. Held back rather than
-                // reported: the game writes a line in pieces, and half of one parses to nothing at
-                // best and to the wrong map at worst.
-                _partialLine = lines[^1];
-
-                return lines[..^1].Select(l => l.TrimEnd('\r')).ToArray();
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // The game holds this file open and rotates it out from under us; both are ordinary.
-            return [];
-        }
+            return _folder is null ? [] : _tail.ReadNewLines();
     }
 
     /// <summary>The last <paramref name="bytes"/> of a file, as complete lines.</summary>
@@ -366,18 +280,6 @@ public sealed class GameLogWatcher : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return [];
-        }
-    }
-
-    private static long SafeLength(string path)
-    {
-        try
-        {
-            return new FileInfo(path).Length;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return 0;
         }
     }
 

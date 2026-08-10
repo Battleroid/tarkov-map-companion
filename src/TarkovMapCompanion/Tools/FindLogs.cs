@@ -140,11 +140,69 @@ public static class FindLogs
 
             Console.WriteLine();
             Console.WriteLine("That is the interesting part of this output. Please report it.");
+
+            // Still reported: an unrecognized map name should not hide what the quest logs say.
+            ReportQuests(folder);
             return 1;
         }
 
         Console.WriteLine("Every location name in this log resolved to a map.");
+
+        ReportQuests(folder);
         return 0;
+    }
+
+    /// <summary>
+    /// What the notification logs say about quests.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in its own mode because the question is the same one: is the app reading
+    /// this install correctly. An id that does not resolve is the interesting output, and it is the
+    /// thing most likely to appear after a wipe.
+    /// </remarks>
+    private static void ReportQuests(string logsFolder)
+    {
+        using var watcher = new QuestLogWatcher();
+        watcher.Start(logsFolder);
+        watcher.Stop();
+
+        var state = watcher.State;
+        if (state.Count == 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("No quest notifications in these logs.");
+            return;
+        }
+
+        var tasks = new Data.TaskStore(new Settings.AppSettings());
+        tasks.LoadLocal();
+
+        var known = tasks.Tasks.ToDictionary(t => t.Id, StringComparer.Ordinal);
+
+        var active = state.Where(p => p.Value == QuestProgress.Active).Select(p => p.Key).ToArray();
+        var done = state.Count(p => p.Value == QuestProgress.Completed);
+        var failed = state.Count(p => p.Value == QuestProgress.Failed);
+        var unresolved = state.Keys.Where(id => !known.ContainsKey(id)).ToArray();
+
+        Console.WriteLine();
+        Console.WriteLine($"Quests: {active.Length} active, {done} completed, {failed} failed.");
+
+        foreach (var id in active.OrderBy(id => known.TryGetValue(id, out var t) ? t.Name : id, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!known.TryGetValue(id, out var task))
+                continue;
+
+            var placed = task.Objectives.Sum(o => o.Points.Count);
+            Console.WriteLine($"  {task.Name,-44} {task.Trader,-12} {placed} positioned");
+        }
+
+        if (unresolved.Length == 0)
+            return;
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"{unresolved.Length} quest id(s) in the logs are not in the bundled data. Usually event or");
+        Console.WriteLine("old-wipe quests; they are ignored rather than guessed at.");
     }
 
     private static string Describe(MapCatalog catalog, GameLogEvent item)

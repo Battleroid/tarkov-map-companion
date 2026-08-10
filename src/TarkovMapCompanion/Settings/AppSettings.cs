@@ -238,6 +238,23 @@ public sealed class AppSettings
     /// <summary>Label quest markers with their task name, rather than only on hover.</summary>
     public bool ShowQuestNames { get; set; } = true;
 
+    /// <summary>
+    /// Let the game's own notification log decide which quests are being tracked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On when the log is being read at all, because hand-ticking sixty quests is the kind of
+    /// chore nobody does twice. Trader messages carry the task id when a quest is accepted, handed
+    /// in or failed, so the app can follow along without being told.
+    /// </para>
+    /// <para>
+    /// It only knows what the logs kept. A quest accepted before the oldest surviving log looks
+    /// untouched, which is why ticking by hand still works and still wins: a manual tick is never
+    /// undone by the log saying nothing.
+    /// </para>
+    /// </remarks>
+    public bool TrackQuestsFromGameLog { get; set; } = true;
+
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }

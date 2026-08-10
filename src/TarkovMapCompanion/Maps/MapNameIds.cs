@@ -67,6 +67,11 @@ public static class MapNameIds
         ["factory_night"] = "factory",
         ["shopping_mall"] = "interchange",
         ["sandbox_sl"] = "ground-zero",
+
+        // Streets. Found by --find-logs after a real raid: the scene is called "city" and nothing
+        // else in the data is, so the map only switched when the authoritative line arrived five
+        // minutes later. Exactly the gap the diagnostic exists to surface.
+        ["city"] = "streets-of-tarkov",
     };
 
     /// <summary>

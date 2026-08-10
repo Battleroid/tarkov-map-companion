@@ -26,6 +26,8 @@ public sealed class MapSession : IDisposable
     private readonly ScreenshotWatcher _watcher;
     private readonly ScreenshotCuller _culler;
     private readonly GameLogWatcher _gameLog;
+    private readonly QuestLogWatcher _questLog;
+    private readonly QuestStateStore _questState = new();
 
     /// <summary>
     /// Whether the log has told us a raid is running.
@@ -86,6 +88,9 @@ public sealed class MapSession : IDisposable
         _gameLog = new GameLogWatcher();
         _gameLog.EventRead += OnGameLogEvent;
         _gameLog.Error += (_, message) => Log.Warn($"[game log] {message}");
+
+        _questLog = new QuestLogWatcher();
+        _questLog.Changed += OnQuestLogChanged;
 
         Waypoints = new WaypointOverlay
         {
@@ -800,6 +805,7 @@ public sealed class MapSession : IDisposable
     public void StartWatchingGameLog()
     {
         _gameLog.Stop();
+        _questLog.Stop();
 
         if (!_settings.ReadGameLog)
         {
@@ -820,11 +826,75 @@ public sealed class MapSession : IDisposable
 
         _gameLog.Start(folder);
 
+        // Seeded from what was worked out last time, so a cleaned log folder costs the history
+        // rather than everything the app already knew.
+        if (_settings.TrackQuestsFromGameLog)
+            _questLog.Start(folder, _questState.Load());
+
         var launches = GameLogFolders.CountLogFolders(folder);
         Log.Info($"[game log] following {folder} ({launches} launches recorded)");
 
         if (launches == 0)
             Status?.Invoke(this, $"No Tarkov logs in {folder} yet.");
+    }
+
+    /// <summary>
+    /// Which quests the game's own log says are running.
+    /// </summary>
+    public IReadOnlyDictionary<string, QuestProgress> QuestProgressFromLog => _questLog.State;
+
+    /// <summary>
+    /// Follows the log's opinion of which quests are accepted, and tracks them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Additive on the way in, subtractive on the way out: accepting a quest ticks it, handing it in
+    /// or failing it unticks it. That is the behavior somebody actually wants -- the map should show
+    /// what is outstanding without being curated.
+    /// </para>
+    /// <para>
+    /// A quest the logs have never mentioned is left exactly as the user left it. The logs are only
+    /// as complete as the folders that survive, so silence has to mean "no opinion" rather than
+    /// "not accepted", or a fresh install would untick everything somebody had set up by hand.
+    /// </para>
+    /// </remarks>
+    private void OnQuestLogChanged(object? sender, IReadOnlyList<QuestLogEvent> events)
+    {
+        try
+        {
+            _questState.Save(_questLog.State);
+
+            if (!_settings.TrackQuestsFromGameLog)
+            {
+                QuestsChanged?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            var moved = 0;
+
+            foreach (var entry in events)
+            {
+                // Ids the bundled data does not know are event or old-wipe quests. Nothing can be
+                // drawn for them, so there is nothing to track.
+                if (_tasks.Find(entry.TaskId) is null)
+                    continue;
+
+                var wanted = entry.Progress == QuestProgress.Active;
+
+                if (wanted == IsTracked(entry.TaskId))
+                    continue;
+
+                SetTracked(entry.TaskId, wanted);
+                moved++;
+            }
+
+            if (moved > 0)
+                Log.Info($"[quests] the log moved {moved} quest(s)");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("failed to apply quest log events", ex);
+        }
     }
 
     /// <summary>
@@ -1221,6 +1291,9 @@ public sealed class MapSession : IDisposable
 
         _gameLog.EventRead -= OnGameLogEvent;
         _gameLog.Dispose();
+
+        _questLog.Changed -= OnQuestLogChanged;
+        _questLog.Dispose();
         Party.Dispose();
         _imageSource?.Dispose();
     }
