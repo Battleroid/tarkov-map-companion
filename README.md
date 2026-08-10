@@ -171,8 +171,9 @@ own wording glosses over, since "Obtain the item: Rye croutons" also accepts Eme
 The pane resizes and closes.
 
 **Tick objectives off as you do them.** Each objective in the pane has its own box; a ticked one is
-struck through and faded, its marker stays on the map at low alpha with a check against it, and
-**Add to route** skips it. Nothing in any log Tarkov writes says how far into a quest you are — the
+struck through there and its markers come off the map entirely, so what is drawn is what is left to
+do. That is the one place this app hides rather than dims — everywhere else the hedging exists
+because the app is guessing, and a tick is you stating your own progress. Nothing in any log Tarkov writes says how far into a quest you are — the
 notification log carries a quest changing state but never a condition inside one — so this is a
 note to yourself, and it persists as one. **Clear the ticks** resets a task for a new wipe.
 

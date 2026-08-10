@@ -235,26 +235,39 @@ public sealed class QuestFromLogTests
 
     // ---- Objectives ticked off ----------------------------------------------
 
+    /// <summary>
+    /// Ticking an objective off takes it off the map.
+    /// </summary>
+    /// <remarks>
+    /// The app dims rather than hides almost everywhere else, because almost everywhere else it is
+    /// the app's own inference being hedged -- an exit it could not confirm, a position going
+    /// stale. This is the user's own statement about their own progress, so there is nothing to
+    /// hedge and a faded marker for somewhere they have already been is just clutter.
+    /// </remarks>
     [Fact]
-    public void ATickedObjectiveIsStillDrawn()
+    public void ATickedObjectiveLeavesTheMap()
     {
         var settings = Settings();
         using var session = NewSession(settings);
 
         var task = session.Tasks.Tasks.First(t =>
-            t.Objectives.Any(o => o.Points.Any(p => session.IsOnCurrentMap(p.MapId))));
+            t.Objectives.Count(o => o.Points.Any(p => session.IsOnCurrentMap(p.MapId))) > 1);
 
         session.SetTracked(task.Id, true);
 
         var before = session.Quests.Marks.Count;
         var objective = session.Quests.Marks[0].ObjectiveId;
+        var itsMarks = session.Quests.Marks.Count(m => m.ObjectiveId == objective);
 
         session.SetObjectiveDone(objective, true);
 
+        Assert.Equal(before - itsMarks, session.Quests.Marks.Count);
+        Assert.DoesNotContain(session.Quests.Marks, m => m.ObjectiveId == objective);
+
+        // And comes back when the tick does, since a wipe or a repeatable makes it outstanding again.
+        session.SetObjectiveDone(objective, false);
+
         Assert.Equal(before, session.Quests.Marks.Count);
-        Assert.All(
-            session.Quests.Marks.Where(m => m.ObjectiveId == objective),
-            m => Assert.True(m.Done));
     }
 
     [Fact]

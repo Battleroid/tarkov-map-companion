@@ -1929,7 +1929,7 @@ public partial class MainWindow : Window
 
         // Per objective, not just per task: half the value of a long quest is going to one part of
         // it, and adding all eleven of Urban Medicine's places is rarely what anybody wants.
-        if (onThisMap > 0 && _session.IsTracked(task.Id))
+        if (onThisMap > 0 && !done && _session.IsTracked(task.Id))
         {
             var route = new Button
             {
@@ -2514,20 +2514,20 @@ public partial class MainWindow : Window
 
     private void AddTaskToRoute(Data.Models.TaskData task)
     {
-        // Skipping what you have ticked off, which is the whole point of ticking it off: "add this
-        // quest to my route" means the parts of it still outstanding.
+        // Ticked-off objectives are already gone from the map, so this is only ever the parts
+        // still outstanding.
         var added = _session.Quests.Marks
-            .Where(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal) && !m.Done)
+            .Where(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal))
             .ToArray();
 
         if (added.Length == 0)
         {
-            var all = _session.Quests.Marks.Count(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal));
+            // Distinguishing "you have done all of these" from "this task is not tracked" needs the
+            // task's own objectives, since neither case leaves anything on the map to count.
+            var hereAndDone = task.Objectives.Any(o =>
+                _session.IsObjectiveDone(o.Id) && o.Points.Any(p => _session.IsOnCurrentMap(p.MapId)));
 
-            StatusText.Text = all > 0
-
-                // Every place it has here is one you have already ticked off, which is a different
-                // situation from the task not being tracked and deserves a different sentence.
+            StatusText.Text = hereAndDone
                 ? $"Every part of {task.Name} on this map is already marked done."
 
                 // Only tracked tasks have marks, so this is the "ticked it and pressed Route in one

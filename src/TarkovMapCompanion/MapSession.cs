@@ -599,6 +599,13 @@ public sealed class MapSession : IDisposable
 
             foreach (var objective in task.Objectives)
             {
+                // Ticked off means gone from the map, not faded on it. The rest of this app dims
+                // rather than hides, but that rule is about not hiding things on the strength of
+                // the app's own guesses -- an unconfirmed exit, a stale position. A tick is the
+                // user's own assertion about their own progress, and there is nothing to hedge.
+                if (IsObjectiveDone(objective.Id))
+                    continue;
+
                 foreach (var point in objective.Points)
                 {
                     if (!IsOnCurrentMap(point.MapId))
@@ -619,10 +626,7 @@ public sealed class MapSession : IDisposable
                         new GamePosition(point.X, point.Y, point.Z),
                         Index: 0,
                         point.OneOf,
-                        point.OutlinePoints.ToArray())
-                    {
-                        Done = IsObjectiveDone(objective.Id),
-                    });
+                        point.OutlinePoints.ToArray()));
                 }
             }
 
