@@ -203,6 +203,9 @@ public sealed class AppSettings
     /// </remarks>
     public double SidebarWidth { get; set; } = 290.0;
 
+    /// <summary>How wide the quest detail pane is when open, in pixels.</summary>
+    public double QuestPaneWidth { get; set; } = 360.0;
+
     // ---- Annotations -------------------------------------------------------
 
     /// <summary>Draw the text notes written on the map. On: they are not there unless asked for.</summary>

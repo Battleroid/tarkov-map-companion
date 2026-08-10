@@ -140,6 +140,20 @@ map offer you the right one. It proposes rather than switches, because several m
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
 
+**Quests it already knows you are on.** With the game's log switched on, the app reads the trader
+messages Tarkov writes and follows along: accepting a quest ticks it, handing it in unticks it. The
+task id rides along in the notification, so this is exact rather than guessed. On the development
+machine it reconstructed 73 active quests out of a week of logs on first run.
+
+It only knows what the logs kept, so a quest accepted before the oldest surviving log looks
+untouched — ticking by hand still works and is never undone by the log saying nothing. What it works
+out is cached, so a cleaned log folder costs the history rather than everything.
+
+**Read a quest properly.** Click a task's name and it opens in a pane on the left: objectives at a
+size you can actually read, one per block, each saying whether it is on the map in front of you and
+carrying its own **Route** button. Prerequisites are listed with a tick against the ones already
+done. The pane resizes and closes.
+
 **Quest tracking.** The **Quests** tab lists all 510 tasks, grouped by trader, with a search box and
 filters for *on this map*, *at or below my level*, and *Kappa*. Tick one and its objectives are drawn
 on the map: zones as their actual footprint rather than a dot, so a "visit" objective reads as *stand

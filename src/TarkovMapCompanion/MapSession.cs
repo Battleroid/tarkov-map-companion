@@ -866,30 +866,49 @@ public sealed class MapSession : IDisposable
 
             if (!_settings.TrackQuestsFromGameLog)
             {
+                // Still worth telling the UI: the pane shows what the game says about a quest even
+                // when it is not the thing deciding what gets drawn.
                 QuestsChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
+            // Against where each quest ended up, not against each step it took to get there. The
+            // first read folds a week of history, and a quest taken and handed in last Tuesday
+            // produces two events that cancel out -- replaying them would tick and untick it, and
+            // rebuild every marker on the map twice for nothing. On this machine that was 221
+            // rebuilds at startup instead of the 73 quests that are actually running.
+            var state = _questLog.State;
             var moved = 0;
 
-            foreach (var entry in events)
+            foreach (var id in events.Select(e => e.TaskId).Distinct(StringComparer.Ordinal))
             {
                 // Ids the bundled data does not know are event or old-wipe quests. Nothing can be
                 // drawn for them, so there is nothing to track.
-                if (_tasks.Find(entry.TaskId) is null)
+                if (_tasks.Find(id) is null)
                     continue;
 
-                var wanted = entry.Progress == QuestProgress.Active;
+                var wanted = state.TryGetValue(id, out var progress) && progress == QuestProgress.Active;
 
-                if (wanted == IsTracked(entry.TaskId))
+                if (wanted == IsTracked(id))
                     continue;
 
-                SetTracked(entry.TaskId, wanted);
+                if (wanted)
+                    _settings.TrackedTasks.Add(id);
+                else
+                    _settings.TrackedTasks.RemoveAll(t => string.Equals(t, id, StringComparison.Ordinal));
+
                 moved++;
             }
 
             if (moved > 0)
+            {
+                // One rebuild for the lot, rather than one per quest.
                 Log.Info($"[quests] the log moved {moved} quest(s)");
+                RebuildQuestMarks();
+                return;
+            }
+
+            QuestsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

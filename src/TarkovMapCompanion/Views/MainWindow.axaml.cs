@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using TarkovMapCompanion.GameLog;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
@@ -237,6 +238,7 @@ public partial class MainWindow : Window
         WireQuests();
         WireNotes();
         WireSidebar();
+        WireQuestPane();
 
         SuggestionAccept.Click += OnSuggestionAccepted;
         SuggestionDismiss.Click += (_, _) => HideSuggestion();
@@ -347,6 +349,7 @@ public partial class MainWindow : Window
         _session.QuestsChanged += (_, _) => Post(() =>
         {
             BuildQuestList();
+            BuildQuestPane();
             _canvas.InvalidateVisual();
         });
 
@@ -1217,7 +1220,7 @@ public partial class MainWindow : Window
         if (_session.Player.Current is { } fix)
             lines.Add($"{fix.Position.GroundDistanceTo(mark.Position):F0} m away");
 
-        lines.Add("Click to add to your route");
+        lines.Add("Click to open this quest");
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -1281,9 +1284,11 @@ public partial class MainWindow : Window
 
         // A quest marker is a small, deliberate target and the tooltip says what clicking it does,
         // so this is not a click anybody lands on by accident. Undo marker takes it back.
+        // Opens it rather than routing to it. A single click quietly adding waypoints was the sort
+        // of thing you only notice afterward, and the pane it opens has the route button in it.
         if (_session.Quests.HitTest(_canvas.Viewport, screen.X, screen.Y) is { } mark)
         {
-            AddQuestToRoute(mark);
+            OpenQuest(mark.TaskId);
             return;
         }
 
@@ -1389,7 +1394,9 @@ public partial class MainWindow : Window
     /// <summary>Width to come back to when the panel is unfolded.</summary>
     private double _sidebarRestoreWidth = 290.0;
 
-    private ColumnDefinition SidebarColumn => ContentGrid.ColumnDefinitions[2];
+    private ColumnDefinition SidebarColumn => ContentGrid.ColumnDefinitions[4];
+
+    private ColumnDefinition QuestPaneColumn => ContentGrid.ColumnDefinitions[0];
 
     private void WireSidebar()
     {
@@ -1455,6 +1462,322 @@ public partial class MainWindow : Window
                 ? "Drag to resize the panel, double-click to hide it"
                 : "Double-click to bring the panel back");
     }
+
+    // ---- Quest detail -----------------------------------------------------
+
+    /// <summary>The task the left pane is showing, or null when it is closed.</summary>
+    private string? _openQuestId;
+
+    private double _questPaneRestoreWidth = 360.0;
+
+    private void WireQuestPane()
+    {
+        QuestPaneCloseButton.Click += (_, _) => CloseQuestPane();
+
+        QuestPaneSplitter.DragCompleted += (_, _) => Apply(() =>
+        {
+            _questPaneRestoreWidth = Math.Clamp(QuestPaneColumn.Width.Value, 260.0, 700.0);
+            _settings.QuestPaneWidth = _questPaneRestoreWidth;
+        });
+
+        _questPaneRestoreWidth = Math.Clamp(_settings.QuestPaneWidth, 260.0, 700.0);
+    }
+
+    /// <summary>Shows one quest in the left pane, opening it if it was closed.</summary>
+    private void OpenQuest(string taskId)
+    {
+        _openQuestId = taskId;
+
+        QuestPaneHost.IsVisible = true;
+        QuestPaneSplitter.IsVisible = true;
+        QuestPaneColumn.Width = new GridLength(_questPaneRestoreWidth);
+
+        BuildQuestPane();
+    }
+
+    private void CloseQuestPane()
+    {
+        _openQuestId = null;
+
+        QuestPaneHost.IsVisible = false;
+        QuestPaneSplitter.IsVisible = false;
+        QuestPaneColumn.Width = new GridLength(0);
+    }
+
+    /// <summary>
+    /// Lays out everything known about the open quest.
+    /// </summary>
+    /// <remarks>
+    /// The point of this pane is legibility, so the sizes here are deliberate: objective text at 13
+    /// rather than the 10 it had in the list, real spacing between objectives, and one idea per
+    /// line. The list is for finding a quest; this is for reading one.
+    /// </remarks>
+    private void BuildQuestPane()
+    {
+        QuestPane.Children.Clear();
+
+        if (_openQuestId is null || _session.Tasks.Find(_openQuestId) is not { } task)
+        {
+            CloseQuestPane();
+            return;
+        }
+
+        QuestPane.Children.Add(new TextBlock
+        {
+            Text = task.Name,
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 2),
+        });
+
+        var facts = new List<string> { task.Trader };
+
+        if (task.MinPlayerLevel > 0)
+            facts.Add($"level {task.MinPlayerLevel}");
+
+        if (task.KappaRequired)
+            facts.Add("Kappa");
+
+        if (task.LightkeeperRequired)
+            facts.Add("Lightkeeper");
+
+        if (task.Faction is { Length: > 0 } faction)
+            facts.Add(faction);
+
+        QuestPane.Children.Add(new TextBlock
+        {
+            Text = string.Join(" · ", facts),
+            Classes = { "secondary" },
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        QuestPane.Children.Add(BuildQuestPaneActions(task));
+
+        // Prerequisites. The plan called for these and they were missed the first time: a level 40
+        // follow-up sat next to the quest that unlocks it with nothing to say which came first.
+        if (task.Requires.Count > 0)
+            QuestPane.Children.Add(BuildPrerequisites(task));
+
+        QuestPane.Children.Add(Heading("OBJECTIVES", 12));
+
+        var here = 0;
+
+        foreach (var objective in task.Objectives)
+        {
+            var onThisMap = objective.Points.Count(p => _session.IsOnCurrentMap(p.MapId));
+            here += onThisMap;
+
+            QuestPane.Children.Add(BuildObjective(task, objective, onThisMap));
+        }
+
+        if (task.Objectives.Count == 0)
+        {
+            QuestPane.Children.Add(new TextBlock
+            {
+                Text = "No objectives listed for this task.",
+                Classes = { "secondary" },
+                FontSize = 12,
+            });
+        }
+
+        QuestPane.Children.Add(new TextBlock
+        {
+            Text = here == 0
+                ? $"Nothing from this task is on {_session.CurrentMap.DisplayName}."
+                : $"{here} place{(here == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}.",
+            Classes = { "secondary" },
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0),
+        });
+    }
+
+    private Control BuildQuestPaneActions(Data.Models.TaskData task)
+    {
+        var row = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 10) };
+
+        var track = new CheckBox
+        {
+            Content = "Track on the map",
+            IsChecked = _session.IsTracked(task.Id),
+            FontSize = 12,
+        };
+
+        track.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _session.SetTracked(task.Id, track.IsChecked ?? false);
+            _canvas.InvalidateVisual();
+        });
+
+        row.Children.Add(track);
+
+        // What the game itself says, which is not the same thing as whether it is being drawn.
+        if (_session.QuestProgressFromLog.TryGetValue(task.Id, out var progress))
+        {
+            row.Children.Add(new TextBlock
+            {
+                Text = progress switch
+                {
+                    QuestProgress.Active => "The game says you have this one accepted.",
+                    QuestProgress.Completed => "The game says you have handed this one in.",
+                    QuestProgress.Failed => "The game says this one was failed.",
+                    _ => "",
+                },
+                Classes = { "secondary" },
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+
+        var buttons = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
+
+        var route = new Button
+        {
+            Content = "Add to route",
+            FontSize = 11,
+            Padding = new Thickness(8, 3),
+            MinHeight = 0,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            [ToolTip.TipProperty] = "Add every objective of this task that is on this map",
+        };
+
+        route.Click += (_, _) => AddTaskToRoute(task);
+        Grid.SetColumn(route, 0);
+        buttons.Children.Add(route);
+
+        if (task.WikiLink is { Length: > 0 } wiki)
+        {
+            var link = new Button
+            {
+                Content = "Wiki",
+                FontSize = 11,
+                Padding = new Thickness(8, 3),
+                MinHeight = 0,
+            };
+
+            link.Click += (_, _) => OpenUrl(wiki);
+            Grid.SetColumn(link, 1);
+            buttons.Children.Add(link);
+        }
+
+        row.Children.Add(buttons);
+        return row;
+    }
+
+    private Control BuildPrerequisites(Data.Models.TaskData task)
+    {
+        var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 10) };
+        block.Children.Add(Heading("NEEDS FIRST", 12));
+
+        foreach (var id in task.Requires)
+        {
+            var required = _session.Tasks.Find(id);
+            var done = _session.QuestProgressFromLog.TryGetValue(id, out var p) && p == QuestProgress.Completed;
+
+            block.Children.Add(new TextBlock
+            {
+                Text = (done ? "✓ " : "· ") + (required?.Name ?? "a task this build does not know"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+
+                // Dimmed rather than hidden when it is still outstanding, which is the habit the
+                // rest of the app already has with exits it cannot confirm.
+                Opacity = done ? 0.6 : 1.0,
+            });
+        }
+
+        return block;
+    }
+
+    private Control BuildObjective(Data.Models.TaskData task, Data.Models.TaskObjectiveData objective, int onThisMap)
+    {
+        var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 9) };
+
+        block.Children.Add(new TextBlock
+        {
+            Text = objective.Description,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = objective.Optional ? 0.7 : 1.0,
+        });
+
+        var notes = new List<string>();
+
+        if (objective.Optional)
+            notes.Add("optional");
+
+        if (objective.Count is > 1)
+            notes.Add($"{objective.Count} needed");
+
+        if (objective.FoundInRaid)
+            notes.Add("found in raid");
+
+        notes.Add(onThisMap > 0
+            ? $"{onThisMap} on {_session.CurrentMap.DisplayName}"
+            : objective.Points.Count > 0 ? "on another map" : "nowhere in particular");
+
+        var footer = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
+
+        var meta = new TextBlock
+        {
+            Text = string.Join(" · ", notes),
+            Classes = { "secondary" },
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+
+        Grid.SetColumn(meta, 0);
+        footer.Children.Add(meta);
+
+        // Per objective, not just per task: half the value of a long quest is going to one part of
+        // it, and adding all eleven of Urban Medicine's places is rarely what anybody wants.
+        if (onThisMap > 0 && _session.IsTracked(task.Id))
+        {
+            var route = new Button
+            {
+                Content = "Route",
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                MinHeight = 0,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                [ToolTip.TipProperty] = "Add just this objective to your route",
+            };
+
+            route.Click += (_, _) => AddObjectiveToRoute(task, objective);
+
+            Grid.SetColumn(route, 1);
+            footer.Children.Add(route);
+        }
+
+        block.Children.Add(footer);
+        return block;
+    }
+
+    private void AddObjectiveToRoute(Data.Models.TaskData task, Data.Models.TaskObjectiveData objective)
+    {
+        var marks = _session.Quests.Marks
+            .Where(m => string.Equals(m.ObjectiveId, objective.Id, StringComparison.Ordinal))
+            .ToArray();
+
+        foreach (var mark in marks)
+            AddQuestToRoute(mark, quiet: true);
+
+        StatusText.Text = marks.Length == 0
+            ? "Nothing from that objective is on this map."
+            : $"Added {marks.Length} place{(marks.Length == 1 ? "" : "s")} from {task.Name}.";
+    }
+
+    private static TextBlock Heading(string text, double size) => new()
+    {
+        Text = text,
+        Classes = { "heading" },
+        FontSize = size,
+        Margin = new Thickness(0, 0, 0, 4),
+    };
 
     // ---- Notes ------------------------------------------------------------
 
@@ -1864,13 +2187,27 @@ public partial class MainWindow : Window
     {
         var here = HasObjectiveHere(task);
 
+        // The tick and the name do different things now, so they are different controls. Putting
+        // the name inside the checkbox made reading a quest and tracking it the same click.
         var tick = new CheckBox
         {
-            Content = task.Name,
             IsChecked = _session.IsTracked(task.Id),
-            FontSize = 12,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            [ToolTip.TipProperty] = "Draw this task's objectives on the map",
         };
+
+        var title = new TextBlock
+        {
+            Text = task.Name,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            [ToolTip.TipProperty] = "Read this task",
+        };
+
+        title.PointerPressed += (_, _) => OpenQuest(task.Id);
 
         tick.IsCheckedChanged += (_, _) => Apply(() =>
         {
@@ -1907,15 +2244,17 @@ public partial class MainWindow : Window
             Text = string.Join(" · ", notes),
             Classes = { "secondary" },
             FontSize = 10,
-            Margin = new Thickness(24, 0, 0, 0),
+            Margin = new Thickness(26, 0, 0, 0),
             TextWrapping = TextWrapping.Wrap,
         };
 
         var row = new StackPanel { Spacing = 1, Margin = new Thickness(0, 2, 0, 2) };
 
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
         Grid.SetColumn(tick, 0);
+        Grid.SetColumn(title, 1);
         header.Children.Add(tick);
+        header.Children.Add(title);
 
         if (here)
         {
@@ -1931,7 +2270,7 @@ public partial class MainWindow : Window
 
             route.Click += (_, _) => AddTaskToRoute(task);
 
-            Grid.SetColumn(route, 1);
+            Grid.SetColumn(route, 2);
             header.Children.Add(route);
         }
 
@@ -1950,7 +2289,7 @@ public partial class MainWindow : Window
 
             link.Click += (_, _) => OpenUrl(wiki);
 
-            Grid.SetColumn(link, 2);
+            Grid.SetColumn(link, 3);
             header.Children.Add(link);
         }
 

@@ -94,20 +94,51 @@
       name, and at 290 pixels the second of them ends up under the scrollbar.
     -->
     <Grid Name="ContentGrid">
+      <!--
+        Quest detail on the left, map in the middle, lists on the right. Reading a quest and
+        browsing for one are different jobs: the list wants to be narrow and scannable, and the
+        detail wants room for a paragraph of objective text at a size somebody can actually read.
+        Columns are reached from code by index; a ColumnDefinition takes no Name.
+      -->
       <Grid.ColumnDefinitions>
-        <!-- The map keeps a floor, so dragging the panel wide cannot squeeze it to nothing. -->
+        <ColumnDefinition Width="0" MaxWidth="700" />
+        <ColumnDefinition Width="Auto" />
+        <!-- The map keeps a floor, so dragging either panel wide cannot squeeze it to nothing. -->
         <ColumnDefinition Width="*" MinWidth="320" />
         <ColumnDefinition Width="Auto" />
-        <!-- Reached from code as ContentGrid.ColumnDefinitions[2]; a ColumnDefinition takes no Name. -->
         <ColumnDefinition Width="290" MinWidth="220" MaxWidth="700" />
       </Grid.ColumnDefinitions>
+
+      <!-- Everything about one quest, at a size that does not need squinting at. -->
+      <Border Grid.Column="0" Name="QuestPaneHost" IsVisible="False"
+              Background="{DynamicResource SurfacePanelBrush}"
+              BorderBrush="{DynamicResource BorderSubtleBrush}"
+              BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,10,10,6">
+            <TextBlock Grid.Column="0" Classes="heading" FontSize="11" Text="QUEST" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Name="QuestPaneCloseButton" Content="✕" FontSize="11"
+                    Padding="6,1" MinHeight="0" ToolTip.Tip="Close this pane" />
+          </Grid>
+
+          <ScrollViewer Grid.Row="1" Margin="12,0,4,10">
+            <StackPanel Name="QuestPane" Spacing="0" Margin="0,0,10,0" />
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Name="QuestPaneSplitter"
+                    Width="5" IsVisible="False"
+                    Background="{DynamicResource BorderSubtleBrush}"
+                    ResizeDirection="Columns"
+                    ToolTip.Tip="Drag to resize the quest pane" />
 
     <!--
       Exits, quests and notes as tabs rather than three panels stacked in one column. All three are
       lists that want the full height of the window, and a quest list folded into an expander above
       the exits would have shown four rows out of five hundred.
     -->
-    <Border Grid.Column="2" Name="SidePanelHost"
+    <Border Grid.Column="4" Name="SidePanelHost"
             Background="{DynamicResource SurfacePanelBrush}"
             BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="1,0,0,0">
@@ -302,7 +333,7 @@
       Drag to resize, double-click to fold the panel away. Both matter: the width is a preference
       people have opinions about, and on a small screen the map is the thing you actually want.
     -->
-    <GridSplitter Grid.Column="1" Name="PanelSplitter"
+    <GridSplitter Grid.Column="3" Name="PanelSplitter"
                   Width="5"
                   Background="{DynamicResource BorderSubtleBrush}"
                   ResizeDirection="Columns"
@@ -316,7 +347,7 @@
       Both of these describe the map rather than the exit list, so they belong on the map: a whole
       side pane for two floor checkboxes was a lot of window for something most maps do not use.
     -->
-    <Panel Grid.Column="0" Name="MapHost">
+    <Panel Grid.Column="2" Name="MapHost">
 
       <!--
         Where a note gets typed. Floats over the map rather than opening a dialog: you have just
