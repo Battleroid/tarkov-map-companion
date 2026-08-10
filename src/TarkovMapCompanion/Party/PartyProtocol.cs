@@ -54,6 +54,33 @@ public enum PartyMessageKind
 
     /// <summary>The reply, echoing the sequence number so a round trip can be timed.</summary>
     HeartbeatAck,
+
+    /// <summary>One player's whole set of map notes, replacing whatever they last sent.</summary>
+    Annotations,
+
+    /// <summary>Every note the host knows, fanned out the way the roster and routes are.</summary>
+    AllAnnotations,
+}
+
+/// <summary>A note somebody wrote on a map, as it travels between clients.</summary>
+/// <remarks>
+/// Deliberately not the same type the store persists. That one carries an id and an author, which
+/// are local bookkeeping: the id is regenerated on receipt so two people's files cannot collide,
+/// and the author is stamped from the connection rather than trusted from the payload.
+/// </remarks>
+public sealed class SharedAnnotation
+{
+    /// <summary>Who wrote it. Set by the host from the connection, never from the sender.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Normalized map name.</summary>
+    public string Map { get; set; } = "";
+
+    public double X { get; set; }
+
+    public double Z { get; set; }
+
+    public string Text { get; set; } = "";
 }
 
 /// <summary>
@@ -194,6 +221,9 @@ public sealed class PartyMessage
 
     /// <summary>Every route the host knows, host to guests.</summary>
     public List<PeerRoute>? Routes { get; set; }
+
+    /// <summary>Map notes: one player's set going up, everybody's coming back down.</summary>
+    public List<SharedAnnotation>? Annotations { get; set; }
 }
 
 // UseStringEnumConverter is gone: it existed for the one enum here, and the type-level converter
@@ -223,7 +253,14 @@ public static class PartyProtocol
     public const int MaxFrameBytes = 64 * 1024;
 
     /// <summary>What this build speaks. Stamped on everything it sends.</summary>
-    public const int Version = 3;
+    /// <remarks>
+    /// Four adds shared annotations, and unlike three it does not move the salt. Nothing about a
+    /// build that has never heard of annotations is broken by them: the tolerant kind converter
+    /// skips what it does not know, so a v3 client sees no notes and shares none, and everything
+    /// else in the session carries on. Heartbeats were different because a peer that failed to
+    /// answer them would have been dropped.
+    /// </remarks>
+    public const int Version = 4;
 
     /// <summary>How often each side proves it is still there.</summary>
     /// <remarks>
@@ -253,6 +290,16 @@ public static class PartyProtocol
 
     /// <summary>Most routes the host will fan out at once, for the same reason.</summary>
     public const int MaxSharedRoutes = 8;
+
+    /// <summary>
+    /// Most notes one player will share, truncated on send and on receive.
+    /// </summary>
+    /// <remarks>
+    /// Far below what the store will hold locally. Somebody who has labeled every building on
+    /// Streets has a few hundred notes and every one of them would be in every frame; the cap keeps
+    /// a fan-out inside the frame limit without anybody having to think about it.
+    /// </remarks>
+    public const int MaxSharedAnnotations = 120;
 
     private const int NonceBytes = 12;
     private const int TagBytes = 16;

@@ -193,6 +193,21 @@ public sealed class AppSettings
     /// </remarks>
     public string GameLogFolder { get; set; } = "";
 
+    // ---- Annotations -------------------------------------------------------
+
+    /// <summary>Draw the text notes written on the map. On: they are not there unless asked for.</summary>
+    public bool ShowAnnotations { get; set; } = true;
+
+    /// <summary>
+    /// Send your own map notes to the squad.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, unlike routes. A route is a plan for the next ten minutes; a set of notes is
+    /// something somebody built up over weeks, and pushing that onto three other people's maps the
+    /// moment they join is not a thing to do without being asked.
+    /// </remarks>
+    public bool ShareAnnotationsWithParty { get; set; }
+
     // ---- Quests ------------------------------------------------------------
 
     /// <summary>

@@ -80,6 +80,22 @@
     <Setter Property="MinHeight" Value="3" />
   </Style>
 
+  <!--
+    Three tabs have to fit across a 290px panel. Fluent's default header padding is built for a
+    window-width tab strip and wrapped "Notes" onto a second line the moment a third tab arrived.
+  -->
+  <Style Selector="TabItem">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
   <Style Selector="TextBlock.secondary">
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>

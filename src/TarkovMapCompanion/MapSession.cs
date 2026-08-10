@@ -40,6 +40,7 @@ public sealed class MapSession : IDisposable
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
     private readonly TaskStore _tasks;
+    private readonly AnnotationStore _annotations = new();
 
     private IMapImageSource? _imageSource;
     private int _fixes;
@@ -71,6 +72,13 @@ public sealed class MapSession : IDisposable
         _tasks = new TaskStore(settings);
         _tasks.Updated += (_, _) => RebuildQuestMarks();
 
+        _annotations.Load();
+        _annotations.Changed += (_, _) =>
+        {
+            RefreshAnnotations();
+            PublishAnnotations();
+        };
+
         _watcher = new ScreenshotWatcher();
         _watcher.FixDetected += OnFixDetected;
         _watcher.Error += (_, message) => Status?.Invoke(this, message);
@@ -99,6 +107,7 @@ public sealed class MapSession : IDisposable
         Party = new PartySession { SelfColor = settings.PlayerColor };
 
         Party.RoutesChanged += (_, _) => RebuildSharedRoutes();
+        Party.AnnotationsChanged += (_, _) => ApplySharedAnnotations();
 
         Party.Changed += (_, _) =>
         {
@@ -113,7 +122,13 @@ public sealed class MapSession : IDisposable
             // trail left drawn across the map after a session ends is exactly the sort of thing
             // that gets reported as "it is showing me someone who is not there".
             if (!Party.IsActive)
+            {
                 Peers.ClearTrails();
+
+                // Their notes are session state. Left behind they would sit on the map for weeks
+                // in somebody's color, with no session to explain where they came from.
+                _annotations.ClearShared();
+            }
         };
         Party.Status += (_, message) => Status?.Invoke(this, message);
         Party.PingReceived += (_, ping) => OnPingReceived(ping);
@@ -132,6 +147,15 @@ public sealed class MapSession : IDisposable
         Pois = new PoiOverlay();
 
         Quests = new QuestOverlay { ShowNames = settings.ShowQuestNames };
+
+        Annotations = new AnnotationOverlay
+        {
+            IsVisible = settings.ShowAnnotations,
+
+            // Somebody else's note is drawn in their marker color, which is the same answer the
+            // roster and their route already give. One person, one color, everywhere.
+            SharedColor = name => Peers.ColorFor(name),
+        };
         ExtractLine = new ExtractLineOverlay
         {
             Color = ColorCodec.Parse(settings.GuideLineColor, MarkerPalette.ExtractLine),
@@ -322,7 +346,7 @@ public sealed class MapSession : IDisposable
     /// reader needs no synchronization and cannot drift out of step with the first.
     /// </remarks>
     public IReadOnlyList<IMapOverlay> Overlays =>
-        [Heatmap, Pois, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
+        [Heatmap, Pois, Annotations, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
 
     public MapDataStore MapData => _mapData;
 
@@ -331,6 +355,15 @@ public sealed class MapSession : IDisposable
 
     /// <summary>Objectives of the tracked quests, drawn on the map.</summary>
     public QuestOverlay Quests { get; }
+
+    /// <summary>Text written on the map, yours and the squad's.</summary>
+    public AnnotationOverlay Annotations { get; }
+
+    /// <summary>The notes themselves, for the list and for importing.</summary>
+    public AnnotationStore Notes => _annotations;
+
+    /// <summary>Raised when the drawn notes change.</summary>
+    public event EventHandler? AnnotationsChanged;
 
     /// <summary>Raised when the drawn quest objectives change.</summary>
     public event EventHandler? QuestsChanged;
@@ -481,6 +514,7 @@ public sealed class MapSession : IDisposable
 
         RestoreSelectedExtract();
         RebuildQuestMarks();
+        RefreshAnnotations();
 
         PoisChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -601,6 +635,90 @@ public sealed class MapSession : IDisposable
     /// which objectives belong to which map should not need either.
     /// </remarks>
     internal void SetMapForTesting(GameMap map) => CurrentMap = map;
+
+    // ---- Annotations --------------------------------------------------------
+
+    /// <summary>Adds a note where the map was clicked. Null when the text was unusable.</summary>
+    public MapAnnotation? AddAnnotation(MapPoint basePoint, string? text)
+    {
+        var (x, z) = CurrentMap.Projection.ToGame(basePoint);
+        return _annotations.Add(CurrentMap.NormalizedName, x, z, text);
+    }
+
+    /// <summary>Hands the overlay whatever belongs on the map being shown.</summary>
+    private void RefreshAnnotations()
+    {
+        Annotations.Map = CurrentMap;
+        Annotations.SetAnnotations(_annotations.ForMap(CurrentMap.NormalizedName));
+
+        AnnotationsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sends our own notes to the squad, or withdraws them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only our own, never anything a teammate shared: relaying somebody else's notes back out
+    /// would have them arriving attributed to us, and everyone would end up holding two copies of
+    /// every label.
+    /// </para>
+    /// <para>
+    /// Opting out publishes an empty set rather than going quiet, the same as routes. Otherwise
+    /// unticking the box leaves whatever you last shared drawn on everybody's map until the session
+    /// ends.
+    /// </para>
+    /// </remarks>
+    private void PublishAnnotations()
+    {
+        if (!_settings.ShareAnnotationsWithParty)
+        {
+            Party.PublishAnnotations([]);
+            return;
+        }
+
+        var mine = _annotations.Own
+            .Select(a => new SharedAnnotation { Map = a.Map, X = a.X, Z = a.Z, Text = a.Text })
+            .ToArray();
+
+        Party.PublishAnnotations(mine);
+    }
+
+    /// <summary>Resends the notes, for when the sharing preference changes rather than the notes.</summary>
+    public void RepublishAnnotations() => PublishAnnotations();
+
+    /// <summary>Folds what the squad shared into the store, replacing whatever they last sent.</summary>
+    private void ApplySharedAnnotations()
+    {
+        var mine = Party.SelfName;
+
+        var theirs = Party.Annotations
+            .Where(a => !string.Equals(a.Name, mine, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        // Everyone who has gone quiet has to be cleared too, which a loop over what arrived would
+        // miss: somebody unticking the box sends an empty set, and that has to remove their notes
+        // rather than leave the last ones they sent.
+        foreach (var author in _annotations.All
+                     .Where(a => a.Author is not null)
+                     .Select(a => a.Author!)
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .Where(author => !theirs.Any(g => string.Equals(g.Key, author, StringComparison.OrdinalIgnoreCase)))
+                     .ToArray())
+        {
+            _annotations.SetShared(author, []);
+        }
+
+        foreach (var group in theirs)
+        {
+            _annotations.SetShared(
+                group.Key,
+                group.Select(a => new MapAnnotation { Map = a.Map, X = a.X, Z = a.Z, Text = a.Text }).ToArray());
+        }
+
+        RefreshAnnotations();
+    }
 
     /// <summary>
     /// Whether a BSG map id refers to the map currently shown, variants included.

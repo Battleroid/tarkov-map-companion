@@ -124,6 +124,9 @@ public sealed class PartySession : IDisposable
     /// <summary>Every route the session knows about, by owner.</summary>
     private readonly Dictionary<string, PeerRoute> _routes = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Every shared map note, by owner. Same wholesale-replacement rule as routes.</summary>
+    private readonly Dictionary<string, List<SharedAnnotation>> _annotations = new(StringComparer.OrdinalIgnoreCase);
+
     private CancellationTokenSource? _cancellation;
     private TcpListener? _listener;
     private PortMapper? _mapper;
@@ -243,6 +246,15 @@ public sealed class PartySession : IDisposable
     public bool IsActive => State is PartyState.Hosting or PartyState.Joined;
 
     /// <summary>Every route the session knows about, ours included.</summary>
+    /// <summary>Every shared map note the session knows about, ours included.</summary>
+    public IReadOnlyList<SharedAnnotation> Annotations
+    {
+        get { lock (_gate) return _annotations.Values.SelectMany(v => v).ToArray(); }
+    }
+
+    /// <summary>Raised when the shared notes change, kept off Changed for the same reason routes are.</summary>
+    public event EventHandler? AnnotationsChanged;
+
     public IReadOnlyList<PeerRoute> Routes
     {
         get { lock (_gate) return _routes.Values.ToArray(); }
@@ -599,6 +611,15 @@ public sealed class PartySession : IDisposable
                     continue;
                 }
 
+                if (message.Kind == PartyMessageKind.Annotations)
+                {
+                    // Attributed from the connection, like pings and routes, so nobody can write
+                    // notes under somebody else's name.
+                    StoreAnnotations(name, message.Annotations ?? [], generation);
+                    await BroadcastAnnotationsAsync(cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
                 if (message.Kind != PartyMessageKind.Position || message.Position is null)
                     continue;
 
@@ -632,6 +653,7 @@ public sealed class PartySession : IDisposable
                     _peers.Remove(hosted.Name);
                     _colors.Remove(hosted.Name);
                     _routes.Remove(hosted.Name);
+                    _annotations.Remove(hosted.Name);
                 }
 
                 LogParty($"\"{hosted.Name}\" left; {_clients.Count} still connected");
@@ -1053,6 +1075,13 @@ public sealed class PartySession : IDisposable
                     continue;
                 }
 
+                if (message.Kind == PartyMessageKind.AllAnnotations)
+                {
+                    ApplyAnnotations(message.Annotations ?? [], generation);
+                    AnnotationsChanged?.Invoke(this, EventArgs.Empty);
+                    continue;
+                }
+
                 // Anything a later build invented. Skipped rather than fatal, which is the whole
                 // point of the tolerant kind converter.
                 if (message.Kind == PartyMessageKind.Unknown)
@@ -1181,6 +1210,104 @@ public sealed class PartySession : IDisposable
         }
 
         Send(new PartyMessage { Kind = PartyMessageKind.Route, Route = route });
+    }
+
+    /// <summary>
+    /// Sends our whole set of map notes, or an empty set to withdraw them.
+    /// </summary>
+    /// <remarks>
+    /// Wholesale replacement, exactly like a route: a client that missed one message self-corrects
+    /// on the next, and a late joiner needs no special path. Truncated on the way out so a big
+    /// collection cannot produce a frame the receiver would reject.
+    /// </remarks>
+    public void PublishAnnotations(IReadOnlyList<SharedAnnotation> annotations)
+    {
+        if (!IsActive)
+            return;
+
+        var mine = annotations
+            .Take(PartyProtocol.MaxSharedAnnotations)
+            .Select(a => new SharedAnnotation
+            {
+                Name = _selfName,
+                Map = a.Map,
+                X = a.X,
+                Z = a.Z,
+                Text = a.Text,
+            })
+            .ToList();
+
+        if (_role == "host")
+        {
+            StoreAnnotations(_selfName, mine, CurrentGeneration);
+            _ = BroadcastAnnotationsAsync(_cancellation?.Token ?? CancellationToken.None);
+            return;
+        }
+
+        Send(new PartyMessage { Kind = PartyMessageKind.Annotations, Annotations = mine });
+    }
+
+    /// <summary>Records one player's notes, replacing whatever they last sent.</summary>
+    private void StoreAnnotations(string name, List<SharedAnnotation> annotations, int generation)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation)
+                return;
+
+            if (annotations.Count == 0)
+            {
+                _annotations.Remove(name);
+                return;
+            }
+
+            foreach (var annotation in annotations)
+                annotation.Name = name;
+
+            _annotations[name] = annotations.Take(PartyProtocol.MaxSharedAnnotations).ToList();
+        }
+    }
+
+    /// <summary>Sends every note the host knows to everyone, the same way routes are fanned out.</summary>
+    private async Task BroadcastAnnotationsAsync(CancellationToken cancellationToken)
+    {
+        AnnotationsChanged?.Invoke(this, EventArgs.Empty);
+
+        HostedClient[] clients;
+        lock (_gate)
+            clients = _clients.ToArray();
+
+        if (clients.Length == 0 || _key is null)
+            return;
+
+        List<SharedAnnotation> all;
+        lock (_gate)
+            all = _annotations.Values.SelectMany(v => v).Take(PartyProtocol.MaxSharedAnnotations * 4).ToList();
+
+        foreach (var client in clients)
+        {
+            var message = new PartyMessage { Kind = PartyMessageKind.AllAnnotations, Annotations = all };
+            await SendToAsync(client, message, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Replaces every known note with what the host just sent.</summary>
+    internal void ApplyAnnotations(List<SharedAnnotation> annotations, int generation)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation)
+                return;
+
+            _annotations.Clear();
+
+            foreach (var group in annotations
+                         .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                         .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                _annotations[group.Key] = group.Take(PartyProtocol.MaxSharedAnnotations).ToList();
+            }
+        }
     }
 
     /// <summary>
@@ -1474,9 +1601,11 @@ public sealed class PartySession : IDisposable
         {
             _colors.Clear();
             _routes.Clear();
+            _annotations.Clear();
         }
 
         RaiseRoutes();
+        AnnotationsChanged?.Invoke(this, EventArgs.Empty);
 
         if (State != PartyState.Failed)
             State = PartyState.Idle;

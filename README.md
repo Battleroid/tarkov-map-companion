@@ -155,6 +155,21 @@ route markers — which means they inherit arrival detection, the guide line, an
 squad in your color. Objectives with nowhere to be are still listed with their text, because "hand
 over 5 MP-133" is worth reading next to the map even though it is not on it.
 
+**Write on the map.** Press **Add Note**, click a spot, type. Labels are saved to disk and stay on
+the map you wrote them on, so the names your squad actually uses — *Big Red*, *the sniper shack*,
+*where the marked key spawns* — end up on the map instead of in everyone's head. Click one of your
+own to rename it, or delete it from the **Notes** tab.
+
+**Import** merges a file rather than replacing yours, so somebody who has labeled every building on
+Streets can hand theirs over without costing you your own. It reads the app's own export format, and
+also a plain `map,x,z,text` list, because the realistic source of a few hundred building names is a
+spreadsheet rather than hand-written JSON.
+
+**Share my notes with the party** is off by default and sends only your own. A teammate's notes
+appear in their color, are never written to your file, and go when the session does — a set of
+labels is something built up over weeks, not a plan for the next ten minutes, and pushing it onto
+three other people's maps the moment they join is not a thing to do without being asked.
+
 **The map, before you have taken a single screenshot.** Tick **Read the game's log** in Settings
 and the app follows the log Tarkov writes as it runs. The game names the map it is loading between
 twenty seconds and two minutes before you have control, so the second monitor is already on the

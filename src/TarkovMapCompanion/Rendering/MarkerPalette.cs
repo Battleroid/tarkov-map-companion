@@ -72,6 +72,18 @@ public static class MarkerPalette
 
     public static readonly SKColor WaypointLabel = new(0xFF, 0xFF, 0xFF);
 
+    // ---- Annotations --------------------------------------------------------
+
+    /// <summary>
+    /// Text somebody wrote on the map.
+    /// </summary>
+    /// <remarks>
+    /// Near-white rather than a hue of its own. A label is words on a map, not another category of
+    /// marker, and giving it a color would invite reading meaning into it that is not there.
+    /// Teammates' notes take their own color, which is the one distinction worth drawing.
+    /// </remarks>
+    public static readonly SKColor Annotation = new(0xE8, 0xEC, 0xF2);
+
     // ---- Quests -------------------------------------------------------------
 
     /// <summary>

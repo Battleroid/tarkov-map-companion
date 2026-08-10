@@ -39,6 +39,8 @@
                         ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer. Turning it off puts your previous view back." />
           <ToggleButton Name="MarkToggle" Classes="mode" Content="Mark Route"
                         ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark Route again, or press Escape, to finish." />
+          <ToggleButton Name="AnnotateToggle" Classes="mode" Content="Add Note"
+                        ToolTip.Tip="Click the map to write a label on it. Click Add Note again, or press Escape, to finish." />
           <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"
                   ToolTip.Tip="Remove every marker and point the guide line back at the selected exit" />
         </StackPanel>
@@ -124,8 +126,20 @@
             </Grid>
           </Border>
 
-          <TextBlock Name="ExitHint" Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="Pick one to draw a guide line from the player." />
+          <!--
+            Clicking the chosen exit again also drops it, but only if you can find it: with the
+            list sorted by distance and a guide line pointing off screen, the marker you selected
+            may not be anywhere you are looking. A button is the answer that does not require
+            hunting for the thing you want to stop looking at.
+          -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <TextBlock Grid.Column="0" Name="ExitHint" Classes="secondary" FontSize="11"
+                       TextWrapping="Wrap" VerticalAlignment="Center"
+                       Text="Pick one to draw a guide line from the player." />
+            <Button Grid.Column="1" Name="ClearSelectionButton" Content="Clear" IsVisible="False"
+                    FontSize="11" Padding="7,2" VerticalAlignment="Center"
+                    ToolTip.Tip="Stop pointing at this exit" />
+          </Grid>
         </StackPanel>
 
         <!--
@@ -227,6 +241,43 @@
       </Grid>
       </TabItem>
 
+      <!--
+        Notes. Local by default and shared only if you say so, because a set of labels is something
+        somebody builds up over weeks rather than a plan for the next ten minutes.
+      -->
+      <TabItem Header="Notes">
+      <Grid RowDefinitions="Auto,*,Auto">
+
+        <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="6">
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="Press Add Note, then click the map to label a spot. Notes are saved to disk and stay on the map you wrote them on." />
+
+          <CheckBox Name="ShowAnnotationsBox" Content="Show notes on the map" FontSize="12" />
+          <CheckBox Name="ShareAnnotationsBox" Content="Share my notes with the party" FontSize="12"
+                    ToolTip.Tip="Sends your notes to the squad. Theirs appear in their color and are never saved to your file." />
+
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+            <Button Grid.Column="0" Name="ImportNotesButton" Content="Import" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="Merge a shared notes file, or a plain map,x,z,text list" />
+            <Button Grid.Column="1" Name="ExportNotesButton" Content="Export" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="Write your notes to a file somebody else can import" />
+            <Button Grid.Column="2" Name="ClearNotesButton" Content="Clear map" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="Delete every note you wrote on the map you are looking at" />
+          </Grid>
+
+          <TextBlock Name="NotesHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="6,0,6,0">
+          <StackPanel Name="NotesList" Spacing="1" />
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2" Name="NotesPath" Classes="secondary" FontSize="10"
+                   Margin="10,4,10,8" TextWrapping="Wrap" />
+
+      </Grid>
+      </TabItem>
+
       </TabControl>
     </Border>
 
@@ -239,6 +290,24 @@
       side pane for two floor checkboxes was a lot of window for something most maps do not use.
     -->
     <Panel Name="MapHost">
+
+      <!--
+        Where a note gets typed. Floats over the map rather than opening a dialog: you have just
+        clicked a spot and the words belong next to it, not in a window covering it.
+      -->
+      <Border Name="AnnotationEditor" Classes="mapOverlay attention" IsVisible="False"
+              HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,14,0,0"
+              MinWidth="320">
+        <StackPanel Spacing="6">
+          <TextBlock Name="AnnotationEditorTitle" Classes="heading" FontSize="11" Text="LABEL THIS SPOT" />
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+            <TextBox Grid.Column="0" Name="AnnotationTextBox" FontSize="12" Width="240"
+                     Watermark="Dorms, stash, sniper spot..." MaxLength="60" />
+            <Button Grid.Column="1" Name="AnnotationSaveButton" Content="Save" FontSize="11" Padding="8,2" />
+            <Button Grid.Column="2" Name="AnnotationCancelButton" Content="Cancel" FontSize="11" Padding="8,2" />
+          </Grid>
+        </StackPanel>
+      </Border>
 
       <!-- Floors, for the maps that have any. -->
       <Border Name="FloorOverlay" Classes="mapOverlay" IsVisible="False"

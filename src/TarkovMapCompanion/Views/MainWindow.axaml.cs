@@ -4,6 +4,7 @@ using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
@@ -187,6 +188,14 @@ public partial class MainWindow : Window
         };
 
         ExtractList.SelectionChanged += OnExtractSelectionChanged;
+
+        ClearSelectionButton.Click += (_, _) =>
+        {
+            // Through the list, not the session, so the row highlight lets go with it. Setting the
+            // session's selection alone leaves the list looking like something is still chosen.
+            ExtractList.SelectedItem = null;
+            StatusText.Text = "Exit cleared.";
+        };
         ExtractList.DoubleTapped += OnExtractListDoubleTapped;
 
         // Both map overlays start collapsed and are not persisted. Like marker mode, an expanded
@@ -222,6 +231,7 @@ public partial class MainWindow : Window
         _canvas.Clicked += OnMapClicked;
 
         WireQuests();
+        WireNotes();
 
         SuggestionAccept.Click += OnSuggestionAccepted;
         SuggestionDismiss.Click += (_, _) => HideSuggestion();
@@ -295,10 +305,17 @@ public partial class MainWindow : Window
     /// <summary>Escape leaves marker mode, which is easy to forget you are in.</summary>
     private void Escape() => KeyDown += (_, e) =>
     {
-        if (e.Key is not Avalonia.Input.Key.Escape || MarkToggle.IsChecked != true)
+        if (e.Key is not Avalonia.Input.Key.Escape)
             return;
 
-        MarkToggle.IsChecked = false;
+        if (MarkToggle.IsChecked == true)
+            MarkToggle.IsChecked = false;
+
+        if (AnnotateToggle.IsChecked == true)
+            AnnotateToggle.IsChecked = false;
+        else
+            CloseAnnotationEditor();
+
         e.Handled = true;
     };
 
@@ -326,6 +343,13 @@ public partial class MainWindow : Window
         {
             BuildQuestList();
             _canvas.InvalidateVisual();
+        });
+
+        _session.AnnotationsChanged += (_, _) => Post(() =>
+        {
+            BuildNotesList();
+            _canvas.InvalidateVisual();
+            _minimap?.Redraw();
         });
 
         _session.Party.Changed += (_, _) => Post(() =>
@@ -1037,6 +1061,9 @@ public partial class MainWindow : Window
     {
         var selected = _session.SelectedExtract;
 
+        // Only offered when there is something to clear, so it is never a button that does nothing.
+        ClearSelectionButton.IsVisible = selected is not null;
+
         foreach (var poi in ExtractList.ItemsSource?.OfType<MapPoi>() ?? [])
         {
             if (!ReferenceEquals(poi, selected))
@@ -1117,12 +1144,18 @@ public partial class MainWindow : Window
         // Quest marks sit above the POI layers and are checked first, so a quest marker on top of a
         // loot container is the one that answers.
         var quest = screen is { } q ? _session.Quests.HitTest(_canvas.Viewport, q.X, q.Y) : null;
+        var note = screen is { } n ? _session.Annotations.HitTest(_canvas.Viewport, n.X, n.Y) : null;
 
-        if (ReferenceEquals(hovered, _session.Pois.Hovered) && ReferenceEquals(quest, _session.Quests.Hovered))
+        if (ReferenceEquals(hovered, _session.Pois.Hovered)
+            && ReferenceEquals(quest, _session.Quests.Hovered)
+            && ReferenceEquals(note, _session.Annotations.Hovered))
+        {
             return;
+        }
 
         _session.Pois.Hovered = hovered;
         _session.Quests.Hovered = quest;
+        _session.Annotations.Hovered = note;
 
         // A compact tooltip beats a panel round-trip for something that changes on every mouse move.
         var tip = quest is not null
@@ -1182,6 +1215,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Same rule as marker mode: while armed, a click is a note and nothing else.
+        if (AnnotateToggle.IsChecked == true)
+        {
+            BeginAnnotation(position);
+            return;
+        }
+
         // While placing, a click is a marker and nothing else. Selecting an exit out from under
         // someone laying out a route would be maddening.
         if (_session.Waypoints.IsPlacing)
@@ -1192,6 +1232,14 @@ public partial class MainWindow : Window
         }
 
         var screen = _canvas.Viewport.ToScreen(position);
+
+        // Your own note opens for renaming. A teammate's does not: it is replaced wholesale the
+        // next time they publish, so an edit here would be undone within seconds.
+        if (_session.Annotations.HitTest(_canvas.Viewport, screen.X, screen.Y) is { Author: null } note)
+        {
+            BeginRename(note);
+            return;
+        }
 
         // A quest marker is a small, deliberate target and the tooltip says what clicking it does,
         // so this is not a click anybody lands on by accident. Undo marker takes it back.
@@ -1215,14 +1263,11 @@ public partial class MainWindow : Window
 
     private async void OnOpened(object? sender, EventArgs e)
     {
-        _canvas.AddOverlay(_session.Heatmap);
-        _canvas.AddOverlay(_session.Pois);
-        _canvas.AddOverlay(_session.Quests);
-        _canvas.AddOverlay(_session.Waypoints);
-        _canvas.AddOverlay(_session.ExtractLine);
-        _canvas.AddOverlay(_session.Peers);
-        _canvas.AddOverlay(_session.Pings);
-        _canvas.AddOverlay(_session.Player);
+        // From the session's own list rather than named one by one here. The two had already
+        // drifted once: the minimap loops over this list and got a new overlay for free, while
+        // this window quietly did not draw it.
+        foreach (var overlay in _session.Overlays)
+            _canvas.AddOverlay(overlay);
 
         try
         {
@@ -1300,6 +1345,288 @@ public partial class MainWindow : Window
     /// </remarks>
     private void SyncMinimapLayers() =>
         _minimap?.MirrorLayers(_canvas.ActiveFloors, _canvas.ShowBaseLayer);
+
+    // ---- Notes ------------------------------------------------------------
+
+    /// <summary>Where the note being typed will land, in base pixels. Null when not placing one.</summary>
+    private MapPoint? _annotationAt;
+
+    /// <summary>The note being renamed, when the editor was opened by clicking an existing one.</summary>
+    private string? _annotationEditingId;
+
+    private void WireNotes()
+    {
+        ShowAnnotationsBox.IsChecked = _settings.ShowAnnotations;
+        ShareAnnotationsBox.IsChecked = _settings.ShareAnnotationsWithParty;
+        NotesPath.Text = _session.Notes.FilePath;
+
+        AnnotateToggle.IsCheckedChanged += (_, _) => OnAnnotateToggled();
+
+        ShowAnnotationsBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ShowAnnotations = ShowAnnotationsBox.IsChecked ?? true;
+            _session.Annotations.IsVisible = _settings.ShowAnnotations;
+            _canvas.InvalidateVisual();
+        });
+
+        ShareAnnotationsBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.ShareAnnotationsWithParty = ShareAnnotationsBox.IsChecked ?? false;
+
+            // Turning it off has to withdraw what is already out there, not merely stop sending.
+            _session.RepublishAnnotations();
+        });
+
+        AnnotationSaveButton.Click += (_, _) => CommitAnnotation();
+        AnnotationCancelButton.Click += (_, _) => CloseAnnotationEditor();
+
+        AnnotationTextBox.KeyDown += (_, e) =>
+        {
+            switch (e.Key)
+            {
+                case Avalonia.Input.Key.Enter:
+                    CommitAnnotation();
+                    e.Handled = true;
+                    break;
+
+                case Avalonia.Input.Key.Escape:
+                    CloseAnnotationEditor();
+                    e.Handled = true;
+                    break;
+            }
+        };
+
+        ImportNotesButton.Click += async (_, _) => await ImportNotesAsync();
+        ExportNotesButton.Click += async (_, _) => await ExportNotesAsync();
+
+        ClearNotesButton.Click += (_, _) =>
+        {
+            var removed = _session.Notes.RemoveAllOn(_session.CurrentMap.NormalizedName);
+
+            StatusText.Text = removed == 0
+                ? $"No notes on {_session.CurrentMap.DisplayName}."
+                : $"Removed {removed} note{(removed == 1 ? "" : "s")} from {_session.CurrentMap.DisplayName}.";
+        };
+
+        BuildNotesList();
+    }
+
+    private void OnAnnotateToggled()
+    {
+        var on = AnnotateToggle.IsChecked ?? false;
+
+        // The two placing modes are mutually exclusive: one click cannot be both a route marker
+        // and a label, and leaving both armed would make it a coin toss which you got.
+        if (on && MarkToggle.IsChecked == true)
+            MarkToggle.IsChecked = false;
+
+        _canvas.Cursor = on
+            ? new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Cross)
+            : Avalonia.Input.Cursor.Default;
+
+        StatusText.Text = on
+            ? "Click the map to write a note there."
+            : "";
+
+        if (!on)
+            CloseAnnotationEditor();
+    }
+
+    /// <summary>Opens the editor for a new note at a spot on the map.</summary>
+    private void BeginAnnotation(MapPoint basePoint)
+    {
+        _annotationAt = basePoint;
+        _annotationEditingId = null;
+
+        AnnotationEditorTitle.Text = "LABEL THIS SPOT";
+        AnnotationTextBox.Text = "";
+        AnnotationEditor.IsVisible = true;
+        AnnotationTextBox.Focus();
+    }
+
+    /// <summary>Opens the editor on a note that already exists.</summary>
+    private void BeginRename(Data.MapAnnotation annotation)
+    {
+        _annotationAt = null;
+        _annotationEditingId = annotation.Id;
+
+        AnnotationEditorTitle.Text = "RENAME THIS NOTE";
+        AnnotationTextBox.Text = annotation.Text;
+        AnnotationEditor.IsVisible = true;
+        AnnotationTextBox.Focus();
+        AnnotationTextBox.SelectAll();
+    }
+
+    private void CommitAnnotation()
+    {
+        var text = AnnotationTextBox.Text;
+
+        if (_annotationEditingId is { } id)
+        {
+            if (_session.Notes.Retext(id, text))
+                StatusText.Text = "Note renamed.";
+        }
+        else if (_annotationAt is { } at)
+        {
+            if (_session.AddAnnotation(at, text) is not null)
+                StatusText.Text = $"Note added to {_session.CurrentMap.DisplayName}.";
+            else
+                StatusText.Text = $"A map holds at most {Data.AnnotationStore.MaxPerMap} notes.";
+        }
+
+        CloseAnnotationEditor();
+    }
+
+    private void CloseAnnotationEditor()
+    {
+        AnnotationEditor.IsVisible = false;
+        _annotationAt = null;
+        _annotationEditingId = null;
+    }
+
+    private void BuildNotesList()
+    {
+        NotesList.Children.Clear();
+
+        var here = _session.Notes.ForMap(_session.CurrentMap.NormalizedName);
+
+        foreach (var annotation in here.OrderBy(a => a.Text, StringComparer.OrdinalIgnoreCase))
+            NotesList.Children.Add(BuildNoteRow(annotation));
+
+        var shared = here.Count(a => a.Author is not null);
+
+        NotesHint.Text = here.Count == 0
+            ? $"No notes on {_session.CurrentMap.DisplayName} yet."
+            : $"{here.Count} on {_session.CurrentMap.DisplayName}"
+              + (shared > 0 ? $", {shared} from the squad." : ".");
+    }
+
+    private Control BuildNoteRow(Data.MapAnnotation annotation)
+    {
+        var mine = annotation.Author is null;
+
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
+            ColumnSpacing = 6,
+            Margin = new Thickness(0, 2, 0, 2),
+        };
+
+        var label = new TextBlock
+        {
+            Text = annotation.Text,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+
+            // A teammate's note is dimmed, because it is not yours to keep and will go when the
+            // session does.
+            Opacity = mine ? 1.0 : 0.75,
+        };
+
+        if (!mine)
+            label.SetValue(ToolTip.TipProperty, $"Shared by {annotation.Author}");
+
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        // Only your own can be edited or deleted. Theirs are replaced wholesale every time they
+        // publish, so a local edit would be undone within seconds and a delete within one message.
+        if (mine)
+        {
+            var rename = new Button
+            {
+                Content = "Edit",
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                MinHeight = 0,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            rename.Click += (_, _) => BeginRename(annotation);
+
+            var remove = new Button
+            {
+                Content = "✕",
+                FontSize = 10,
+                Padding = new Thickness(6, 1),
+                MinHeight = 0,
+                Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                [ToolTip.TipProperty] = "Delete this note",
+            };
+
+            remove.Click += (_, _) => _session.Notes.Remove(annotation.Id);
+
+            Grid.SetColumn(rename, 1);
+            Grid.SetColumn(remove, 2);
+            row.Children.Add(rename);
+            row.Children.Add(remove);
+        }
+        else
+        {
+            var who = new TextBlock
+            {
+                Text = annotation.Author,
+                FontSize = 10,
+                Classes = { "secondary" },
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            Grid.SetColumn(who, 1);
+            row.Children.Add(who);
+        }
+
+        return row;
+    }
+
+    private async Task ImportNotesAsync()
+    {
+        var picked = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import map notes",
+            AllowMultiple = false,
+        });
+
+        if (picked.Count == 0 || picked[0].TryGetLocalPath() is not { Length: > 0 } path)
+            return;
+
+        try
+        {
+            var added = _session.Notes.Import(path);
+
+            StatusText.Text = added == 0
+                ? "Nothing new in that file; every note in it was already here."
+                : $"Imported {added} note{(added == 1 ? "" : "s")}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not import that file: {ex.Message}";
+        }
+    }
+
+    private async Task ExportNotesAsync()
+    {
+        var picked = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export map notes",
+            SuggestedFileName = "tarkov-map-notes.json",
+            DefaultExtension = "json",
+        });
+
+        if (picked?.TryGetLocalPath() is not { Length: > 0 } path)
+            return;
+
+        try
+        {
+            var written = _session.Notes.Export(path);
+            StatusText.Text = $"Wrote {written} note{(written == 1 ? "" : "s")} to {path}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not write that file: {ex.Message}";
+        }
+    }
 
     // ---- Quests -----------------------------------------------------------
 
