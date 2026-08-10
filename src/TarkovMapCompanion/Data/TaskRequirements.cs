@@ -42,19 +42,27 @@ public static class TaskRequirements
         task.Keys.Where(k => onMap(k.MapId)).SelectMany(k => k.Keys);
 
     /// <summary>
-    /// Items this task wants you carrying, for objectives that happen where
+    /// Items this task wants you carrying, with how many, for objectives that happen where
     /// <paramref name="onMap"/> accepts.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// An objective with no position at all is skipped rather than counted everywhere: "plant this
     /// somewhere" with no somewhere cannot be pinned to a raid, and guessing would put it on the
     /// list for every map.
+    /// </para>
+    /// <para>
+    /// An objective that names several items names alternatives, not a set -- eight kinds of
+    /// 7.62x51 ammo pack, any one of which will do -- so the count belongs to each of them rather
+    /// than being divided between them. In the real data every such objective wants exactly one,
+    /// so this never has to render "3 of these, or 3 of those".
+    /// </para>
     /// </remarks>
-    public static IEnumerable<TaskItemData> CarriedItemsFor(TaskData task, Func<string?, bool> onMap) =>
+    public static IEnumerable<TaskItemNeed> CarriedItemsFor(TaskData task, Func<string?, bool> onMap) =>
         task.Objectives
             .Where(o => CarriedTypes.Contains(o.Type) && o.Items.Count > 0)
             .Where(o => o.Points.Any(p => onMap(p.MapId)))
-            .SelectMany(o => o.Items);
+            .SelectMany(o => o.Items.Select(i => new TaskItemNeed(i, Math.Max(1, o.Count ?? 1))));
 
     /// <summary>
     /// Everything the given tasks want brought to one map, deduplicated and in reading order.
@@ -62,39 +70,53 @@ public static class TaskRequirements
     public static TaskKit Gather(IEnumerable<TaskData> tasks, Func<string?, bool> onMap)
     {
         var keys = new List<TaskItemData>();
-        var items = new List<TaskItemData>();
+        var items = new List<TaskItemNeed>();
 
         foreach (var task in tasks)
         {
-            Add(keys, KeysFor(task, onMap));
-            Add(items, CarriedItemsFor(task, onMap));
-        }
-
-        keys.Sort(ByName);
-        items.Sort(ByName);
-
-        return new TaskKit(keys, items);
-
-        static int ByName(TaskItemData a, TaskItemData b) =>
-            string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-
-        // Distinct by id, which is the identity that matters: two tasks naming the same key is the
-        // common case, not the exception.
-        static void Add(List<TaskItemData> into, IEnumerable<TaskItemData> found)
-        {
-            foreach (var item in found)
+            // Keys do not add up. Three tasks behind the same door still want one key, and telling
+            // somebody to bring three of it would be worse than saying nothing.
+            foreach (var key in KeysFor(task, onMap))
             {
-                if (!into.Any(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal)))
-                    into.Add(item);
+                if (!keys.Any(k => string.Equals(k.Id, key.Id, StringComparison.Ordinal)))
+                    keys.Add(key);
+            }
+
+            // Items do. Planting is consuming, so two tasks that each want a WI-FI camera on Woods
+            // want two cameras.
+            foreach (var need in CarriedItemsFor(task, onMap))
+            {
+                var at = items.FindIndex(i => string.Equals(i.Item.Id, need.Item.Id, StringComparison.Ordinal));
+
+                if (at < 0)
+                    items.Add(need);
+                else
+                    items[at] = items[at] with { Count = items[at].Count + need.Count };
             }
         }
+
+        keys.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        items.Sort((a, b) => string.Compare(a.Item.Name, b.Item.Name, StringComparison.OrdinalIgnoreCase));
+
+        return new TaskKit(keys, items);
     }
 }
 
+/// <summary>One item and how many of it.</summary>
+/// <param name="Count">At least one. Only worth showing when it is more.</param>
+public readonly record struct TaskItemNeed(TaskItemData Item, int Count)
+{
+    /// <summary>The name, with a multiplier when there is one worth mentioning.</summary>
+    public string Label => Count > 1 ? $"{Count}x {Item.Name}" : Item.Name;
+}
+
 /// <summary>What to bring to one map.</summary>
-/// <param name="Keys">Keys, which is the part that cannot be improvised in the raid.</param>
-/// <param name="Items">Items to carry in.</param>
-public sealed record TaskKit(IReadOnlyList<TaskItemData> Keys, IReadOnlyList<TaskItemData> Items)
+/// <param name="Keys">
+/// Keys, which is the part that cannot be improvised in the raid. No quantities: a key is not
+/// spent by using it.
+/// </param>
+/// <param name="Items">Items to carry in, with how many.</param>
+public sealed record TaskKit(IReadOnlyList<TaskItemData> Keys, IReadOnlyList<TaskItemNeed> Items)
 {
     public bool IsEmpty => Keys.Count == 0 && Items.Count == 0;
 }

@@ -1743,7 +1743,8 @@ public partial class MainWindow : Window
             var here = _session.IsOnCurrentMap(group.MapId);
             var where = here ? "here" : _session.MapNameFor(group.MapId) ?? "a map this build does not know";
 
-            var chips = ItemChips(group.Keys, 12);
+            // Keys carry no quantity: one key opens the door however many tasks are behind it.
+            var chips = ItemChips(group.Keys.Select(k => new Data.TaskItemNeed(k, 1)), 12);
 
             // Same habit as the prerequisites: the one that matters on this map is the one at full
             // strength, and the rest are dimmed rather than dropped.
@@ -1771,12 +1772,14 @@ public partial class MainWindow : Window
     /// findable in a stash of forty keys, and reading a comma-separated line of them never was.
     /// The name stays regardless, so an icon that will not load costs nothing.
     /// </remarks>
-    private Control ItemChips(IEnumerable<Data.Models.TaskItemData> items, double fontSize)
+    private Control ItemChips(IEnumerable<Data.TaskItemNeed> needs, double fontSize)
     {
         var panel = new WrapPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
 
-        foreach (var item in items)
+        foreach (var need in needs)
         {
+            var item = need.Item;
+
             var chip = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
@@ -1798,7 +1801,7 @@ public partial class MainWindow : Window
             chip.Children.Add(icon);
             chip.Children.Add(new TextBlock
             {
-                Text = item.Name,
+                Text = need.Label,
                 FontSize = fontSize,
                 TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
@@ -1890,7 +1893,9 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 3, 0, 1),
             });
 
-            var chips = ItemChips(objective.Items, 12);
+            var wanted = Math.Max(1, objective.Count ?? 1);
+
+            var chips = ItemChips(objective.Items.Select(i => new Data.TaskItemNeed(i, wanted)), 12);
             chips.Opacity = objective.Optional ? 0.7 : 1.0;
             block.Children.Add(chips);
         }
@@ -2602,12 +2607,12 @@ public partial class MainWindow : Window
         QuestKit.Children.Add(Heading($"TAKE TO {_session.CurrentMap.DisplayName.ToUpperInvariant()}", 11));
 
         if (kit.Keys.Count > 0)
-            AddSection("Keys", kit.Keys);
+            AddSection("Keys", [.. kit.Keys.Select(k => new Data.TaskItemNeed(k, 1))]);
 
         if (kit.Items.Count > 0)
             AddSection("Items", kit.Items);
 
-        void AddSection(string label, IReadOnlyList<Data.Models.TaskItemData> items)
+        void AddSection(string label, IReadOnlyList<Data.TaskItemNeed> items)
         {
             // Capped, because a dozen tracked tasks can name more keys than the sidebar is wide.
             // The count carries the rest rather than the list quietly ending.

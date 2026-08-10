@@ -152,7 +152,7 @@ public sealed class TaskRequirementsTests
 
         var kit = TaskRequirements.Gather([task], id => id == Customs);
 
-        Assert.Equal(["WI-FI Camera"], Names(kit.Items));
+        Assert.Equal(["WI-FI Camera"], Names(kit.Items.Select(i => i.Item)));
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class TaskRequirementsTests
         var task = new TaskData { Objectives = [Objective("mark", ["MS2000 Marker"], Woods)] };
 
         Assert.Empty(TaskRequirements.Gather([task], id => id == Customs).Items);
-        Assert.Equal(["MS2000 Marker"], Names(TaskRequirements.Gather([task], id => id == Woods).Items));
+        Assert.Equal(["MS2000 Marker"], Names(TaskRequirements.Gather([task], id => id == Woods).Items.Select(i => i.Item)));
     }
 
     /// <summary>An objective with no position at all belongs to no raid in particular.</summary>
@@ -193,6 +193,97 @@ public sealed class TaskRequirementsTests
         Assert.Equal(["Dorm overseer key"], Names(kit.Keys));
     }
 
+    // ---- Quantities ---------------------------------------------------------
+
+    /// <summary>An objective that wants three of something says three.</summary>
+    [Fact]
+    public void TheCountComesFromTheObjective()
+    {
+        var task = new TaskData { Objectives = [Objective("plantItem", ["MS2000 Marker"], Customs, 3)] };
+
+        var need = Assert.Single(TaskRequirements.Gather([task], id => id == Customs).Items);
+
+        Assert.Equal(3, need.Count);
+        Assert.Equal("3x MS2000 Marker", need.Label);
+    }
+
+    /// <summary>
+    /// Two tasks wanting the same item want that many altogether, because planting spends it.
+    /// </summary>
+    [Fact]
+    public void ItemsAddUpAcrossTasks()
+    {
+        var camera = Item("WI-FI Camera");
+
+        var one = new TaskData
+        {
+            Objectives = [new TaskObjectiveData
+            {
+                Type = "plantItem", Count = 2, Items = [camera],
+                Points = [new TaskPointData { MapId = Customs }],
+            }],
+        };
+
+        var two = new TaskData
+        {
+            Objectives = [new TaskObjectiveData
+            {
+                Type = "plantItem", Count = 1, Items = [camera],
+                Points = [new TaskPointData { MapId = Customs }],
+            }],
+        };
+
+        var need = Assert.Single(TaskRequirements.Gather([one, two], id => id == Customs).Items);
+
+        Assert.Equal(3, need.Count);
+    }
+
+    /// <summary>
+    /// Keys do not add up, because using one does not spend it.
+    /// </summary>
+    /// <remarks>
+    /// Three tasks behind the same door still want one key. "3x Dorm room 220 key" would be worse
+    /// than saying nothing, so keys carry no quantity at all.
+    /// </remarks>
+    [Fact]
+    public void KeysDoNotAddUp()
+    {
+        var key = Item("Dorm room 220 key");
+
+        var one = new TaskData { Keys = [new TaskKeyData { MapId = Customs, Keys = [key] }] };
+        var two = new TaskData { Keys = [new TaskKeyData { MapId = Customs, Keys = [key] }] };
+
+        Assert.Single(TaskRequirements.Gather([one, two], id => id == Customs).Keys);
+    }
+
+    /// <summary>One of anything is just its name; a multiplier on everything would be noise.</summary>
+    [Fact]
+    public void OneOfSomethingCarriesNoMultiplier()
+    {
+        var task = new TaskData { Objectives = [Objective("plantItem", ["WI-FI Camera"], Customs, 1)] };
+
+        var need = Assert.Single(TaskRequirements.Gather([task], id => id == Customs).Items);
+
+        Assert.Equal("WI-FI Camera", need.Label);
+    }
+
+    /// <summary>
+    /// Alternatives each carry the whole count, since you bring one kind or the other.
+    /// </summary>
+    [Fact]
+    public void AlternativesEachCarryTheCount()
+    {
+        var task = new TaskData
+        {
+            Objectives = [Objective("plantItem", ["M67 hand grenade", "F-1 hand grenade"], Customs, 2)],
+        };
+
+        var items = TaskRequirements.Gather([task], id => id == Customs).Items;
+
+        Assert.Equal(2, items.Count);
+        Assert.All(items, i => Assert.Equal(2, i.Count));
+    }
+
     [Fact]
     public void NothingTrackedIsAnEmptyKit()
     {
@@ -220,6 +311,14 @@ public sealed class TaskRequirementsTests
     };
 
     private static string[] Names(IEnumerable<TaskItemData> items) => [.. items.Select(i => i.Name)];
+
+    private static TaskObjectiveData Objective(string type, string[] items, string mapId, int count) => new()
+    {
+        Type = type,
+        Count = count,
+        Items = [.. items.Select(Item)],
+        Points = [new TaskPointData { MapId = mapId }],
+    };
 
     private static bool LooksLikeAnId(string name) =>
         name.Length == 24 && name.All(c => char.IsAsciiDigit(c) || (c >= 'a' && c <= 'f'));

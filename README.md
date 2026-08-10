@@ -179,7 +179,8 @@ note to yourself, and it persists as one. **Clear the ticks** resets a task for 
 
 **What to take with you.** Above the task list, the Quests tab totals up what everything you have
 ticked needs on the map you are looking at: the keys, and the items you have to be carrying rather
-than the ones you hand over at a counter. Planting an MS2000 needs the marker in your rig; handing
+than the ones you hand over at a counter, each with how many. Items add up across tasks, because
+planting one spends it; keys never do, because using one does not. Planting an MS2000 needs the marker in your rig; handing
 in five MP-133s does not mean taking five shotguns into Customs, and the list knows the difference.
 
 **Your level, without typing it in.** Tarkov writes your level to no log — checked across nineteen
