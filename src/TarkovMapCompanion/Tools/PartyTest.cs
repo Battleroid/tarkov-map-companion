@@ -130,11 +130,15 @@ public static class PartyTest
 
     private static string Describe(PartyPeer peer)
     {
+        // Latency is the one number that says whether the link is healthy rather than merely open,
+        // so it belongs in the diagnostic that exists to answer exactly that.
+        var latency = peer.LatencyMs is { } ms ? $" [{ms} ms]" : "";
+
         if (peer.IsSelf)
-            return $"{peer.Name} (you)";
+            return $"{peer.Name} (you){latency}";
 
         return peer.HasPosition
-            ? $"{peer.Name} @ {peer.Position.X:F0},{peer.Position.Z:F0} on {peer.Map} ({peer.AgeSeconds:F0}s)"
-            : $"{peer.Name} (no position)";
+            ? $"{peer.Name} @ {peer.Position.X:F0},{peer.Position.Z:F0} on {peer.Map} ({peer.AgeSeconds:F0}s){latency}"
+            : $"{peer.Name} (no position){latency}";
     }
 }

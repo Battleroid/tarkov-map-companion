@@ -179,6 +179,12 @@ through a raid and get everybody's current positions straight away, and you can 
 session at any point if something goes wrong. Collapsed, the pill still shows how many of you there
 are, and it opens itself when there is a code to copy or something has gone wrong.
 
+**Connections that admit when they are dead.** Both ends exchange a heartbeat every five seconds and
+give up on a link that has gone silent for twenty-one. TCP will otherwise hold a connection open long
+after it has stopped carrying anything — a router drops the mapping, a laptop sleeps, a link
+flaps — and both ends sit in a blocking read believing the squad is fine. Each roster row shows the
+round trip from that heartbeat, so a teammate whose link is struggling is visible before they vanish.
+
 **Shift-click to ping.** Marks a spot for the whole squad, with a pulse, your name, and a countdown.
 It lasts 30 seconds and clears itself, so nothing has to be tidied up mid-raid, and it makes a noise
 so a teammate notices while they are looking at the game rather than the map. The rings keep

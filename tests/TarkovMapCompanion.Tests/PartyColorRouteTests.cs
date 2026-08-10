@@ -383,6 +383,12 @@ public sealed class PartyColorRouteTests
     /// The salt is the only version marker the wire has. Moving it is what makes an older build
     /// fail at the handshake instead of connecting and then dropping somebody mid-session.
     /// </summary>
+    /// <remarks>
+    /// This failing is the point: it means somebody changed the salt, and it should cost a
+    /// deliberate edit here rather than happening by accident. Moved to v3 for heartbeats, because
+    /// a build that does not answer them would either be dropped every twenty seconds or have to be
+    /// exempted from the check that makes them worth having.
+    /// </remarks>
     [Fact]
     public void TheKeyDerivationSaltIsPinnedToTheCurrentProtocol()
     {
@@ -390,7 +396,7 @@ public sealed class PartyColorRouteTests
 
         var expected = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(
             secret,
-            Encoding.UTF8.GetBytes("TarkovMapCompanion/party/v2"),
+            Encoding.UTF8.GetBytes("TarkovMapCompanion/party/v3"),
             100_000,
             System.Security.Cryptography.HashAlgorithmName.SHA256,
             32);

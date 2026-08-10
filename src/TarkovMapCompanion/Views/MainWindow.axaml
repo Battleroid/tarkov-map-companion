@@ -331,12 +331,16 @@
               <ItemsControl Name="PartyRoster">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="views:PartyRow">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,1">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,1">
                       <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center"
                                Fill="{Binding Swatch}" />
                       <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
                       <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="11"
                                  Classes="secondary" VerticalAlignment="Center" />
+                      <!-- Round trip to the host, blank until a heartbeat has come back. -->
+                      <TextBlock Grid.Column="3" Text="{Binding Latency}" FontSize="10"
+                                 Classes="secondary" VerticalAlignment="Center" Opacity="0.75"
+                                 ToolTip.Tip="Round trip to the host, from the last heartbeat" />
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>

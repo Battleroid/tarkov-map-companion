@@ -11,4 +11,7 @@ namespace TarkovMapCompanion.Views;
 /// yet, on another map, or a position of a given age. Working that out in a binding would scatter
 /// the logic across XAML.
 /// </remarks>
-public sealed record PartyRow(string Name, string Detail, IBrush Swatch);
+/// <param name="Latency">
+/// Round trip to the host, or empty when there is nothing measured to show.
+/// </param>
+public sealed record PartyRow(string Name, string Detail, IBrush Swatch, string Latency = "");

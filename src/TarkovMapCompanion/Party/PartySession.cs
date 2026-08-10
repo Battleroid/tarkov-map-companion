@@ -42,6 +42,15 @@ public sealed class PartyPeer
     /// </remarks>
     public string? Color { get; init; }
 
+    /// <summary>
+    /// Round trip to the host in milliseconds, or null before it has been measured.
+    /// </summary>
+    /// <remarks>
+    /// Always latency to the host, never to you. In a star topology there is no direct link
+    /// between two guests, so there is nothing between them to time.
+    /// </remarks>
+    public int? LatencyMs { get; init; }
+
     /// <summary>Age at the moment the host sent it.</summary>
     public double AgeAtSend { get; init; }
 
@@ -78,6 +87,28 @@ public sealed class PartySession : IDisposable
     /// <summary>Arbitrary, memorable, and outside the ranges anything common sits in.</summary>
     public const int DefaultPort = 24601;
 
+    private readonly TimeSpan _heartbeatInterval;
+    private readonly TimeSpan _deadAfter;
+
+    public PartySession()
+        : this(PartyProtocol.HeartbeatInterval, PartyProtocol.DeadAfter)
+    {
+    }
+
+    /// <summary>
+    /// A session with the heartbeat wound faster, for tests.
+    /// </summary>
+    /// <remarks>
+    /// The behavior worth pinning is that a connection which stops answering gets dropped, and at
+    /// the shipping timings proving that costs twenty-one seconds of wall clock per test. The
+    /// timings are the only thing a test needs to change, so they are the only thing exposed.
+    /// </remarks>
+    internal PartySession(TimeSpan heartbeatInterval, TimeSpan deadAfter)
+    {
+        _heartbeatInterval = heartbeatInterval;
+        _deadAfter = deadAfter;
+    }
+
     private readonly object _gate = new();
     private readonly Dictionary<string, PartyPeer> _peers = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<HostedClient> _clients = [];
@@ -98,6 +129,18 @@ public sealed class PartySession : IDisposable
     private PortMapper? _mapper;
     private TcpClient? _upstream;
     private byte[]? _key;
+
+    /// <summary>Serializes writes to the host, so two messages cannot interleave on the socket.</summary>
+    private readonly SemaphoreSlim _upstreamWriteGate = new(1, 1);
+
+    /// <summary>Proves the link is alive in both directions, and times the round trip.</summary>
+    private Timer? _heartbeat;
+
+    /// <summary>Guest side: when the host was last heard from, and the probe in flight.</summary>
+    private DateTime _hostLastHeardUtc = DateTime.UtcNow;
+    private long _hostPendingSeq;
+    private long _hostPendingTicks;
+    private long _heartbeatSeq;
 
     /// <summary>
     /// A short tag derived from the session secret, printed on every party log line.
@@ -163,6 +206,19 @@ public sealed class PartySession : IDisposable
 
     /// <summary>Our own name as the host knows it, which may be suffixed to avoid a clash.</summary>
     public string SelfName => _selfName;
+
+    /// <summary>
+    /// Guest side: round trip to the host, measured here. Null while hosting or before the first
+    /// heartbeat comes back.
+    /// </summary>
+    public int? HostLatencyMs { get; private set; }
+
+    /// <summary>The round trip the host last measured for a client, by name.</summary>
+    private int? LatencyFor(string name)
+    {
+        lock (_gate)
+            return _clients.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase))?.LatencyMs;
+    }
 
     /// <summary>
     /// Our own marker color as <c>#RRGGBB</c>, shared with the squad.
@@ -355,6 +411,8 @@ public sealed class PartySession : IDisposable
             RouterOpenedPort = mapping.Mapped;
             State = PartyState.Hosting;
 
+            StartHeartbeat();
+
             LogParty(
                 $"listening on {LocalAddress}:{ListenPort}, external {Mask(mapping.ExternalAddress)}:{mapping.Port}, "
                 + $"router opened it: {mapping.Mapped}");
@@ -476,6 +534,40 @@ public sealed class PartySession : IDisposable
                 if (message is null)
                     break;
 
+                // Any frame at all is proof of life, not just a heartbeat reply. A squad that is
+                // moving refreshes this constantly and never comes near the timeout.
+                lock (_gate)
+                    hosted.LastHeardUtc = DateTime.UtcNow;
+
+                if (message.Kind == PartyMessageKind.Heartbeat)
+                {
+                    await SendToAsync(
+                        hosted,
+                        new PartyMessage { Kind = PartyMessageKind.HeartbeatAck, Seq = message.Seq },
+                        cancellationToken).ConfigureAwait(false);
+
+                    continue;
+                }
+
+                if (message.Kind == PartyMessageKind.HeartbeatAck)
+                {
+                    int? measured = null;
+
+                    lock (_gate)
+                    {
+                        if (message.Seq == hosted.PendingSeq)
+                            measured = hosted.LatencyMs = ElapsedMs(hosted.PendingSentTicks);
+                    }
+
+                    if (measured is { } ms)
+                        NoteLatency(name, ms);
+
+                    // Not broadcast on its own: the roster carries latency and goes out constantly
+                    // anyway, and a fan-out every five seconds per client for a number that moves
+                    // by a millisecond is not worth the frames.
+                    continue;
+                }
+
                 if (message.Kind == PartyMessageKind.Ping && message.Position is { } ping)
                 {
                     // Named from the connection, not the payload, so nobody can ping as somebody
@@ -554,6 +646,163 @@ public sealed class PartySession : IDisposable
         }
     }
 
+    /// <summary>
+    /// Starts the heartbeat. Both roles run one; only what it does differs.
+    /// </summary>
+    private void StartHeartbeat()
+    {
+        _heartbeat?.Dispose();
+
+        _hostLastHeardUtc = DateTime.UtcNow;
+
+        _heartbeat = new Timer(_ => Beat(), null, _heartbeatInterval, _heartbeatInterval);
+    }
+
+    /// <summary>
+    /// One round of "still there?", and hanging up on whoever has stopped answering.
+    /// </summary>
+    /// <remarks>
+    /// A timer callback, so nothing may escape it: an exception here would come out on a thread
+    /// pool thread with no handler and take the process down.
+    /// </remarks>
+    private void Beat()
+    {
+        try
+        {
+            if (State == PartyState.Hosting)
+                BeatAsHost();
+            else if (State == PartyState.Joined)
+                BeatAsGuest();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("party heartbeat failed", ex);
+        }
+    }
+
+    private void BeatAsHost()
+    {
+        HostedClient[] clients;
+        lock (_gate)
+            clients = _clients.ToArray();
+
+        var now = DateTime.UtcNow;
+
+        foreach (var client in clients)
+        {
+            DateTime lastHeard;
+            lock (_gate)
+                lastHeard = client.LastHeardUtc;
+
+            if (now - lastHeard > _deadAfter)
+            {
+                // Closing the socket is what makes their serve loop return and clean up. Nothing
+                // else here touches the roster.
+                LogParty($"\"{client.Name}\" has not been heard from in {(now - lastHeard).TotalSeconds:F0}s; dropping");
+                Status?.Invoke(this, $"Lost contact with {client.Name}.");
+                Disconnect(client);
+                continue;
+            }
+
+            var seq = Interlocked.Increment(ref _heartbeatSeq);
+
+            lock (_gate)
+            {
+                client.PendingSeq = seq;
+                client.PendingSentTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            }
+
+            _ = SendToAsync(
+                client,
+                new PartyMessage { Kind = PartyMessageKind.Heartbeat, Seq = seq },
+                CancellationToken.None);
+        }
+    }
+
+    private void BeatAsGuest()
+    {
+        if (DateTime.UtcNow - _hostLastHeardUtc > _deadAfter)
+        {
+            // The failure this exists for: the socket is open, the read is blocked, and nothing has
+            // arrived for twenty seconds. Saying so beats sitting there looking connected.
+            LogParty("the host has gone quiet; leaving the session");
+            Status?.Invoke(this, "Lost contact with the host. The session has ended.");
+            Leave();
+            return;
+        }
+
+        var seq = Interlocked.Increment(ref _heartbeatSeq);
+
+        _hostPendingSeq = seq;
+        _hostPendingTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        Send(new PartyMessage { Kind = PartyMessageKind.Heartbeat, Seq = seq });
+    }
+
+    /// <summary>Turns a stopwatch reading taken when a probe went out into a round trip.</summary>
+    private static int ElapsedMs(long sinceTicks) =>
+        (int)Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(sinceTicks).TotalMilliseconds);
+
+    /// <summary>
+    /// Sends one message to one client, and hangs up on them if it cannot be sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Hanging up is the important half. This used to log the failure and carry on with the client
+    /// still in the roster and its socket still open, which is the worst of both worlds: the host
+    /// believes the squad is intact, the guest's read blocks forever on a connection that is never
+    /// going to carry anything again, and the only cure anybody found was rejoining. Closing the
+    /// socket unblocks that read, so the guest finds out too.
+    /// </para>
+    /// <para>
+    /// Returns whether it got through, so a caller mid-broadcast can keep going to the others.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> SendToAsync(HostedClient client, PartyMessage message, CancellationToken cancellationToken)
+    {
+        if (_key is not { } key)
+            return false;
+
+        try
+        {
+            await client.WriteGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            return false;
+        }
+
+        try
+        {
+            await PartyProtocol.WriteAsync(client.Stream, key, message, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogParty($"dropping \"{client.Name}\": {ex.GetType().Name}: {ex.Message}");
+            Disconnect(client);
+            return false;
+        }
+        finally
+        {
+            try { client.WriteGate.Release(); } catch (ObjectDisposedException) { }
+        }
+    }
+
+    /// <summary>
+    /// Closes a client's socket, which is how the rest of the code finds out they are gone.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately does not touch the roster. Disposing the stream makes the blocking read in that
+    /// client's own serve loop return, and its finally block is the one place membership is
+    /// removed and the change announced. Two paths doing that would race.
+    /// </remarks>
+    private static void Disconnect(HostedClient client)
+    {
+        try { client.Stream.Dispose(); } catch (ObjectDisposedException) { }
+        try { client.Client.Dispose(); } catch (ObjectDisposedException) { }
+    }
+
     /// <summary>Sends the full roster to everyone, each addressed with the name we know them by.</summary>
     private async Task BroadcastAsync(CancellationToken cancellationToken)
     {
@@ -570,21 +819,14 @@ public sealed class PartySession : IDisposable
 
         foreach (var client in clients)
         {
-            try
+            var message = new PartyMessage
             {
-                var message = new PartyMessage
-                {
-                    Kind = PartyMessageKind.Roster,
-                    Name = client.Name,
-                    Roster = roster,
-                };
+                Kind = PartyMessageKind.Roster,
+                Name = client.Name,
+                Roster = roster,
+            };
 
-                await PartyProtocol.WriteAsync(client.Stream, key, message, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"could not reach {client.Name}: {ex.Message}");
-            }
+            await SendToAsync(client, message, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -610,15 +852,8 @@ public sealed class PartySession : IDisposable
 
         foreach (var client in clients)
         {
-            try
-            {
-                var message = new PartyMessage { Kind = PartyMessageKind.Routes, Routes = routes };
-                await PartyProtocol.WriteAsync(client.Stream, key, message, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"could not send routes to {client.Name}: {ex.Message}");
-            }
+            var message = new PartyMessage { Kind = PartyMessageKind.Routes, Routes = routes };
+            await SendToAsync(client, message, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -665,6 +900,7 @@ public sealed class PartySession : IDisposable
                 Y = p.Position.Y,
                 Z = p.Position.Z,
                 Yaw = p.Yaw,
+                LatencyMs = LatencyFor(p.Name),
 
                 // Aged on this machine's clock only, so nobody has to trust anybody else's.
                 AgeSeconds = p.HasPosition ? p.AgeSeconds : -1,
@@ -744,6 +980,8 @@ public sealed class PartySession : IDisposable
 
             _ = Task.Run(() => ReceiveLoopAsync(stream, _cancellation.Token), CancellationToken.None);
 
+            StartHeartbeat();
+
             // Anything already known locally goes up straight away, so the squad sees us without
             // waiting for the next screenshot.
             if (_selfPosition is not null)
@@ -781,6 +1019,25 @@ public sealed class PartySession : IDisposable
 
                 if (message is null)
                     break;
+
+                _hostLastHeardUtc = DateTime.UtcNow;
+
+                if (message.Kind == PartyMessageKind.Heartbeat)
+                {
+                    Send(new PartyMessage { Kind = PartyMessageKind.HeartbeatAck, Seq = message.Seq });
+                    continue;
+                }
+
+                if (message.Kind == PartyMessageKind.HeartbeatAck)
+                {
+                    if (message.Seq == _hostPendingSeq)
+                    {
+                        HostLatencyMs = ElapsedMs(_hostPendingTicks);
+                        Raise();
+                    }
+
+                    continue;
+                }
 
                 if (message.Kind == PartyMessageKind.Ping && message.Position is { } ping)
                 {
@@ -865,6 +1122,7 @@ public sealed class PartySession : IDisposable
                     HasPosition = entry.AgeSeconds >= 0,
                     AgeAtSend = Math.Max(entry.AgeSeconds, 0),
                     Color = entry.Color,
+                    LatencyMs = entry.LatencyMs,
                     IsSelf = string.Equals(entry.Name, _selfName, StringComparison.OrdinalIgnoreCase),
                 };
             }
@@ -956,9 +1214,44 @@ public sealed class PartySession : IDisposable
                 // Carried over rather than reset, or recoloring somebody would make their position
                 // look freshly reported when nothing about it has changed.
                 ReceivedAtUtc = peer.ReceivedAtUtc,
+                LatencyMs = peer.LatencyMs,
                 Color = color,
             };
         }
+    }
+
+    /// <summary>
+    /// Records a freshly measured round trip against a peer.
+    /// </summary>
+    /// <remarks>
+    /// The record has to be rebuilt rather than the number simply stored elsewhere. The roster the
+    /// host broadcasts reads latency live, so guests saw it update while the host's own panel kept
+    /// whatever was true when that peer last moved -- which for somebody standing still is "never
+    /// measured".
+    /// </remarks>
+    private void NoteLatency(string name, int latencyMs)
+    {
+        lock (_gate)
+        {
+            if (!_peers.TryGetValue(name, out var peer) || peer.LatencyMs == latencyMs)
+                return;
+
+            _peers[name] = new PartyPeer
+            {
+                Name = peer.Name,
+                Map = peer.Map,
+                Position = peer.Position,
+                Yaw = peer.Yaw,
+                HasPosition = peer.HasPosition,
+                IsSelf = peer.IsSelf,
+                AgeAtSend = peer.AgeAtSend,
+                ReceivedAtUtc = peer.ReceivedAtUtc,
+                Color = peer.Color,
+                LatencyMs = latencyMs,
+            };
+        }
+
+        Raise();
     }
 
     /// <summary>Tells the squad our color changed, when there is no screenshot due to carry it.</summary>
@@ -1028,6 +1321,11 @@ public sealed class PartySession : IDisposable
     }
 
     /// <summary>Sends to the host, off the calling thread and without letting a failure escape.</summary>
+    /// <remarks>
+    /// One writer at a time, for the same reason the host serializes its own sends: a position, a
+    /// route and a heartbeat can all be dispatched within a millisecond of each other, and two of
+    /// them interleaving on the socket leaves the stream permanently misframed.
+    /// </remarks>
     private void Send(PartyMessage message)
     {
         if (_upstream?.Connected != true || _key is not { } key)
@@ -1037,15 +1335,28 @@ public sealed class PartySession : IDisposable
 
         _ = Task.Run(async () =>
         {
+            var token = _cancellation?.Token ?? CancellationToken.None;
+
             try
             {
-                await PartyProtocol
-                    .WriteAsync(stream, key, message, _cancellation?.Token ?? CancellationToken.None)
-                    .ConfigureAwait(false);
+                await _upstreamWriteGate.WaitAsync(token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+            {
+                return;
+            }
+
+            try
+            {
+                await PartyProtocol.WriteAsync(stream, key, message, token).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 Log.Warn($"could not send {message.Kind} to the host: {ex.Message}");
+            }
+            finally
+            {
+                try { _upstreamWriteGate.Release(); } catch (ObjectDisposedException) { }
             }
         });
     }
@@ -1089,6 +1400,7 @@ public sealed class PartySession : IDisposable
                 HasPosition = position is not null,
                 IsSelf = isSelf,
                 AgeAtSend = 0,
+                LatencyMs = isSelf ? null : LatencyFor(name),
 
                 // Read back from the color table rather than from the position, because a color
                 // arrives with the Hello and this record is rebuilt on every update. Taking it from
@@ -1113,6 +1425,12 @@ public sealed class PartySession : IDisposable
     {
         if (IsActive)
             LogParty($"session ended after publishing {_published} position(s)");
+
+        // Before anything else. A heartbeat firing mid-teardown would find a half-dismantled
+        // session and try to hang up on clients that are already gone.
+        _heartbeat?.Dispose();
+        _heartbeat = null;
+        HostLatencyMs = null;
 
         HostedClient[] clients;
 
@@ -1208,10 +1526,34 @@ public sealed class PartySession : IDisposable
 
     private sealed record HostedClient(TcpClient Client, NetworkStream Stream, string Name) : IDisposable
     {
+        /// <summary>
+        /// One writer at a time on this socket.
+        /// </summary>
+        /// <remarks>
+        /// Every client's read loop broadcasts to every other client, so with three people moving
+        /// there are routinely several tasks writing to the same stream at once. Nothing stopped
+        /// them interleaving, and half of one frame followed by half of another is not a frame:
+        /// the length prefix no longer lines up and the connection never decodes anything again.
+        /// </remarks>
+        public SemaphoreSlim WriteGate { get; } = new(1, 1);
+
+        /// <summary>When anything at all last arrived from this client.</summary>
+        public DateTime LastHeardUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>The heartbeat we are waiting on, and when it went out.</summary>
+        public long PendingSeq { get; set; }
+
+        public long PendingSentTicks { get; set; }
+
+        /// <summary>Last measured round trip, or null before the first reply.</summary>
+        public int? LatencyMs { get; set; }
+
         public void Dispose()
         {
             try { Stream.Dispose(); } catch (ObjectDisposedException) { }
             try { Client.Dispose(); } catch (ObjectDisposedException) { }
+
+            WriteGate.Dispose();
         }
     }
 }

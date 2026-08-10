@@ -40,6 +40,20 @@ public enum PartyMessageKind
 
     /// <summary>Every route the host knows, fanned out the way the roster is.</summary>
     Routes,
+
+    /// <summary>
+    /// "Are you still there." Sent both ways on a timer, and answered immediately.
+    /// </summary>
+    /// <remarks>
+    /// TCP will happily hold a connection open that has stopped carrying anything: a router drops
+    /// the mapping, a laptop sleeps, a link flaps, and both ends sit in a blocking read believing
+    /// the squad is fine. This is the only thing that notices, and the round trip doubles as the
+    /// latency reading.
+    /// </remarks>
+    Heartbeat,
+
+    /// <summary>The reply, echoing the sequence number so a round trip can be timed.</summary>
+    HeartbeatAck,
 }
 
 /// <summary>
@@ -138,11 +152,24 @@ public sealed class PeerPosition
     /// the confusion the colors exist to prevent.
     /// </remarks>
     public string? Color { get; set; }
+
+    /// <summary>
+    /// Round trip to the host in milliseconds, as the host last measured it. Null until known.
+    /// </summary>
+    /// <remarks>
+    /// Measured by the host and carried on the roster, so everyone sees the same number for a given
+    /// player rather than each client guessing. It is latency to the host, not to you: in a star
+    /// topology there is no direct link between two guests to measure.
+    /// </remarks>
+    public int? LatencyMs { get; set; }
 }
 
 public sealed class PartyMessage
 {
     public PartyMessageKind Kind { get; set; }
+
+    /// <summary>Echoed back on a heartbeat, so a reply can be matched to the probe that caused it.</summary>
+    public long Seq { get; set; }
 
     /// <summary>
     /// What the sender speaks. Absent means a build from before versions were declared.
@@ -196,7 +223,23 @@ public static class PartyProtocol
     public const int MaxFrameBytes = 64 * 1024;
 
     /// <summary>What this build speaks. Stamped on everything it sends.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
+
+    /// <summary>How often each side proves it is still there.</summary>
+    /// <remarks>
+    /// Four heartbeats fit inside <see cref="DeadAfter"/>, so a single dropped packet or a busy
+    /// moment during a map load never costs anybody their session.
+    /// </remarks>
+    public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// How long a connection may go completely silent before it is treated as gone.
+    /// </summary>
+    /// <remarks>
+    /// Any frame counts as proof of life, not just a heartbeat reply, so a squad that is actively
+    /// moving refreshes this constantly and only a genuinely dead link ever reaches it.
+    /// </remarks>
+    public static readonly TimeSpan DeadAfter = TimeSpan.FromSeconds(21);
 
     /// <summary>
     /// Most points one route will carry, truncated on both send and receive.
@@ -228,12 +271,16 @@ public static class PartyProtocol
         // A fixed salt is acceptable here because the secret is random per session; the salt is
         // only separating this key from any other use of the same bytes.
         //
-        // Bumped to v2 with the colors-and-routes change. It is the only version marker the wire
-        // has, and moving it means an older build cannot decrypt a single frame -- so a mixed
-        // squad fails immediately and completely at the handshake, rather than connecting, looking
-        // healthy, and then dropping somebody the first time a route is shared. Given the change
-        // was going to break them either way, failing at the door is the kinder half of it.
-        var salt = "TarkovMapCompanion/party/v2"u8.ToArray();
+        // Bumped to v2 with the colors-and-routes change, and to v3 with heartbeats. It is the only
+        // version marker the wire has, and moving it means an older build cannot decrypt a single
+        // frame -- so a mixed squad fails immediately and completely at the handshake, rather than
+        // connecting and looking healthy.
+        //
+        // Failing at the door is especially the right call for this one. A build that does not
+        // answer heartbeats would either be dropped every twenty seconds for not replying, or have
+        // to be exempted from the very check that makes the feature worth having. "Everyone
+        // updates together" is the only version of this that actually keeps a squad connected.
+        var salt = "TarkovMapCompanion/party/v3"u8.ToArray();
 
         return Rfc2898DeriveBytes.Pbkdf2(secret, salt, 100_000, HashAlgorithmName.SHA256, 32);
     }

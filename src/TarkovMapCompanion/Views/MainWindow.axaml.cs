@@ -268,6 +268,8 @@ public partial class MainWindow : Window
 
         _minimap.Show();
 
+        SyncMinimapLayers();
+
         // Opening it may be what makes the animation clock worth running again.
         UpdateClockSuspension();
     }
@@ -682,7 +684,24 @@ public partial class MainWindow : Window
             ? new SolidColorBrush(Color.FromRgb(own.Red, own.Green, own.Blue))
             : new SolidColorBrush(Color.FromRgb(color.Red, color.Green, color.Blue));
 
-        return new PartyRow(peer.Name, detail, swatch);
+        return new PartyRow(peer.Name, detail, swatch, LatencyLabel(peer));
+    }
+
+    /// <summary>
+    /// The round trip to show against a roster row.
+    /// </summary>
+    /// <remarks>
+    /// Always latency to the host, which is the only link that exists in a star topology. As a
+    /// guest, our own row is the one we measure ourselves, so it uses the local reading rather than
+    /// the host's opinion of it. The host's own row shows nothing: it is not going over a network.
+    /// </remarks>
+    private string LatencyLabel(PartyPeer peer)
+    {
+        var ms = peer.IsSelf && _session.Party.State == PartyState.Joined
+            ? _session.Party.HostLatencyMs
+            : peer.LatencyMs;
+
+        return ms is { } value ? $"{value} ms" : "";
     }
 
     // ---- Route markers ------------------------------------------------------
@@ -1264,8 +1283,23 @@ public partial class MainWindow : Window
         MapSelector.SelectedItem = map;
         _suppressMapSelectorEvent = false;
 
+        // A map change resets the canvas's own floor state, so the minimap has to be told again.
+        SyncMinimapLayers();
+
         _canvas.InvalidateVisual();
     }
+
+    /// <summary>
+    /// Tells the minimap which floors to draw.
+    /// </summary>
+    /// <remarks>
+    /// The minimap should be the same picture at a different size, and floors were the one place it
+    /// was not: it forced the ground level on, so standing in Factory's tunnels showed you on the
+    /// big map and drew you over solid concrete on the small one. This state lives on the main
+    /// window's canvas and has no event to subscribe to, so it is pushed rather than pulled.
+    /// </remarks>
+    private void SyncMinimapLayers() =>
+        _minimap?.MirrorLayers(_canvas.ActiveFloors, _canvas.ShowBaseLayer);
 
     // ---- Quests -----------------------------------------------------------
 
@@ -1579,6 +1613,7 @@ public partial class MainWindow : Window
             _canvas.ShowBaseLayer = ground.IsChecked ?? false;
             _settings.ShowBaseLayer = _canvas.ShowBaseLayer;
             UpdateFloorHint();
+            SyncMinimapLayers();
             _canvas.InvalidateVisual();
         });
 
@@ -1602,6 +1637,7 @@ public partial class MainWindow : Window
 
                 _session.Player.ActiveFloors = _canvas.ActiveFloors;
                 UpdateFloorHint();
+                SyncMinimapLayers();
                 _canvas.InvalidateVisual();
             };
 

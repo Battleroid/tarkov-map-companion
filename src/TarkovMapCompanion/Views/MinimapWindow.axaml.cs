@@ -39,6 +39,10 @@ public partial class MinimapWindow : Window
     private bool _loading = true;
     private bool _loggedTransparency;
 
+    /// <summary>The main window's floor selection, mirrored so both views show the same level.</summary>
+    private string[] _floors = [];
+    private bool _showBaseLayer = true;
+
     // Parameterless ctor exists only for the XAML previewer.
     public MinimapWindow() : this(new AppSettings(), null!, () => { })
     {
@@ -198,7 +202,11 @@ public partial class MinimapWindow : Window
             previous?.Dispose();
 
             _canvas.SetMap(_session.CurrentMap, _imageSource);
-            _canvas.ShowBaseLayer = true;
+
+            // Whatever the main window is showing, including floors. This used to force the ground
+            // level on, which meant standing in Factory's tunnels put you on the big map and left
+            // you drawn over solid concrete on the small one.
+            ApplyLayers();
 
             Recenter();
         }
@@ -208,6 +216,32 @@ public partial class MinimapWindow : Window
             // bug report.
             Diagnostics.Log.Warn($"minimap could not load {_session.CurrentMap.NormalizedName}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// The floors and ground level the main window is showing.
+    /// </summary>
+    /// <remarks>
+    /// Pushed in rather than read out, because the main window's canvas owns this state and there
+    /// is no event on it to subscribe to. Called whenever it changes and again on every map load,
+    /// since a new map resets the canvas's own copy.
+    /// </remarks>
+    public void MirrorLayers(IReadOnlyCollection<string> activeFloors, bool showBaseLayer)
+    {
+        _floors = activeFloors.ToArray();
+        _showBaseLayer = showBaseLayer;
+
+        ApplyLayers();
+        _canvas.InvalidateVisual();
+    }
+
+    private void ApplyLayers()
+    {
+        _canvas.ShowBaseLayer = _showBaseLayer;
+
+        _canvas.ActiveFloors.Clear();
+        foreach (var floor in _floors)
+            _canvas.ActiveFloors.Add(floor);
     }
 
     private void OnRedrawWanted(object? sender, object? _) => Dispatcher.UIThread.Post(_canvas.InvalidateVisual);
