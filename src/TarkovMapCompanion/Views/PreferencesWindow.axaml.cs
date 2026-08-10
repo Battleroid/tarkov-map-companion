@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Settings;
 
 namespace TarkovMapCompanion.Views;
@@ -76,6 +77,12 @@ public partial class PreferencesWindow : Window
         MinimapClickThroughBox.IsChecked = _settings.MinimapClickThrough;
 
         ShowConditionsBox.IsChecked = _settings.ShowExitConditions;
+
+        ExitFilterBox.ItemsSource = Enum.GetValues<ExitFilter>().Select(f => f.Label()).ToArray();
+        ExitFilterBox.SelectedIndex = (int)_settings.ExitFilter;
+
+        LevelFromLogBox.IsChecked = _settings.PlayerLevelFromGameLog;
+        PlayerLevelBox.Value = _settings.PlayerLevel;
         ShowOffScreenPeersBox.IsChecked = _settings.ShowOffScreenPeers;
         ShareRouteBox.IsChecked = _settings.ShareRouteWithParty;
         AnimateArrowsBox.IsChecked = _settings.AnimateRouteArrows;
@@ -202,6 +209,18 @@ public partial class PreferencesWindow : Window
 
         ShowConditionsBox.IsCheckedChanged += (_, _) => Apply(() =>
             _settings.ShowExitConditions = ShowConditionsBox.IsChecked ?? true);
+
+        ExitFilterBox.SelectionChanged += (_, _) => Apply(() =>
+        {
+            if (ExitFilterBox.SelectedIndex >= 0)
+                _settings.ExitFilter = (ExitFilter)ExitFilterBox.SelectedIndex;
+        });
+
+        LevelFromLogBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.PlayerLevelFromGameLog = LevelFromLogBox.IsChecked ?? true);
+
+        PlayerLevelBox.ValueChanged += (_, _) => Apply(() =>
+            _settings.PlayerLevel = (int)(PlayerLevelBox.Value ?? _settings.PlayerLevel));
 
         MinimapRangeBox.ValueChanged += (_, _) => Apply(() =>
             _settings.MinimapRangeMeters =

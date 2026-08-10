@@ -19,7 +19,7 @@ namespace TarkovMapCompanion.Rendering;
 /// wall of overlapping words.
 /// </para>
 /// </remarks>
-public sealed class AnnotationOverlay : IMapOverlay
+public sealed class AnnotationOverlay : IMapOverlay, ILabeledOverlay
 {
     /// <summary>Above the POI layers, below quests and the route.</summary>
     public const int Layer = 550;
@@ -67,6 +67,9 @@ public sealed class AnnotationOverlay : IMapOverlay
     public int ZOrder => Layer;
 
     public bool IsVisible { get; set; } = true;
+
+    /// <inheritdoc />
+    public LabelPlacer? Labels { get; set; }
 
     public GameMap? Map { get; set; }
 
@@ -177,12 +180,33 @@ public sealed class AnnotationOverlay : IMapOverlay
             var label = hovered && annotation.Author is { } who ? $"{annotation.Text} — {who}" : annotation.Text;
 
             // Above the anchor, so the dot marks the spot and the words do not cover it.
-            var baseline = y - 7;
-
-            canvas.DrawText(label, x, baseline, LabelHalo);
+            const float Rise = 7f;
 
             LabelBody.Color = hovered ? MarkerPalette.LabelText : color;
-            canvas.DrawText(label, x, baseline, LabelBody);
+
+            if (Labels is not { } placer)
+            {
+                canvas.DrawText(label, x, y - Rise, LabelHalo);
+                canvas.DrawText(label, x, y - Rise, LabelBody);
+                continue;
+            }
+
+            if (placer.PlaceAbove(x, y, Rise, label, LabelBody) is not { } spot)
+                continue;
+
+            using (var leader = new SKPaint
+            {
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1f,
+                Color = color.WithAlpha(140),
+            })
+            {
+                spot.DrawLeader(canvas, x, y, LabelBody.MeasureText(label), leader);
+            }
+
+            canvas.DrawText(label, spot.X, spot.Y, LabelHalo);
+            canvas.DrawText(label, spot.X, spot.Y, LabelBody);
         }
     }
 }

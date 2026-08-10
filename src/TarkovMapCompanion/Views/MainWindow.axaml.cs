@@ -166,14 +166,6 @@ public partial class MainWindow : Window
         _canvas.SmoothMovement = _settings.SmoothCameraMovement;
         Audio.PingSound.Enabled = _settings.PingSound;
 
-        ExitFilterBox.ItemsSource = Enum.GetValues<ExitFilter>().Select(f => f.Label()).ToArray();
-        ExitFilterBox.SelectedIndex = (int)_settings.ExitFilter;
-        ExitFilterBox.SelectionChanged += (_, _) => Apply(() =>
-        {
-            _settings.ExitFilter = (ExitFilter)Math.Max(0, ExitFilterBox.SelectedIndex);
-            ApplyExitFilter();
-        });
-
         SortByDistanceToggle.IsChecked = _settings.SortExitsByDistance;
         SortByDistanceToggle.IsCheckedChanged += (_, _) => Apply(() =>
         {
@@ -348,10 +340,6 @@ public partial class MainWindow : Window
         // shown, so the whole list is rebuilt rather than just the overlay.
         _session.QuestsChanged += (_, _) => Post(() =>
         {
-            // The level box before the list, since the list is filtered by it. The log raises the
-            // level as it reads history, which happens well after the box was first filled in.
-            SyncPlayerLevelBox();
-
             BuildQuestList();
             BuildQuestPane();
             _canvas.InvalidateVisual();
@@ -436,6 +424,11 @@ public partial class MainWindow : Window
         // when the dialog closes rather than waiting for it to be reopened.
         _minimap?.ApplyClickThrough();
         _minimap?.Rescale();
+
+        // Both of these used to have their own control in the panel and now only live in the
+        // dialog, so this is the only place they can take effect.
+        ApplyExitFilter();
+        BuildQuestList();
 
         // The roster's own swatch follows the player color, and a route may have started animating.
         UpdatePartyPanel();
@@ -821,13 +814,12 @@ public partial class MainWindow : Window
                 _session.Pois.Visible[captured] = on;
                 _settings.PoiLayers[captured.ToString()] = on;
 
-                // Ticking an exit layer by hand contradicts the dropdown, so drop back to "All"
-                // rather than leaving the two showing different things.
+                // Ticking an exit layer by hand contradicts a narrowed filter, so drop back to
+                // "All" rather than leaving the two showing different things. The control that set
+                // it is in Settings now, which is all the more reason not to leave it winning
+                // silently over something ticked here.
                 if (ExtractKinds.Contains(captured) && !_settings.ExitFilter.Includes(captured) && on)
-                {
                     _settings.ExitFilter = ExitFilter.All;
-                    ExitFilterBox.SelectedIndex = (int)ExitFilter.All;
-                }
 
                 RebuildExtractList();
                 _canvas.InvalidateVisual();
@@ -2278,8 +2270,6 @@ public partial class MainWindow : Window
 
     private void WireQuests()
     {
-        PlayerLevelBox.Value = _settings.PlayerLevel;
-
         // What is on the map in front of you, which is a useful first open rather than a wall of
         // five hundred tasks. The level filter stays off until you have told it your level:
         // defaulting it on with the default level of 1 hides all but a handful of tasks, and the
@@ -2298,27 +2288,6 @@ public partial class MainWindow : Window
             _settings.ShowQuestNames = QuestLabelsBox.IsChecked ?? true;
             _session.Quests.ShowNames = _settings.ShowQuestNames;
             _canvas.InvalidateVisual();
-        });
-
-        PlayerLevelBox.ValueChanged += (_, _) =>
-        {
-            if (_levelFromLog)
-                return;
-
-            Apply(() =>
-            {
-                _settings.PlayerLevel = (int)(PlayerLevelBox.Value ?? _settings.PlayerLevel);
-                BuildQuestList();
-            });
-        };
-
-        PlayerLevelFromLogBox.IsChecked = _settings.PlayerLevelFromGameLog;
-        PlayerLevelFromLogBox.IsCheckedChanged += (_, _) => Apply(() =>
-        {
-            _settings.PlayerLevelFromGameLog = PlayerLevelFromLogBox.IsChecked ?? true;
-
-            if (_session.ApplyLevelFloorFromQuestLog())
-                RefreshPlayerLevelBox();
         });
 
         ClearQuestsButton.Click += (_, _) => Apply(() =>
@@ -2341,45 +2310,10 @@ public partial class MainWindow : Window
         });
 
         // The floor the log implies is known before any of this ran, since the watcher reads the
-        // history at startup. Apply it once here so the box opens with the right number rather
-        // than waiting for the next trader message.
-        if (_session.ApplyLevelFloorFromQuestLog())
-            RefreshPlayerLevelBox();
+        // history at startup. Apply it once here so the first list is filtered by the right number
+        // rather than by the default of 1.
+        _session.ApplyLevelFloorFromQuestLog();
     }
-
-    /// <summary>
-    /// Puts the stored level back in the box without looking like the user typed it.
-    /// </summary>
-    /// <remarks>
-    /// Assigning <c>Value</c> raises <c>ValueChanged</c>, which writes the setting and rebuilds the
-    /// list. Harmless here, since the value it would write is the one already stored, but the flag
-    /// keeps a log-driven change from being saved as a preference the moment it happens.
-    /// </remarks>
-    private void RefreshPlayerLevelBox()
-    {
-        SyncPlayerLevelBox();
-        BuildQuestList();
-    }
-
-    /// <summary>Puts the box in step with the setting, without rebuilding anything.</summary>
-    private void SyncPlayerLevelBox()
-    {
-        if (PlayerLevelBox.Value == _settings.PlayerLevel)
-            return;
-
-        _levelFromLog = true;
-
-        try
-        {
-            PlayerLevelBox.Value = _settings.PlayerLevel;
-        }
-        finally
-        {
-            _levelFromLog = false;
-        }
-    }
-
-    private bool _levelFromLog;
 
     /// <summary>
     /// Rebuilds the quest list from the filters.

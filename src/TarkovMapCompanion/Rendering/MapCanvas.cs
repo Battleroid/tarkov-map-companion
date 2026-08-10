@@ -38,6 +38,16 @@ public sealed class MapCanvas : Control
 
     private readonly List<IMapOverlay> _overlays = [];
 
+    /// <summary>
+    /// Shared by every overlay that writes a name, reset once per frame.
+    /// </summary>
+    /// <remarks>
+    /// Owned here rather than by any overlay because it has to outlive all of them within a frame
+    /// and none of them within two. One instance, reused, so a busy map does not allocate a
+    /// rectangle list twenty times a second.
+    /// </remarks>
+    private readonly LabelPlacer _labels = new();
+
     private IMapImageSource? _imageSource;
     private GameMap? _map;
     private Point? _dragOrigin;
@@ -419,7 +429,8 @@ public sealed class MapCanvas : Control
             ActiveFloors.ToArray(),
             ShowBaseLayer,
             _overlays.ToArray(),
-            opacity));
+            opacity,
+            _labels));
     }
 
     /// <summary>
@@ -436,7 +447,8 @@ public sealed class MapCanvas : Control
         IReadOnlyCollection<string> activeFloors,
         bool showBaseLayer,
         IReadOnlyList<IMapOverlay> overlays,
-        double opacity) : ICustomDrawOperation
+        double opacity,
+        LabelPlacer labels) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -469,10 +481,17 @@ public sealed class MapCanvas : Control
 
                 imageSource.Draw(canvas, viewport, activeFloors, showBaseLayer);
 
+                labels.BeginFrame(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
+
                 foreach (var overlay in overlays)
                 {
-                    if (overlay.IsVisible)
-                        overlay.Draw(canvas, viewport);
+                    if (!overlay.IsVisible)
+                        continue;
+
+                    if (overlay is ILabeledOverlay labeled)
+                        labeled.Labels = labels;
+
+                    overlay.Draw(canvas, viewport);
                 }
             }
             catch (Exception ex)
@@ -504,4 +523,17 @@ public interface IMapOverlay
 
     /// <summary>Draws into screen space; use <paramref name="viewport"/> to place base-space geometry.</summary>
     void Draw(SKCanvas canvas, Viewport viewport);
+}
+
+/// <summary>
+/// An overlay that writes names on the map, and so has to agree with the others about where.
+/// </summary>
+/// <remarks>
+/// The canvas hands the same placer to every one of these before it draws, in draw order. Earlier
+/// overlays therefore get their first choice of spot -- which is the right way round, since they
+/// are the ones underneath.
+/// </remarks>
+public interface ILabeledOverlay
+{
+    LabelPlacer? Labels { get; set; }
 }

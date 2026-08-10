@@ -18,7 +18,7 @@ namespace TarkovMapCompanion.Rendering;
 /// "somewhere near here". Where upstream gives only a point, a point is what gets drawn.
 /// </para>
 /// </remarks>
-public sealed class QuestOverlay : IMapOverlay
+public sealed class QuestOverlay : IMapOverlay, ILabeledOverlay
 {
     /// <summary>Above the POI layers, below the route. A route built from quests draws over them.</summary>
     public const int Layer = 600;
@@ -26,10 +26,10 @@ public sealed class QuestOverlay : IMapOverlay
     private const float MarkerRadius = 7f;
     private const double HitSlack = 6.0;
 
-    /// <summary>Fill for a zone footprint. Faint: it is context, not the marker.</summary>
     /// <summary>How much of a marker survives being ticked off. Present, but plainly spent.</summary>
     private const byte DoneAlpha = 70;
 
+    /// <summary>Fill for a zone footprint. Faint: it is context, not the marker.</summary>
     private const byte ZoneFillAlpha = 40;
 
     private const byte ZoneStrokeAlpha = 150;
@@ -76,6 +76,15 @@ public sealed class QuestOverlay : IMapOverlay
         Color = MarkerPalette.LabelText.WithAlpha(120),
     };
 
+    /// <summary>A hairline back to the marker, for a name that had to move to be readable.</summary>
+    private static readonly SKPaint Leader = new()
+    {
+        IsAntialias = true,
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 1f,
+        Color = MarkerPalette.LabelText.WithAlpha(120),
+    };
+
     /// <summary>Number inside a marker, when one task has several objectives on this map.</summary>
     private static readonly SKPaint IndexBody = new()
     {
@@ -97,6 +106,9 @@ public sealed class QuestOverlay : IMapOverlay
 
     /// <summary>Label every mark with its task name, rather than only the one under the pointer.</summary>
     public bool ShowNames { get; set; } = true;
+
+    /// <inheritdoc />
+    public LabelPlacer? Labels { get; set; }
 
     /// <summary>The mark under the pointer, drawn larger and always labeled.</summary>
     public QuestMark? Hovered { get; set; }
@@ -272,8 +284,20 @@ public sealed class QuestOverlay : IMapOverlay
             halo = DoneLabelHalo;
         }
 
-        canvas.DrawText(label, x + offset, y + 4, halo);
-        canvas.DrawText(label, x + offset, y + 4, body);
+        if (Labels is not { } placer)
+        {
+            canvas.DrawText(label, x + offset, y + 4, halo);
+            canvas.DrawText(label, x + offset, y + 4, body);
+            return;
+        }
+
+        if (placer.Place(x, y, offset, label, body) is not { } spot)
+            return;
+
+        spot.DrawLeader(canvas, x, y, body.MeasureText(label), Leader);
+
+        canvas.DrawText(label, spot.X, spot.Y, halo);
+        canvas.DrawText(label, spot.X, spot.Y, body);
     }
 
     /// <summary>

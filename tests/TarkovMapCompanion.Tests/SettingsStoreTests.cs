@@ -175,4 +175,38 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.EndsWith(Path.Combine("Escape from Tarkov", "Screenshots"), folder);
     }
+
+    /// <summary>
+    /// The exit filter's control moved into Settings, so a narrowed one is reset once on the way in.
+    /// </summary>
+    /// <remarks>
+    /// Without this, somebody who had picked "Running as Scav" while the dropdown was in the panel
+    /// opens the new build to eight missing exits and nothing on screen saying why.
+    /// </remarks>
+    [Fact]
+    public void Migrate_ShowsEveryExitOnceWhenComingFromVersionOne()
+    {
+        var settings = new AppSettings { Version = 1, ExitFilter = ExitFilter.AsScav };
+        settings.Migrate();
+
+        Assert.Equal(ExitFilter.All, settings.ExitFilter);
+        Assert.Equal(AppSettings.Current, settings.Version);
+    }
+
+    /// <summary>Once migrated, the preference is the user's again.</summary>
+    [Fact]
+    public void Migrate_LeavesACurrentFileAlone()
+    {
+        var settings = new AppSettings { Version = AppSettings.Current, ExitFilter = ExitFilter.AsScav };
+        settings.Migrate();
+
+        Assert.Equal(ExitFilter.AsScav, settings.ExitFilter);
+    }
+
+    /// <summary>A new file is already current and never sees the migration.</summary>
+    [Fact]
+    public void ANewSettingsFileIsAtTheCurrentVersion()
+    {
+        Assert.Equal(AppSettings.Current, new AppSettings().Version);
+    }
 }

@@ -269,9 +269,11 @@ public static class RenderTest
         var canvas = surface.Canvas;
         canvas.Clear(new SKColor(0x12, 0x15, 0x1A));
 
-        source.Draw(canvas, viewport, floors, includeBase);
-        foreach (var overlay in overlays)
-            overlay.Draw(canvas, viewport);
+        // The same placer the window uses, for the same reason: labels have to agree across
+        // overlays, and a harness that skipped it would render a picture the app never draws.
+        var labels = new LabelPlacer();
+
+        DrawFrame();
 
         canvas.Flush();
         Console.WriteLine($"render     {stopwatch.ElapsedMilliseconds} ms (first frame: parse + rasterize)");
@@ -281,11 +283,16 @@ public static class RenderTest
         stopwatch.Restart();
         const int frames = 30;
         for (var i = 0; i < frames; i++)
-        {
-            source.Draw(canvas, viewport, floors, includeBase);
-            foreach (var overlay in overlays)
-                overlay.Draw(canvas, viewport);
-        }
+            DrawFrame();
+
+        canvas.Flush();
+
+        // Every frame so far has been painted over the last one, which for a static scene is
+        // invisible -- except where a label lands somewhere slightly different, and then the PNG
+        // shows two of it. One clean frame at the end, so what gets written is what one frame
+        // looks like.
+        canvas.Clear(new SKColor(0x12, 0x15, 0x1A));
+        DrawFrame();
         canvas.Flush();
         Console.WriteLine($"redraw     {stopwatch.Elapsed.TotalMilliseconds / frames:F2} ms/frame over {frames} frames");
 
@@ -296,6 +303,20 @@ public static class RenderTest
 
         Console.WriteLine($"wrote      {Path.GetFullPath(outputPath)} ({data.Size / 1024} KB)");
         return 0;
+
+        void DrawFrame()
+        {
+            source.Draw(canvas, viewport, floors, includeBase);
+            labels.BeginFrame(new SKRect(0, 0, width, height));
+
+            foreach (var overlay in overlays)
+            {
+                if (overlay is ILabeledOverlay labeled)
+                    labeled.Labels = labels;
+
+                overlay.Draw(canvas, viewport);
+            }
+        }
     }
 
     private static List<PlayerFix> LoadRealFixes(GameMap map)

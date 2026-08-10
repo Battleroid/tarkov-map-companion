@@ -109,9 +109,16 @@ screenshots is exactly when you expect to be put back, and the app used to quiet
 instead. Only the button turns it off, and it lights up while it is on so being recentered is never
 a surprise.
 
-**Exit filter and nearest-first.** "Running as PMC" hides the Scav-only exits you cannot use — on
-Customs that is 16 of 31 gone. **Nearest first** reorders the list by distance from your last known
-position, and every exit shows its distance either way.
+**Nearest first.** Reorders the exit list by distance from your last known position; every exit
+shows its distance either way. The Exits tab shows all of them, because which faction can use an
+exit is written on its own row and a list that disagreed with the map was worse than a longer list.
+Settings still has the faction filter for anyone who only ever runs one.
+
+**Names that get out of each other's way.** Exit, quest, note and teammate labels are placed by
+one pass that knows about all of them, so a name lands where no other name already is. Whichever
+overlay asks first keeps the spot it wanted; the rest are nudged up, down or to the other side of
+their marker, and anything moved far enough to be ambiguous gets a hairline back to what it names.
+Labels baked into the map artwork are not something the app can move, so those can still be sat on.
 
 **Spawn heatmap.** Where PMCs, Scavs, AI PMCs and bosses can start. The radius is set in game
 meters, so zooming changes how much you see rather than what the data says, and each band is scaled

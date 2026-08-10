@@ -68,7 +68,8 @@
                         ToolTip.Tip="Show or hide the exits, quests and notes panel. Drag its edge to resize." />
           <ToggleButton Name="MinimapToggle" Classes="mode" Content="Minimap"
                         ToolTip.Tip="Pop out a small always-on-top map that can sit over the game" />
-          <CheckBox Name="AlwaysOnTopToggle" Content="On top" VerticalAlignment="Center" />
+          <ToggleButton Name="AlwaysOnTopToggle" Classes="mode" Content="On Top"
+                        ToolTip.Tip="Keep this window above the game" />
           <Button Name="ThemeButton" Content="Theme" ToolTip.Tip="Cycle dark, light, follow system" />
           <Button Name="PreferencesButton" Content="Settings" />
           <Button Name="AboutButton" Content="About" />
@@ -149,12 +150,21 @@
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
           <TextBlock Classes="heading" Text="EXITS" />
-          <ComboBox Name="ExitFilterBox" HorizontalAlignment="Stretch"
-                    ToolTip.Tip="Hide exits your faction cannot use" />
-          <CheckBox Name="SortByDistanceToggle" Content="Nearest first" FontSize="12"
-                    ToolTip.Tip="Order the list by distance from your last known position" />
-          <CheckBox Name="ReadExitsToggle" Content="Read exits from screenshot" FontSize="12"
-                    ToolTip.Tip="When a screenshot catches the in-game extraction list (double-tap O), dim the exits it does not name. Reads the picture only; nothing touches the game." />
+
+          <!--
+            Every exit, every time. Which ones your faction can use is a fact about each exit and
+            is written on its row; hiding eight of them behind a dropdown meant the list disagreed
+            with the map, and the answer to "where is that one" was in a control nobody had opened.
+            The dropdown still exists in Settings for anyone who wants the shorter list.
+          -->
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+            <ToggleButton Grid.Column="0" Name="SortByDistanceToggle" Classes="mode" Content="Nearest"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="11"
+                          ToolTip.Tip="Order the list by distance from your last known position" />
+            <ToggleButton Grid.Column="1" Name="ReadExitsToggle" Classes="mode" Content="Read Exits"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="11"
+                          ToolTip.Tip="When a screenshot catches the in-game extraction list (double-tap O), dim the exits it does not name. Reads the picture only; nothing touches the game." />
+          </Grid>
 
           <!-- What the last read found, and a way out of it. Only shown once something was read. -->
           <Border Name="ReadExitsBar" IsVisible="False"
@@ -259,7 +269,7 @@
             <CheckBox Grid.Column="0" Name="QuestKappaBox" Content="Kappa" FontSize="12"
                       ToolTip.Tip="Only tasks required for the Kappa container" />
             <CheckBox Grid.Column="1" Name="QuestLevelBox" Content="My level" FontSize="12"
-                      ToolTip.Tip="Hide tasks above your level" />
+                      ToolTip.Tip="Hide tasks above your level. The level itself comes from the game log; Settings can override it." />
           </Grid>
 
           <!--
@@ -268,17 +278,6 @@
           -->
           <CheckBox Name="QuestActiveHereBox" Content="Active here" FontSize="12"
                     ToolTip.Tip="Only quests the game says you have accepted that have an objective on this map" />
-
-          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
-            <TextBlock Grid.Column="0" Text="Level" VerticalAlignment="Center" FontSize="12"
-                       Classes="secondary" />
-            <!-- Wide enough for two digits and both spinner buttons; 96 clipped "52" to "5". -->
-            <NumericUpDown Grid.Column="1" Name="PlayerLevelBox" Minimum="1" Maximum="79"
-                           Increment="1" Width="112" FormatString="0" />
-            <CheckBox Grid.Column="2" Name="PlayerLevelFromLogBox" Content="From log" FontSize="11"
-                      VerticalAlignment="Center"
-                      ToolTip.Tip="Raise it to the highest level requirement among the quests the log has seen you take. Your actual level is in no log Tarkov writes, so this is a floor, never a lowering." />
-          </Grid>
 
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
             <Button Grid.Column="0" Name="SyncQuestsButton" Content="Sync from game"

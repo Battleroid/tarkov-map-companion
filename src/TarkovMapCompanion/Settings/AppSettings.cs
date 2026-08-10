@@ -63,8 +63,32 @@ public enum WaypointArrival
 /// </summary>
 public sealed class AppSettings
 {
-    /// <summary>Bumped when a migration is needed. Not currently used for anything but diagnostics.</summary>
-    public int Version { get; set; } = 1;
+    /// <summary>Bumped when a settings file written by an older build needs adjusting on load.</summary>
+    public int Version { get; set; } = Current;
+
+    /// <summary>What <see cref="Version"/> is at for this build.</summary>
+    /// <remarks>
+    /// 1: everything up to and including v0.11.
+    /// 2: the exit filter left the Exits tab for Settings, so anyone still carrying a narrowed one
+    ///    from when the dropdown was in front of them is put back to All. Without this, moving the
+    ///    control means eight exits stay hidden with nothing on screen saying why.
+    /// </remarks>
+    public const int Current = 2;
+
+    /// <summary>
+    /// Brings a settings file forward from whatever build wrote it.
+    /// </summary>
+    /// <remarks>
+    /// Runs before <see cref="Normalize"/> and only on load, which is what keeps it a one-off: a
+    /// rule in Normalize would re-apply on every save and make the preference unsettable.
+    /// </remarks>
+    public void Migrate()
+    {
+        if (Version < 2)
+            ExitFilter = ExitFilter.All;
+
+        Version = Current;
+    }
 
     // ---- Screenshot ingest -------------------------------------------------
 

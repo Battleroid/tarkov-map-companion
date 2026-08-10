@@ -57,6 +57,7 @@ public sealed class SettingsStore
             settings = new AppSettings();
         }
 
+        settings.Migrate();
         settings.Normalize();
         return settings;
     }

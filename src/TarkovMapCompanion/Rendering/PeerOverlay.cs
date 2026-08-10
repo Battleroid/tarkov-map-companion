@@ -23,7 +23,7 @@ namespace TarkovMapCompanion.Rendering;
 /// recede.
 /// </para>
 /// </remarks>
-public sealed class PeerOverlay : IMapOverlay
+public sealed class PeerOverlay : IMapOverlay, ILabeledOverlay
 {
     private static readonly SKTypeface Typeface =
         SKTypeface.FromFamilyName("Cascadia Mono")
@@ -354,7 +354,7 @@ public sealed class PeerOverlay : IMapOverlay
         return MarkerPalette.PeerColors[0];
     }
 
-    private static void DrawPeer(
+    private void DrawPeer(
         SKCanvas canvas, float x, float y, GameMap map, PartyPeer peer, SKColor color, byte alpha)
     {
         using var fill = new SKPaint { IsAntialias = true, Color = color.WithAlpha(alpha) };
@@ -388,7 +388,7 @@ public sealed class PeerOverlay : IMapOverlay
 
         canvas.Restore();
 
-        DrawLabel(canvas, x + Radius + 5, y + 4, Describe(peer), alpha);
+        PlaceLabel(canvas, x, y, Radius + 5, Describe(peer), alpha);
     }
 
     /// <summary>Name plus age, because a name on its own implies the position is current.</summary>
@@ -405,6 +405,43 @@ public sealed class PeerOverlay : IMapOverlay
 
         return $"{peer.Name} · {when}";
     }
+
+    /// <summary>
+    /// A teammate's name beside their marker, moved aside if something is already there.
+    /// </summary>
+    /// <remarks>
+    /// Off-screen arrows do not go through this: their label position is already the answer to a
+    /// harder constraint -- pinned to the edge, clamped inward -- and letting the placer move it
+    /// would point it away from the arrow it belongs to.
+    /// </remarks>
+    private void PlaceLabel(SKCanvas canvas, float anchorX, float anchorY, float gap, string text, byte alpha)
+    {
+        if (Labels is not { } placer)
+        {
+            DrawLabel(canvas, anchorX + gap, anchorY + 4, text, alpha);
+            return;
+        }
+
+        using var measure = new SKPaint { IsAntialias = true, Typeface = Typeface, TextSize = 12 };
+
+        if (placer.Place(anchorX, anchorY, gap, text, measure) is not { } spot)
+            return;
+
+        using var leader = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1f,
+            Color = MarkerPalette.LabelText.WithAlpha((byte)(alpha / 2)),
+        };
+
+        spot.DrawLeader(canvas, anchorX, anchorY, measure.MeasureText(text), leader);
+
+        DrawLabel(canvas, spot.X, spot.Y, text, alpha);
+    }
+
+    /// <inheritdoc />
+    public LabelPlacer? Labels { get; set; }
 
     private static void DrawLabel(SKCanvas canvas, float x, float y, string text, byte alpha)
     {

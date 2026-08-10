@@ -12,7 +12,7 @@ namespace TarkovMapCompanion.Rendering;
 /// right out. Hit-testing therefore also happens in screen space, against the last frame's
 /// viewport -- which is exactly what the user was looking at when they moved the pointer.
 /// </remarks>
-public sealed class PoiOverlay : IMapOverlay
+public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
 {
     private const float MarkerRadius = 5.5f;
     private const float ExtractRadius = 7.5f;
@@ -55,6 +55,15 @@ public sealed class PoiOverlay : IMapOverlay
         Typeface = LabelTypeface,
         TextSize = 12,
         Color = MarkerPalette.LabelText,
+    };
+
+    /// <summary>A hairline back to the marker, for a name that had to move to be readable.</summary>
+    private static readonly SKPaint Leader = new()
+    {
+        IsAntialias = true,
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 1f,
+        Color = MarkerPalette.LabelText.WithAlpha(120),
     };
 
     private IReadOnlyList<MapPoi> _pois = [];
@@ -278,7 +287,7 @@ public sealed class PoiOverlay : IMapOverlay
         // unless it is being pointed at. The marker stays; the noise goes.
         var labeled = isExtract && !muted && (ShowExtractNames || highlighted);
         if (labeled)
-            DrawLabel(canvas, x + radius + 4, y + 4, poi.Name);
+            DrawLabel(canvas, x, y, radius + 4, poi.Name);
     }
 
     private void DrawSelection(SKCanvas canvas, Viewport viewport, MapPoi selected)
@@ -312,11 +321,34 @@ public sealed class PoiOverlay : IMapOverlay
         canvas.DrawPath(path, edge);
     }
 
-    private static void DrawLabel(SKCanvas canvas, float x, float y, string text)
+    /// <summary>
+    /// Writes a marker's name beside it, wherever beside it happens to be free.
+    /// </summary>
+    /// <remarks>
+    /// With no placer -- which is every unit test and the render harness -- it lands exactly where
+    /// it always did, to the right of the marker. That keeps the placer out of the geometry the
+    /// existing tests pin.
+    /// </remarks>
+    private void DrawLabel(SKCanvas canvas, float anchorX, float anchorY, float gap, string text)
     {
-        canvas.DrawText(text, x, y, LabelHalo);
-        canvas.DrawText(text, x, y, LabelBody);
+        if (Labels is not { } placer)
+        {
+            canvas.DrawText(text, anchorX + gap, anchorY + 4, LabelHalo);
+            canvas.DrawText(text, anchorX + gap, anchorY + 4, LabelBody);
+            return;
+        }
+
+        if (placer.Place(anchorX, anchorY, gap, text, LabelBody) is not { } spot)
+            return;
+
+        spot.DrawLeader(canvas, anchorX, anchorY, LabelBody.MeasureText(text), Leader);
+
+        canvas.DrawText(text, spot.X, spot.Y, LabelHalo);
+        canvas.DrawText(text, spot.X, spot.Y, LabelBody);
     }
+
+    /// <inheritdoc />
+    public LabelPlacer? Labels { get; set; }
 
     private static SKColor ColorFor(PoiKind kind) => kind switch
     {
