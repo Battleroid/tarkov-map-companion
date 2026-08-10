@@ -27,6 +27,9 @@ public sealed class QuestOverlay : IMapOverlay
     private const double HitSlack = 6.0;
 
     /// <summary>Fill for a zone footprint. Faint: it is context, not the marker.</summary>
+    /// <summary>How much of a marker survives being ticked off. Present, but plainly spent.</summary>
+    private const byte DoneAlpha = 70;
+
     private const byte ZoneFillAlpha = 40;
 
     private const byte ZoneStrokeAlpha = 150;
@@ -52,6 +55,25 @@ public sealed class QuestOverlay : IMapOverlay
         Typeface = LabelTypeface,
         TextSize = 12,
         Color = MarkerPalette.LabelText,
+    };
+
+    /// <summary>The same label, spent. Faint enough to read past, solid enough to still read.</summary>
+    private static readonly SKPaint DoneLabelHalo = new()
+    {
+        IsAntialias = true,
+        Typeface = LabelTypeface,
+        TextSize = 12,
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 3,
+        Color = MarkerPalette.Halo.WithAlpha(110),
+    };
+
+    private static readonly SKPaint DoneLabelBody = new()
+    {
+        IsAntialias = true,
+        Typeface = LabelTypeface,
+        TextSize = 12,
+        Color = MarkerPalette.LabelText.WithAlpha(120),
     };
 
     /// <summary>Number inside a marker, when one task has several objectives on this map.</summary>
@@ -174,12 +196,15 @@ public sealed class QuestOverlay : IMapOverlay
 
         path.Close();
 
+        var fillAlpha = mark.Done ? (byte)(ZoneFillAlpha / 2) : ZoneFillAlpha;
+        var strokeAlpha = mark.Done ? DoneAlpha : ZoneStrokeAlpha;
+
         fill.Style = SKPaintStyle.Fill;
-        fill.Color = mark.Color.WithAlpha(ZoneFillAlpha);
+        fill.Color = mark.Color.WithAlpha(fillAlpha);
         canvas.DrawPath(path, fill);
 
         var previous = stroke.Color;
-        stroke.Color = mark.Color.WithAlpha(ZoneStrokeAlpha);
+        stroke.Color = mark.Color.WithAlpha(strokeAlpha);
         canvas.DrawPath(path, stroke);
         stroke.Color = previous;
     }
@@ -205,7 +230,7 @@ public sealed class QuestOverlay : IMapOverlay
         var radius = hovered ? MarkerRadius + 2.5f : MarkerRadius;
 
         fill.Style = SKPaintStyle.Fill;
-        fill.Color = mark.Color;
+        fill.Color = mark.Done ? mark.Color.WithAlpha(DoneAlpha) : mark.Color;
 
         if (mark.OneOf)
         {
@@ -233,8 +258,22 @@ public sealed class QuestOverlay : IMapOverlay
         var label = hovered ? mark.Label : mark.TaskName;
         var offset = radius + 5f;
 
-        canvas.DrawText(label, x + offset, y + 4, LabelHalo);
-        canvas.DrawText(label, x + offset, y + 4, LabelBody);
+        // A done marker's label fades with it, but the tick stays legible: the point of leaving it
+        // on the map is being able to see that it is the one you already did.
+        if (mark.Done && !hovered)
+            label = "✓ " + label;
+
+        var body = LabelBody;
+        var halo = LabelHalo;
+
+        if (mark.Done)
+        {
+            body = DoneLabelBody;
+            halo = DoneLabelHalo;
+        }
+
+        canvas.DrawText(label, x + offset, y + 4, halo);
+        canvas.DrawText(label, x + offset, y + 4, body);
     }
 
     /// <summary>
@@ -288,7 +327,23 @@ public sealed record QuestMark(
     bool OneOf,
     IReadOnlyList<(double X, double Z)> Outline)
 {
+    /// <summary>
+    /// Whether its objective has been ticked off by hand.
+    /// </summary>
+    /// <remarks>
+    /// Drawn faintly rather than dropped, which is the rule the whole app follows: a marker that
+    /// vanishes reads as a bug, and coming back to somewhere you have already been is a thing
+    /// people do on purpose.
+    /// </remarks>
+    public bool Done { get; init; }
+
     /// <summary>What to show when the pointer is on it: the task, then what it wants.</summary>
-    public string Label =>
-        string.IsNullOrWhiteSpace(Description) ? TaskName : $"{TaskName}: {Description}";
+    public string Label
+    {
+        get
+        {
+            var text = string.IsNullOrWhiteSpace(Description) ? TaskName : $"{TaskName}: {Description}";
+            return Done ? "✓ " + text : text;
+        }
+    }
 }

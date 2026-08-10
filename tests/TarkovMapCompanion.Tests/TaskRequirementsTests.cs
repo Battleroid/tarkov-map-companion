@@ -35,8 +35,12 @@ public sealed class TaskRequirementsTests
         Assert.All(withKeys, task => Assert.All(task.Keys, group =>
         {
             Assert.NotEmpty(group.MapId);
-            Assert.NotEmpty(group.Names);
-            Assert.All(group.Names, name => Assert.False(LooksLikeAnId(name), name));
+            Assert.NotEmpty(group.Keys);
+            Assert.All(group.Keys, key =>
+            {
+                Assert.False(LooksLikeAnId(key.Name), key.Name);
+                Assert.True(ItemIconStore.LooksLikeAnId(key.Id), key.Id);
+            });
         }));
     }
 
@@ -51,7 +55,15 @@ public sealed class TaskRequirementsTests
             .ToArray();
 
         Assert.True(items.Length > 200, $"only {items.Length} objectives name an item");
-        Assert.All(items, o => Assert.All(o.Items, name => Assert.False(LooksLikeAnId(name), name)));
+
+        Assert.All(items, o => Assert.All(o.Items, item =>
+        {
+            Assert.False(LooksLikeAnId(item.Name), item.Name);
+
+            // The id is the whole address of the item's picture, so an item carrying a name and no
+            // id is an icon that can never load.
+            Assert.True(ItemIconStore.LooksLikeAnId(item.Id), $"{item.Name} has id '{item.Id}'");
+        }));
     }
 
     /// <summary>
@@ -108,14 +120,14 @@ public sealed class TaskRequirementsTests
         {
             Keys =
             [
-                new TaskKeyData { MapId = Customs, Names = ["Dorm room 314 marked key"] },
-                new TaskKeyData { MapId = Woods, Names = ["Wooden ladder"] },
+                new TaskKeyData { MapId = Customs, Keys = [Item("Dorm room 314 marked key")] },
+                new TaskKeyData { MapId = Woods, Keys = [Item("Wooden ladder")] },
             ],
         };
 
         var kit = TaskRequirements.Gather([task], id => id == Customs);
 
-        Assert.Equal(["Dorm room 314 marked key"], kit.Keys);
+        Assert.Equal(["Dorm room 314 marked key"], Names(kit.Keys));
     }
 
     /// <summary>
@@ -140,7 +152,7 @@ public sealed class TaskRequirementsTests
 
         var kit = TaskRequirements.Gather([task], id => id == Customs);
 
-        Assert.Equal(["WI-FI Camera"], kit.Items);
+        Assert.Equal(["WI-FI Camera"], Names(kit.Items));
     }
 
     [Fact]
@@ -149,7 +161,7 @@ public sealed class TaskRequirementsTests
         var task = new TaskData { Objectives = [Objective("mark", ["MS2000 Marker"], Woods)] };
 
         Assert.Empty(TaskRequirements.Gather([task], id => id == Customs).Items);
-        Assert.Equal(["MS2000 Marker"], TaskRequirements.Gather([task], id => id == Woods).Items);
+        Assert.Equal(["MS2000 Marker"], Names(TaskRequirements.Gather([task], id => id == Woods).Items));
     }
 
     /// <summary>An objective with no position at all belongs to no raid in particular.</summary>
@@ -158,21 +170,27 @@ public sealed class TaskRequirementsTests
     {
         var task = new TaskData
         {
-            Objectives = [new TaskObjectiveData { Type = "plantItem", Items = ["Bronze pocket watch"] }],
+            Objectives = [new TaskObjectiveData { Type = "plantItem", Items = [Item("Bronze pocket watch")] }],
         };
 
         Assert.Empty(TaskRequirements.Gather([task], _ => true).Items);
     }
 
+    /// <summary>Deduplicated by id, which is the identity that survives a rename upstream.</summary>
     [Fact]
     public void TwoTasksWantingTheSameKeyAskForItOnce()
     {
-        var one = new TaskData { Keys = [new TaskKeyData { MapId = Customs, Names = ["Dorm overseer key"] }] };
-        var two = new TaskData { Keys = [new TaskKeyData { MapId = Customs, Names = ["dorm overseer KEY"] }] };
+        var key = Item("Dorm overseer key");
+
+        var one = new TaskData { Keys = [new TaskKeyData { MapId = Customs, Keys = [key] }] };
+        var two = new TaskData
+        {
+            Keys = [new TaskKeyData { MapId = Customs, Keys = [new TaskItemData { Id = key.Id, Name = "dorm overseer KEY" }] }],
+        };
 
         var kit = TaskRequirements.Gather([one, two], id => id == Customs);
 
-        Assert.Equal(["Dorm overseer key"], kit.Keys);
+        Assert.Equal(["Dorm overseer key"], Names(kit.Keys));
     }
 
     [Fact]
@@ -186,9 +204,22 @@ public sealed class TaskRequirementsTests
     private static TaskObjectiveData Objective(string type, string[] items, string mapId) => new()
     {
         Type = type,
-        Items = [.. items],
+        Items = [.. items.Select(Item)],
         Points = [new TaskPointData { MapId = mapId }],
     };
+
+    /// <summary>An item with a plausible id, since the ids only have to be distinct here.</summary>
+    private static TaskItemData Item(string name) => new()
+    {
+        Id = string.Concat(name.Where(char.IsAsciiLetterOrDigit))
+            .ToLowerInvariant()
+            .PadRight(24, '0')[..24]
+            .Select(c => char.IsAsciiDigit(c) || (c >= 'a' && c <= 'f') ? c : 'a')
+            .Aggregate("", (acc, c) => acc + c),
+        Name = name,
+    };
+
+    private static string[] Names(IEnumerable<TaskItemData> items) => [.. items.Select(i => i.Name)];
 
     private static bool LooksLikeAnId(string name) =>
         name.Length == 24 && name.All(c => char.IsAsciiDigit(c) || (c >= 'a' && c <= 'f'));

@@ -149,17 +149,38 @@ It only knows what the logs kept, so a quest accepted before the oldest survivin
 untouched — ticking by hand still works and is never undone by the log saying nothing. What it works
 out is cached, so a cleaned log folder costs the history rather than everything.
 
+**Sync from game** throws the hand-picked list away and tracks exactly what the log says is open.
+Following along as events arrive cannot fix a list that has already drifted — a quest handed in
+while the app was closed never produces an event to untick it — so this is the "start again from
+what the game knows" button. **Active here** filters the list to the quests the game has open that
+have an objective on the map you are looking at, which is the question you actually ask in a raid.
+
 **Read a quest properly.** Click a task's name and it opens in a pane on the left: objectives at a
 size you can actually read, one per block, each saying whether it is on the map in front of you and
 carrying its own **Route** button. Prerequisites are listed with a tick against the ones already
 done, keys are grouped by the map they open something on with the one for *this* map first, and
-each objective names the items it wants — including the alternatives its own wording glosses over,
-since "Obtain the item: Rye croutons" also accepts Emelya rye croutons. The pane resizes and closes.
+each objective names the items it wants — with their pictures, and including the alternatives its
+own wording glosses over, since "Obtain the item: Rye croutons" also accepts Emelya rye croutons.
+The pane resizes and closes.
+
+**Tick objectives off as you do them.** Each objective in the pane has its own box; a ticked one is
+struck through and faded, its marker stays on the map at low alpha with a check against it, and
+**Add to route** skips it. Nothing in any log Tarkov writes says how far into a quest you are — the
+notification log carries a quest changing state but never a condition inside one — so this is a
+note to yourself, and it persists as one. **Clear the ticks** resets a task for a new wipe.
 
 **What to take with you.** Above the task list, the Quests tab totals up what everything you have
 ticked needs on the map you are looking at: the keys, and the items you have to be carrying rather
 than the ones you hand over at a counter. Planting an MS2000 needs the marker in your rig; handing
 in five MP-133s does not mean taking five shotguns into Customs, and the list knows the difference.
+
+**Your level, without typing it in.** Tarkov writes your level to no log — checked across nineteen
+log folders: no experience, no level-up line, and while the group notifications do carry a level it
+is every member's except your own. What is knowable is a floor: a quest requiring level 42 cannot
+have been accepted at 41, so the highest requirement among the quests the log has seen you take is
+a level you are at least at. **From log** applies it, and only ever upward — the estimate lags the
+truth, and pulling down a number you typed in would hide tasks you can actually take. On the
+development machine it reads 52 from a week of logs.
 
 **Quest tracking.** The **Quests** tab lists all 510 tasks, grouped by trader, with a search box and
 filters for *on this map*, *at or below my level*, and *Kappa*. Tick one and its objectives are drawn
@@ -348,6 +369,12 @@ Map artwork, geometry, exits, spawns and loot positions come from the
 `json.tarkov.dev` for the point-of-interest data. Exit *conditions* are not in that data and are
 taken from the [Escape from Tarkov Wiki](https://escapefromtarkov.fandom.com) (CC BY-SA).
 
+Item pictures come from `assets.tarkov.dev`, one file per item, addressed entirely by the item's
+BSG id — which the quest snapshot already carries, so there is no index to download and nothing to
+keep in sync. They are fetched the first time an item is shown and cached on disk from then on;
+about 2.6 KB each, and under a megabyte for every item the whole snapshot references. With
+**Allow network** off, names show and pictures do not.
+
 Map authors are credited individually in the app's About screen: **Shebuka** (10 maps),
 **Tarkov.dev** (The Lab, The Labyrinth) and **TarkovBOT.eu** (Icebreaker).
 
@@ -362,6 +389,7 @@ the bundled ones per exit.
 | `%APPDATA%\TarkovMapCompanion\settings.json` | Your preferences. Hand-editable. |
 | `%APPDATA%\TarkovMapCompanion\extract-notes.json` | Optional overrides for exit conditions. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\` | Downloaded maps and tiles. Safe to delete. |
+| `%LOCALAPPDATA%\TarkovMapCompanion\cache\icons\` | Item pictures, one per item id. Safe to delete; they come back as needed. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\app.log` | What the app was doing, including why it stopped. Worth attaching to a bug report. |
 
 Party activity is logged on both sides with a shared tag derived from the session secret, like

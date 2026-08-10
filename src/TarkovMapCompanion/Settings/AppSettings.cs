@@ -238,6 +238,35 @@ public sealed class AppSettings
     /// </summary>
     public int PlayerLevel { get; set; } = 1;
 
+    /// <summary>
+    /// Let the game log raise the level, so it does not have to be typed in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Your level is in no log Tarkov writes. Checked across nineteen log folders: no experience,
+    /// no level-up line, <c>profileChangeEvents</c> always empty, and while group notifications do
+    /// carry a level it is every member's except your own.
+    /// </para>
+    /// <para>
+    /// What is knowable is a floor. A quest with a level requirement of 42 could not have been
+    /// accepted below 42, so the highest requirement among the quests the log says you took or
+    /// finished is a level you are at least at. It only ever raises the number, never lowers it:
+    /// the estimate lags the truth, and a filter that quietly hid tasks you can take would be
+    /// worse than one that shows a few you cannot.
+    /// </para>
+    /// </remarks>
+    public bool PlayerLevelFromGameLog { get; set; } = true;
+
+    /// <summary>
+    /// Objective ids ticked off by hand.
+    /// </summary>
+    /// <remarks>
+    /// By hand because there is nothing else: the notification log carries a quest changing state
+    /// but never a condition inside one, so "three of five found" exists only in your head and on
+    /// the game's own screen. Ids, so the list survives upstream rewording.
+    /// </remarks>
+    public List<string> CompletedObjectives { get; set; } = [];
+
     /// <summary>Label quest markers with their task name, rather than only on hover.</summary>
     public bool ShowQuestNames { get; set; } = true;
 

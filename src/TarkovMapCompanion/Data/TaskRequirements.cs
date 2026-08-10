@@ -37,9 +37,9 @@ public static class TaskRequirements
             "mark",
         };
 
-    /// <summary>Key names this task needs on the maps <paramref name="onMap"/> accepts.</summary>
-    public static IEnumerable<string> KeysFor(TaskData task, Func<string?, bool> onMap) =>
-        task.Keys.Where(k => onMap(k.MapId)).SelectMany(k => k.Names);
+    /// <summary>Keys this task needs on the maps <paramref name="onMap"/> accepts.</summary>
+    public static IEnumerable<TaskItemData> KeysFor(TaskData task, Func<string?, bool> onMap) =>
+        task.Keys.Where(k => onMap(k.MapId)).SelectMany(k => k.Keys);
 
     /// <summary>
     /// Items this task wants you carrying, for objectives that happen where
@@ -50,7 +50,7 @@ public static class TaskRequirements
     /// somewhere" with no somewhere cannot be pinned to a raid, and guessing would put it on the
     /// list for every map.
     /// </remarks>
-    public static IEnumerable<string> CarriedItemsFor(TaskData task, Func<string?, bool> onMap) =>
+    public static IEnumerable<TaskItemData> CarriedItemsFor(TaskData task, Func<string?, bool> onMap) =>
         task.Objectives
             .Where(o => CarriedTypes.Contains(o.Type) && o.Items.Count > 0)
             .Where(o => o.Points.Any(p => onMap(p.MapId)))
@@ -61,8 +61,8 @@ public static class TaskRequirements
     /// </summary>
     public static TaskKit Gather(IEnumerable<TaskData> tasks, Func<string?, bool> onMap)
     {
-        var keys = new List<string>();
-        var items = new List<string>();
+        var keys = new List<TaskItemData>();
+        var items = new List<TaskItemData>();
 
         foreach (var task in tasks)
         {
@@ -70,28 +70,31 @@ public static class TaskRequirements
             Add(items, CarriedItemsFor(task, onMap));
         }
 
-        keys.Sort(StringComparer.OrdinalIgnoreCase);
-        items.Sort(StringComparer.OrdinalIgnoreCase);
+        keys.Sort(ByName);
+        items.Sort(ByName);
 
         return new TaskKit(keys, items);
 
-        // Case-insensitively distinct, keeping the first spelling seen. Two tasks naming the same
-        // key is the common case, not the exception.
-        static void Add(List<string> into, IEnumerable<string> names)
+        static int ByName(TaskItemData a, TaskItemData b) =>
+            string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+
+        // Distinct by id, which is the identity that matters: two tasks naming the same key is the
+        // common case, not the exception.
+        static void Add(List<TaskItemData> into, IEnumerable<TaskItemData> found)
         {
-            foreach (var name in names)
+            foreach (var item in found)
             {
-                if (!into.Contains(name, StringComparer.OrdinalIgnoreCase))
-                    into.Add(name);
+                if (!into.Any(i => string.Equals(i.Id, item.Id, StringComparison.Ordinal)))
+                    into.Add(item);
             }
         }
     }
 }
 
 /// <summary>What to bring to one map.</summary>
-/// <param name="Keys">Key names, which is the part that cannot be improvised in the raid.</param>
+/// <param name="Keys">Keys, which is the part that cannot be improvised in the raid.</param>
 /// <param name="Items">Items to carry in.</param>
-public sealed record TaskKit(IReadOnlyList<string> Keys, IReadOnlyList<string> Items)
+public sealed record TaskKit(IReadOnlyList<TaskItemData> Keys, IReadOnlyList<TaskItemData> Items)
 {
     public bool IsEmpty => Keys.Count == 0 && Items.Count == 0;
 }

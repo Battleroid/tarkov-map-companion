@@ -262,13 +262,31 @@
                       ToolTip.Tip="Hide tasks above your level" />
           </Grid>
 
+          <!--
+            One switch for the question actually being asked in a raid: what am I on right now,
+            here. The game decides what "on" means, and the map decides what "here" means.
+          -->
+          <CheckBox Name="QuestActiveHereBox" Content="Active here" FontSize="12"
+                    ToolTip.Tip="Only quests the game says you have accepted that have an objective on this map" />
+
           <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
             <TextBlock Grid.Column="0" Text="Level" VerticalAlignment="Center" FontSize="12"
                        Classes="secondary" />
+            <!-- Wide enough for two digits and both spinner buttons; 96 clipped "52" to "5". -->
             <NumericUpDown Grid.Column="1" Name="PlayerLevelBox" Minimum="1" Maximum="79"
-                           Increment="1" Width="96" FormatString="0" />
-            <Button Grid.Column="2" Name="ClearQuestsButton" Content="Untrack all"
-                    HorizontalAlignment="Right" FontSize="11" Padding="7,2" />
+                           Increment="1" Width="112" FormatString="0" />
+            <CheckBox Grid.Column="2" Name="PlayerLevelFromLogBox" Content="From log" FontSize="11"
+                      VerticalAlignment="Center"
+                      ToolTip.Tip="Raise it to the highest level requirement among the quests the log has seen you take. Your actual level is in no log Tarkov writes, so this is a floor, never a lowering." />
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <Button Grid.Column="0" Name="SyncQuestsButton" Content="Sync from game"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    FontSize="11" Padding="7,2"
+                    ToolTip.Tip="Throw away the hand-picked list and track exactly the quests the log says are accepted" />
+            <Button Grid.Column="1" Name="ClearQuestsButton" Content="Untrack all"
+                    FontSize="11" Padding="7,2" />
           </Grid>
 
           <CheckBox Name="QuestLabelsBox" Content="Label markers on the map" FontSize="12"

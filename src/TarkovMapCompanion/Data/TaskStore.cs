@@ -166,9 +166,9 @@ public sealed class TaskStore
 
         // Keyed "<id> Name", the same convention the map and task documents use. An id with no
         // name is dropped rather than shown as a hex blob.
-        string? ItemName(string? id) =>
-            id is not null && itemNames.TryGetValue(id + " Name", out var found) && found.Length > 0
-                ? found
+        TaskItemData? Item(string? id) =>
+            id is { Length: > 0 } && itemNames.TryGetValue(id + " Name", out var found) && found.Length > 0
+                ? new TaskItemData { Id = id, Name = found }
                 : null;
 
         string Text(string? key) =>
@@ -216,18 +216,18 @@ public sealed class TaskStore
 
             foreach (var group in task.NeededKeys ?? [])
             {
-                var names = (group.Keys ?? [])
-                    .Select(ItemName)
-                    .Where(n => n is not null)
-                    .Select(n => n!)
+                var keys = (group.Keys ?? [])
+                    .Select(Item)
+                    .Where(k => k is not null)
+                    .Select(k => k!)
                     .ToList();
 
-                if (group.Map is { Length: > 0 } keyMap && names.Count > 0)
-                    projected.Keys.Add(new TaskKeyData { MapId = keyMap, Names = names });
+                if (group.Map is { Length: > 0 } keyMap && keys.Count > 0)
+                    projected.Keys.Add(new TaskKeyData { MapId = keyMap, Keys = keys });
             }
 
             foreach (var objective in task.Objectives ?? [])
-                projected.Objectives.Add(ProjectObjective(objective, Text, ItemName));
+                projected.Objectives.Add(ProjectObjective(objective, Text, Item));
 
             document.Tasks.Add(projected);
         }
@@ -239,7 +239,7 @@ public sealed class TaskStore
     private static TaskObjectiveData ProjectObjective(
         UpstreamObjective objective,
         Func<string?, string> text,
-        Func<string?, string?> itemName)
+        Func<string?, TaskItemData?> item)
     {
         var projected = new TaskObjectiveData
         {
@@ -253,15 +253,15 @@ public sealed class TaskStore
 
         // The marker you plant is worth naming even when nothing else is: placing an MS2000 is a
         // different errand from placing a WI-FI camera.
-        if (itemName(objective.MarkerItem) is { } marker)
+        if (item(objective.MarkerItem) is { } marker)
             projected.Items.Add(marker);
 
         if (objective.Items is { Count: > 0 } wanted && wanted.Count <= TaskObjectiveData.MaxNamedItems)
         {
-            foreach (var name in wanted.Select(itemName).Where(n => n is not null).Select(n => n!))
+            foreach (var found in wanted.Select(item).Where(i => i is not null).Select(i => i!))
             {
-                if (!projected.Items.Contains(name, StringComparer.OrdinalIgnoreCase))
-                    projected.Items.Add(name);
+                if (!projected.Items.Any(i => string.Equals(i.Id, found.Id, StringComparison.Ordinal)))
+                    projected.Items.Add(found);
             }
         }
 

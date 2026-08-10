@@ -50,6 +50,25 @@ public sealed class QuestLogWatcher : IDisposable
         get { lock (_gate) return _timer is not null; }
     }
 
+    /// <summary>
+    /// Puts the watcher in a known state, for tests.
+    /// </summary>
+    /// <remarks>
+    /// The alternative is writing a folder of fake trader messages for every case, which tests the
+    /// parser all over again rather than what happens downstream of it. The parser has its own
+    /// tests against verbatim lines from real logs.
+    /// </remarks>
+    internal void SetStateForTesting(IReadOnlyDictionary<string, QuestProgress> state)
+    {
+        lock (_gate)
+        {
+            _state.Clear();
+
+            foreach (var (id, progress) in state)
+                _state[id] = progress;
+        }
+    }
+
     /// <summary>Task ids the logs say are accepted and unfinished.</summary>
     public IReadOnlyList<string> Active
     {

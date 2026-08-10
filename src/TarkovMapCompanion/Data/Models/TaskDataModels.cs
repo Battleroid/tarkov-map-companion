@@ -90,7 +90,7 @@ public sealed class TaskObjectiveData
     [JsonPropertyName("points")] public List<TaskPointData> Points { get; set; } = [];
 
     /// <summary>
-    /// The items this objective wants, by name.
+    /// The items this objective wants.
     /// </summary>
     /// <remarks>
     /// Only when the list is short enough to be a list. One objective upstream names 3,493 items,
@@ -99,7 +99,7 @@ public sealed class TaskObjectiveData
     /// objectives that reference items name twelve or fewer, and every one that names more is a
     /// "hand over any of these" of some kind.
     /// </remarks>
-    [JsonPropertyName("items")] public List<string> Items { get; set; } = [];
+    [JsonPropertyName("items")] public List<TaskItemData> Items { get; set; } = [];
 
     /// <summary>Beyond this many, an item list is a category rather than a list.</summary>
     public const int MaxNamedItems = 12;
@@ -111,8 +111,27 @@ public sealed class TaskKeyData
     /// <summary>BSG map id, matching the one on a point.</summary>
     [JsonPropertyName("map")] public string MapId { get; set; } = "";
 
-    /// <summary>Key names, already resolved.</summary>
-    [JsonPropertyName("names")] public List<string> Names { get; set; } = [];
+    /// <summary>The keys themselves.</summary>
+    [JsonPropertyName("keys")] public List<TaskItemData> Keys { get; set; } = [];
+}
+
+/// <summary>
+/// One item, by name and by BSG id.
+/// </summary>
+/// <remarks>
+/// The id is carried because it is the whole address of the item's picture:
+/// <c>assets.tarkov.dev/{id}-icon.webp</c>. Storing it costs 25 bytes against a name already
+/// there, and the 366 items the snapshot keeps come to 9 KB of ids — cheaper than any other way
+/// of getting from "Dorm room 220 key" to a picture of it.
+/// </remarks>
+public sealed class TaskItemData
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = "";
+
+    /// <summary>Already resolved to English.</summary>
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+    public override string ToString() => Name;
 }
 
 /// <summary>Somewhere an objective happens, in game coordinates.</summary>

@@ -42,6 +42,7 @@ public sealed class MapSession : IDisposable
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
     private readonly TaskStore _tasks;
+    private readonly ItemIconStore _icons;
     private readonly AnnotationStore _annotations = new();
 
     private IMapImageSource? _imageSource;
@@ -73,6 +74,8 @@ public sealed class MapSession : IDisposable
 
         _tasks = new TaskStore(settings);
         _tasks.Updated += (_, _) => RebuildQuestMarks();
+
+        _icons = new ItemIconStore(settings);
 
         _annotations.Load();
         _annotations.Changed += (_, _) =>
@@ -358,6 +361,9 @@ public sealed class MapSession : IDisposable
     /// <summary>Tarkov's quests, and where on a map their objectives are.</summary>
     public TaskStore Tasks => _tasks;
 
+    /// <summary>Pictures of the items those quests ask for.</summary>
+    public ItemIconStore Icons => _icons;
+
     /// <summary>Objectives of the tracked quests, drawn on the map.</summary>
     public QuestOverlay Quests { get; }
 
@@ -613,7 +619,10 @@ public sealed class MapSession : IDisposable
                         new GamePosition(point.X, point.Y, point.Z),
                         Index: 0,
                         point.OneOf,
-                        point.OutlinePoints.ToArray()));
+                        point.OutlinePoints.ToArray())
+                    {
+                        Done = IsObjectiveDone(objective.Id),
+                    });
                 }
             }
 
@@ -853,6 +862,104 @@ public sealed class MapSession : IDisposable
     /// </summary>
     public IReadOnlyDictionary<string, QuestProgress> QuestProgressFromLog => _questLog.State;
 
+    /// <summary>Hands the watcher a known quest state, for tests.</summary>
+    internal void ApplyQuestStateForTesting(IReadOnlyDictionary<string, QuestProgress> state) =>
+        _questLog.SetStateForTesting(state);
+
+    /// <summary>Whether the log says this quest is accepted right now.</summary>
+    public bool IsActivePerLog(string taskId) =>
+        _questLog.State.TryGetValue(taskId, out var progress) && progress == QuestProgress.Active;
+
+    /// <summary>
+    /// The lowest level you can possibly be, going by the quests the log has seen you take.
+    /// </summary>
+    /// <remarks>
+    /// A quest with a level requirement of 42 cannot be accepted at 41, so the highest requirement
+    /// across everything accepted or handed in is a floor. Failed quests count too: failing one
+    /// still means it was taken. Returns 0 when the log has nothing to say.
+    /// </remarks>
+    public int LevelFloorFromQuestLog() =>
+        _questLog.State.Keys
+            .Select(_tasks.Find)
+            .Where(t => t is not null)
+            .Select(t => t!.MinPlayerLevel)
+            .DefaultIfEmpty(0)
+            .Max();
+
+    /// <summary>
+    /// Raises the stored level to what the log implies, and says whether it moved.
+    /// </summary>
+    /// <remarks>
+    /// One direction only. The estimate is a floor that lags reality -- somebody at level 60 whose
+    /// hardest accepted quest wanted 42 reads as 42 -- and lowering a number the user typed in
+    /// because our guess is worse than their knowledge would be plainly wrong.
+    /// </remarks>
+    public bool ApplyLevelFloorFromQuestLog()
+    {
+        if (!_settings.PlayerLevelFromGameLog)
+            return false;
+
+        var floor = Math.Clamp(LevelFloorFromQuestLog(), 1, 79);
+
+        if (floor <= _settings.PlayerLevel)
+            return false;
+
+        _settings.PlayerLevel = floor;
+        return true;
+    }
+
+    // ---- Objectives ticked off by hand --------------------------------------
+
+    /// <summary>Whether an objective has been marked done.</summary>
+    public bool IsObjectiveDone(string objectiveId) =>
+        _settings.CompletedObjectives.Contains(objectiveId, StringComparer.Ordinal);
+
+    /// <summary>Marks an objective done, or not. Redraws, since done markers are dimmed.</summary>
+    public void SetObjectiveDone(string objectiveId, bool done)
+    {
+        if (done == IsObjectiveDone(objectiveId))
+            return;
+
+        if (done)
+            _settings.CompletedObjectives.Add(objectiveId);
+        else
+            _settings.CompletedObjectives.RemoveAll(id => string.Equals(id, objectiveId, StringComparison.Ordinal));
+
+        RebuildQuestMarks();
+    }
+
+    /// <summary>Un-ticks every objective of one task.</summary>
+    public void ClearObjectivesDone(Data.Models.TaskData task)
+    {
+        var ids = task.Objectives.Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
+
+        if (_settings.CompletedObjectives.RemoveAll(ids.Contains) > 0)
+            RebuildQuestMarks();
+    }
+
+    /// <summary>
+    /// Discards the hand-picked tracking and tracks exactly what the log says is accepted.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately destructive, and deliberately a button rather than a mode. Following the log
+    /// as events arrive cannot fix a list that has already drifted -- a quest handed in during a
+    /// session the app was not running for never produces an event to untick it. This is the
+    /// "start again from what the game knows" that the ordinary path cannot be.
+    /// </remarks>
+    public int SyncTrackedFromQuestLog()
+    {
+        var active = _questLog.State
+            .Where(pair => pair.Value == QuestProgress.Active && _tasks.Find(pair.Key) is not null)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        _settings.TrackedTasks.Clear();
+        _settings.TrackedTasks.AddRange(active);
+
+        RebuildQuestMarks();
+        return active.Count;
+    }
+
     /// <summary>
     /// Follows the log's opinion of which quests are accepted, and tracks them.
     /// </summary>
@@ -874,6 +981,10 @@ public sealed class MapSession : IDisposable
         {
             _questState.Save(_questLog.State);
 
+            // Before the tracking decision and outside it: the level floor is what the log implies
+            // about you, not about which quests are drawn, and it holds even with tracking off.
+            var levelMoved = ApplyLevelFloorFromQuestLog();
+
             if (!_settings.TrackQuestsFromGameLog)
             {
                 // Still worth telling the UI: the pane shows what the game says about a quest even
@@ -887,10 +998,17 @@ public sealed class MapSession : IDisposable
             // produces two events that cancel out -- replaying them would tick and untick it, and
             // rebuild every marker on the map twice for nothing. On this machine that was 221
             // rebuilds at startup instead of the 73 quests that are actually running.
+            //
+            // Over the whole state rather than over this batch's events, which is what makes it
+            // idempotent. The first read arrives before the task snapshot has finished loading, so
+            // every id in it looks unknown and is skipped; keyed on the events, that history was
+            // then never revisited and nothing was ever tracked. Keyed on the state, the next batch
+            // -- however small -- puts it right. Quests the log has never mentioned are still left
+            // alone, because they are not in the state either.
             var state = _questLog.State;
             var moved = 0;
 
-            foreach (var id in events.Select(e => e.TaskId).Distinct(StringComparer.Ordinal))
+            foreach (var id in state.Keys)
             {
                 // Ids the bundled data does not know are event or old-wipe quests. Nothing can be
                 // drawn for them, so there is nothing to track.
@@ -915,10 +1033,14 @@ public sealed class MapSession : IDisposable
                 // One rebuild for the lot, rather than one per quest.
                 Log.Info($"[quests] the log moved {moved} quest(s)");
                 RebuildQuestMarks();
-                return;
             }
 
-            QuestsChanged?.Invoke(this, EventArgs.Empty);
+            if (levelMoved)
+                Log.Info($"[quests] the log puts you at level {_settings.PlayerLevel} or above");
+
+            // RebuildQuestMarks raises this itself, so only the quiet path has to.
+            if (moved == 0)
+                QuestsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

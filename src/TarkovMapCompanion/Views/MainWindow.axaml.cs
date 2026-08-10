@@ -348,6 +348,10 @@ public partial class MainWindow : Window
         // shown, so the whole list is rebuilt rather than just the overlay.
         _session.QuestsChanged += (_, _) => Post(() =>
         {
+            // The level box before the list, since the list is filtered by it. The log raises the
+            // level as it reads history, which happens well after the box was first filled in.
+            SyncPlayerLevelBox();
+
             BuildQuestList();
             BuildQuestPane();
             _canvas.InvalidateVisual();
@@ -1586,7 +1590,9 @@ public partial class MainWindow : Window
             });
         }
 
-        QuestPane.Children.Add(new TextBlock
+        var footer = new StackPanel { Spacing = 4, Margin = new Thickness(0, 10, 0, 0) };
+
+        footer.Children.Add(new TextBlock
         {
             Text = here == 0
                 ? $"Nothing from this task is on {_session.CurrentMap.DisplayName}."
@@ -1594,8 +1600,40 @@ public partial class MainWindow : Window
             Classes = { "secondary" },
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 10, 0, 0),
         });
+
+        var ticked = task.Objectives.Count(o => _session.IsObjectiveDone(o.Id));
+
+        if (ticked > 0)
+        {
+            footer.Children.Add(new TextBlock
+            {
+                Text = $"{ticked} of {task.Objectives.Count} marked done.",
+                Classes = { "secondary" },
+                FontSize = 11,
+            });
+
+            var reset = new Button
+            {
+                Content = "Clear the ticks",
+                FontSize = 11,
+                Padding = new Thickness(8, 2),
+                MinHeight = 0,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                [ToolTip.TipProperty] = "Un-mark every objective of this task, for a new wipe or a repeatable",
+            };
+
+            reset.Click += (_, _) => Apply(() =>
+            {
+                _session.ClearObjectivesDone(task);
+                _canvas.InvalidateVisual();
+                BuildQuestPane();
+            });
+
+            footer.Children.Add(reset);
+        }
+
+        QuestPane.Children.Add(footer);
     }
 
     private Control BuildQuestPaneActions(Data.Models.TaskData task)
@@ -1713,14 +1751,19 @@ public partial class MainWindow : Window
             var here = _session.IsOnCurrentMap(group.MapId);
             var where = here ? "here" : _session.MapNameFor(group.MapId) ?? "a map this build does not know";
 
+            var chips = ItemChips(group.Keys, 12);
+
+            // Same habit as the prerequisites: the one that matters on this map is the one at full
+            // strength, and the rest are dimmed rather than dropped.
+            chips.Opacity = here ? 1.0 : 0.65;
+
+            block.Children.Add(chips);
             block.Children.Add(new TextBlock
             {
-                Text = $"{string.Join(", ", group.Names)} ({where})",
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
-
-                // Same habit as the prerequisites: the one that matters on this map is the one at
-                // full strength, and the rest are dimmed rather than dropped.
+                Text = where,
+                Classes = { "secondary" },
+                FontSize = 11,
+                Margin = new Thickness(0, 0, 0, 4),
                 Opacity = here ? 1.0 : 0.65,
             });
         }
@@ -1728,17 +1771,117 @@ public partial class MainWindow : Window
         return block;
     }
 
+    /// <summary>
+    /// A run of items, each with its picture where one can be had.
+    /// </summary>
+    /// <remarks>
+    /// A wrap panel rather than a joined string: an icon is what makes "Portable bunkhouse key"
+    /// findable in a stash of forty keys, and reading a comma-separated line of them never was.
+    /// The name stays regardless, so an icon that will not load costs nothing.
+    /// </remarks>
+    private Control ItemChips(IEnumerable<Data.Models.TaskItemData> items, double fontSize)
+    {
+        var panel = new WrapPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+
+        foreach (var item in items)
+        {
+            var chip = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Spacing = 4,
+                Margin = new Thickness(0, 1, 10, 1),
+                [ToolTip.TipProperty] = item.Name,
+            };
+
+            var icon = new Image
+            {
+                Width = 22,
+                Height = 22,
+                Stretch = Stretch.Uniform,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            LoadIcon(icon, item.Id);
+
+            chip.Children.Add(icon);
+            chip.Children.Add(new TextBlock
+            {
+                Text = item.Name,
+                FontSize = fontSize,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            });
+
+            panel.Children.Add(chip);
+        }
+
+        return panel;
+    }
+
+    /// <summary>
+    /// Fills in an item's picture once it arrives, and leaves the space empty if it never does.
+    /// </summary>
+    /// <remarks>
+    /// Fire and forget on purpose. The panel is built synchronously because the rest of it is
+    /// worth reading now, and an icon is worth exactly as much whenever it turns up.
+    /// </remarks>
+    private async void LoadIcon(Image image, string id)
+    {
+        try
+        {
+            if (await _session.Icons.GetAsync(id) is not { } bytes)
+                return;
+
+            using var stream = new MemoryStream(bytes);
+            image.Source = new Avalonia.Media.Imaging.Bitmap(stream);
+        }
+        catch (Exception ex)
+        {
+            // Anything at all: a picture is the most disposable thing in this window.
+            Log.Warn($"[icons] could not show {id}: {ex.Message}");
+        }
+    }
+
     private Control BuildObjective(Data.Models.TaskData task, Data.Models.TaskObjectiveData objective, int onThisMap)
     {
         var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 9) };
 
-        block.Children.Add(new TextBlock
+        var done = _session.IsObjectiveDone(objective.Id);
+
+        // The tick is the objective's own, not the task's: half the reason to read a quest is to
+        // work out which two of its nine parts are left. Nothing in any log says this, so it is a
+        // note to yourself, and it persists as one.
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 6 };
+
+        var tick = new CheckBox
+        {
+            IsChecked = done,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            [ToolTip.TipProperty] = "Mark this one done. It stays on the map, faded.",
+        };
+
+        var text = new TextBlock
         {
             Text = objective.Description,
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
-            Opacity = objective.Optional ? 0.7 : 1.0,
+            Opacity = done ? 0.5 : objective.Optional ? 0.7 : 1.0,
+            TextDecorations = done ? Avalonia.Media.TextDecorations.Strikethrough : null,
+        };
+
+        tick.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _session.SetObjectiveDone(objective.Id, tick.IsChecked ?? false);
+            _canvas.InvalidateVisual();
+            BuildQuestPane();
         });
+
+        Grid.SetColumn(tick, 0);
+        Grid.SetColumn(text, 1);
+        header.Children.Add(tick);
+        header.Children.Add(text);
+
+        block.Children.Add(header);
 
         // The items by name, under the objective that wants them. The description usually names
         // one of them in passing; this is the list, including the alternatives it does not mention
@@ -1749,15 +1892,21 @@ public partial class MainWindow : Window
 
             block.Children.Add(new TextBlock
             {
-                Text = (carried ? "Bring: " : "Items: ") + string.Join(", ", objective.Items),
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 1, 0, 0),
-                Opacity = objective.Optional ? 0.7 : 0.9,
+                Text = carried ? "Bring" : "Items",
+                Classes = { "heading" },
+                FontSize = 10,
+                Margin = new Thickness(0, 3, 0, 1),
             });
+
+            var chips = ItemChips(objective.Items, 12);
+            chips.Opacity = objective.Optional ? 0.7 : 1.0;
+            block.Children.Add(chips);
         }
 
         var notes = new List<string>();
+
+        if (done)
+            notes.Add("done");
 
         if (objective.Optional)
             notes.Add("optional");
@@ -1815,6 +1964,7 @@ public partial class MainWindow : Window
         var marks = _session.Quests.Marks
             .Where(m => string.Equals(m.ObjectiveId, objective.Id, StringComparison.Ordinal))
             .ToArray();
+
 
         foreach (var mark in marks)
             AddQuestToRoute(mark, quiet: true);
@@ -2137,7 +2287,7 @@ public partial class MainWindow : Window
         QuestThisMapBox.IsChecked = true;
         QuestLevelBox.IsChecked = false;
 
-        foreach (var box in new[] { QuestThisMapBox, QuestTrackedBox, QuestKappaBox, QuestLevelBox })
+        foreach (var box in new[] { QuestThisMapBox, QuestTrackedBox, QuestKappaBox, QuestLevelBox, QuestActiveHereBox })
             box.IsCheckedChanged += (_, _) => BuildQuestList();
 
         QuestSearchBox.TextChanged += (_, _) => BuildQuestList();
@@ -2150,10 +2300,25 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
         });
 
-        PlayerLevelBox.ValueChanged += (_, _) => Apply(() =>
+        PlayerLevelBox.ValueChanged += (_, _) =>
         {
-            _settings.PlayerLevel = (int)(PlayerLevelBox.Value ?? _settings.PlayerLevel);
-            BuildQuestList();
+            if (_levelFromLog)
+                return;
+
+            Apply(() =>
+            {
+                _settings.PlayerLevel = (int)(PlayerLevelBox.Value ?? _settings.PlayerLevel);
+                BuildQuestList();
+            });
+        };
+
+        PlayerLevelFromLogBox.IsChecked = _settings.PlayerLevelFromGameLog;
+        PlayerLevelFromLogBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.PlayerLevelFromGameLog = PlayerLevelFromLogBox.IsChecked ?? true;
+
+            if (_session.ApplyLevelFloorFromQuestLog())
+                RefreshPlayerLevelBox();
         });
 
         ClearQuestsButton.Click += (_, _) => Apply(() =>
@@ -2162,7 +2327,59 @@ public partial class MainWindow : Window
             BuildQuestList();
             _canvas.InvalidateVisual();
         });
+
+        SyncQuestsButton.Click += (_, _) => Apply(() =>
+        {
+            var tracked = _session.SyncTrackedFromQuestLog();
+
+            BuildQuestList();
+            _canvas.InvalidateVisual();
+
+            StatusText.Text = tracked == 0
+                ? "The log has no quest of yours open. Nothing is tracked now."
+                : $"Tracking the {tracked} quest{(tracked == 1 ? "" : "s")} the game has open.";
+        });
+
+        // The floor the log implies is known before any of this ran, since the watcher reads the
+        // history at startup. Apply it once here so the box opens with the right number rather
+        // than waiting for the next trader message.
+        if (_session.ApplyLevelFloorFromQuestLog())
+            RefreshPlayerLevelBox();
     }
+
+    /// <summary>
+    /// Puts the stored level back in the box without looking like the user typed it.
+    /// </summary>
+    /// <remarks>
+    /// Assigning <c>Value</c> raises <c>ValueChanged</c>, which writes the setting and rebuilds the
+    /// list. Harmless here, since the value it would write is the one already stored, but the flag
+    /// keeps a log-driven change from being saved as a preference the moment it happens.
+    /// </remarks>
+    private void RefreshPlayerLevelBox()
+    {
+        SyncPlayerLevelBox();
+        BuildQuestList();
+    }
+
+    /// <summary>Puts the box in step with the setting, without rebuilding anything.</summary>
+    private void SyncPlayerLevelBox()
+    {
+        if (PlayerLevelBox.Value == _settings.PlayerLevel)
+            return;
+
+        _levelFromLog = true;
+
+        try
+        {
+            PlayerLevelBox.Value = _settings.PlayerLevel;
+        }
+        finally
+        {
+            _levelFromLog = false;
+        }
+    }
+
+    private bool _levelFromLog;
 
     /// <summary>
     /// Rebuilds the quest list from the filters.
@@ -2212,6 +2429,11 @@ public partial class MainWindow : Window
 
         bool Matches(Data.Models.TaskData task)
         {
+            // One switch standing in for two, because it is one question. Deliberately not tied to
+            // tracking: what the game has open is a fact, and what you have ticked is a choice.
+            if (QuestActiveHereBox.IsChecked == true && (!_session.IsActivePerLog(task.Id) || !HasObjectiveHere(task)))
+                return false;
+
             if (QuestTrackedBox.IsChecked == true && !_session.IsTracked(task.Id))
                 return false;
 
@@ -2358,15 +2580,26 @@ public partial class MainWindow : Window
 
     private void AddTaskToRoute(Data.Models.TaskData task)
     {
+        // Skipping what you have ticked off, which is the whole point of ticking it off: "add this
+        // quest to my route" means the parts of it still outstanding.
         var added = _session.Quests.Marks
-            .Where(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal))
+            .Where(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal) && !m.Done)
             .ToArray();
 
         if (added.Length == 0)
         {
-            // Only tracked tasks have marks, so this is the "ticked it and pressed Route in one
-            // motion" case rather than an error.
-            StatusText.Text = $"Tick {task.Name} first, then add it to your route.";
+            var all = _session.Quests.Marks.Count(m => string.Equals(m.TaskId, task.Id, StringComparison.Ordinal));
+
+            StatusText.Text = all > 0
+
+                // Every place it has here is one you have already ticked off, which is a different
+                // situation from the task not being tracked and deserves a different sentence.
+                ? $"Every part of {task.Name} on this map is already marked done."
+
+                // Only tracked tasks have marks, so this is the "ticked it and pressed Route in one
+                // motion" case rather than an error.
+                : $"Tick {task.Name} first, then add it to your route.";
+
             return;
         }
 
@@ -2426,28 +2659,36 @@ public partial class MainWindow : Window
         QuestKit.Children.Add(Heading($"TAKE TO {_session.CurrentMap.DisplayName.ToUpperInvariant()}", 11));
 
         if (kit.Keys.Count > 0)
-            QuestKit.Children.Add(KitLine("Keys", kit.Keys));
+            AddSection("Keys", kit.Keys);
 
         if (kit.Items.Count > 0)
-            QuestKit.Children.Add(KitLine("Items", kit.Items));
+            AddSection("Items", kit.Items);
 
-        static Control KitLine(string label, IReadOnlyList<string> names)
+        void AddSection(string label, IReadOnlyList<Data.Models.TaskItemData> items)
         {
             // Capped, because a dozen tracked tasks can name more keys than the sidebar is wide.
             // The count carries the rest rather than the list quietly ending.
-            const int Shown = 8;
+            const int Shown = 10;
 
-            var text = string.Join(", ", names.Take(Shown));
-
-            if (names.Count > Shown)
-                text += $" +{names.Count - Shown} more";
-
-            return new TextBlock
+            QuestKit.Children.Add(new TextBlock
             {
-                Text = $"{label}: {text}",
-                FontSize = 11,
-                TextWrapping = TextWrapping.Wrap,
-            };
+                Text = label,
+                Classes = { "heading" },
+                FontSize = 10,
+                Margin = new Thickness(0, 2, 0, 1),
+            });
+
+            QuestKit.Children.Add(ItemChips(items.Take(Shown), 11));
+
+            if (items.Count > Shown)
+            {
+                QuestKit.Children.Add(new TextBlock
+                {
+                    Text = $"and {items.Count - Shown} more",
+                    Classes = { "secondary" },
+                    FontSize = 10,
+                });
+            }
         }
     }
 
