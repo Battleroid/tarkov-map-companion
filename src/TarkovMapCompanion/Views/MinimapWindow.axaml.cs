@@ -165,6 +165,20 @@ public partial class MinimapWindow : Window
         _session.PoisChanged += OnRedrawWanted;
         _session.WaypointsChanged += OnRedrawWanted;
         _session.ExitAvailabilityChanged += OnRedrawWanted;
+        _session.QuestsChanged += OnRedrawWanted;
+
+        // A raid starting drops the trail, and choosing an exit moves the guide line. Both are
+        // drawn here too.
+        _session.RaidStateChanged += OnRaidStateChanged;
+        _session.SelectionChanged += OnRedrawWanted;
+
+        // The squad. Sharing the overlays was never enough on its own: they are the same objects
+        // the main window draws, but nothing here was listening for them changing, so a teammate
+        // moved on the big map and stayed put on this one until the next screenshot happened to
+        // repaint it. Everything the main window redraws for, this has to redraw for too.
+        _session.Party.Changed += OnRedrawWanted;
+        _session.Party.RoutesChanged += OnRedrawWanted;
+        _session.PingAdded += OnRedrawWanted;
 
         // Same overlay instances as the main window, so everything stays in step with no plumbing.
         foreach (var overlay in _session.Overlays)
@@ -197,6 +211,10 @@ public partial class MinimapWindow : Window
     }
 
     private void OnRedrawWanted(object? sender, object? _) => Dispatcher.UIThread.Post(_canvas.InvalidateVisual);
+
+    // Its own method only because bool is a value type, so it will not bind to the shared handler
+    // the way the reference-typed event payloads do.
+    private void OnRaidStateChanged(object? sender, bool started) => OnRedrawWanted(sender, null);
 
     private void OnMapChanged(object? sender, GameMap map) =>
         Dispatcher.UIThread.Post(async void () =>
@@ -292,6 +310,13 @@ public partial class MinimapWindow : Window
         _session.PoisChanged -= OnRedrawWanted;
         _session.WaypointsChanged -= OnRedrawWanted;
         _session.ExitAvailabilityChanged -= OnRedrawWanted;
+        _session.QuestsChanged -= OnRedrawWanted;
+        _session.RaidStateChanged -= OnRaidStateChanged;
+        _session.SelectionChanged -= OnRedrawWanted;
+
+        _session.Party.Changed -= OnRedrawWanted;
+        _session.Party.RoutesChanged -= OnRedrawWanted;
+        _session.PingAdded -= OnRedrawWanted;
 
         // The overlays belong to the session and are still in use by the main window; only the
         // canvas's references to them go.

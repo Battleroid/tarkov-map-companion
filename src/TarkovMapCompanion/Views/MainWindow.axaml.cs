@@ -263,9 +263,31 @@ public partial class MainWindow : Window
         {
             _minimap = null;
             MinimapToggle.IsChecked = false;
+            UpdateClockSuspension();
         });
 
         _minimap.Show();
+
+        // Opening it may be what makes the animation clock worth running again.
+        UpdateClockSuspension();
+    }
+
+    /// <summary>
+    /// Stops the animation clock when there is no window left to see it.
+    /// </summary>
+    /// <remarks>
+    /// The minimap has to be part of this decision, and leaving it out was a real bug rather than a
+    /// nicety: the intended way to use that window is main window minimized, small map over the
+    /// game. Keying suspension to the main window alone froze the route arrows in the one
+    /// configuration the feature exists for.
+    /// </remarks>
+    private void UpdateClockSuspension()
+    {
+        if (_mapClock is null)
+            return;
+
+        _mapClock.Suspended = WindowState == WindowState.Minimized && _minimap is null;
+        _mapClock.Wake();
     }
 
     /// <summary>Escape leaves marker mode, which is easy to forget you are in.</summary>
@@ -453,6 +475,9 @@ public partial class MainWindow : Window
 
             UpdatePartyPanel();
             _canvas.InvalidateVisual();
+
+            // The minimap draws the same fading markers and has no clock of its own.
+            _minimap?.Redraw();
         });
 
         _partyClock.Start();
@@ -473,11 +498,8 @@ public partial class MainWindow : Window
         // Frames nobody can see are not worth the wake-ups.
         PropertyChanged += (_, e) =>
         {
-            if (e.Property != WindowStateProperty || _mapClock is null)
-                return;
-
-            _mapClock.Suspended = WindowState == WindowState.Minimized;
-            _mapClock.Wake();
+            if (e.Property == WindowStateProperty)
+                UpdateClockSuspension();
         };
 
         _session.PingAdded += (_, ping) => Post(() =>
