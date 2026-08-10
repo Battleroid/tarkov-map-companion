@@ -64,6 +64,8 @@
         </Border>
 
         <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <ToggleButton Name="PanelToggle" Classes="mode" Content="Panel" IsChecked="True"
+                        ToolTip.Tip="Show or hide the exits, quests and notes panel. Drag its edge to resize." />
           <ToggleButton Name="MinimapToggle" Classes="mode" Content="Minimap"
                         ToolTip.Tip="Pop out a small always-on-top map that can sit over the game" />
           <CheckBox Name="AlwaysOnTopToggle" Content="On top" VerticalAlignment="Center" />
@@ -87,15 +89,28 @@
     </Border>
 
     <!--
-      Exits and quests, as tabs rather than two panels stacked in one column. Both are lists that
-      want the full height of the window, and a quest list folded into an expander above the exits
-      would have shown four rows out of five hundred.
+      The map and the side panel, with a grip between them. A fixed width was fine with one list in
+      it and stopped being fine at three: a quest row carries two buttons after a wrapping task
+      name, and at 290 pixels the second of them ends up under the scrollbar.
     -->
-    <Border DockPanel.Dock="Right"
+    <Grid Name="ContentGrid">
+      <Grid.ColumnDefinitions>
+        <!-- The map keeps a floor, so dragging the panel wide cannot squeeze it to nothing. -->
+        <ColumnDefinition Width="*" MinWidth="320" />
+        <ColumnDefinition Width="Auto" />
+        <!-- Reached from code as ContentGrid.ColumnDefinitions[2]; a ColumnDefinition takes no Name. -->
+        <ColumnDefinition Width="290" MinWidth="220" MaxWidth="700" />
+      </Grid.ColumnDefinitions>
+
+    <!--
+      Exits, quests and notes as tabs rather than three panels stacked in one column. All three are
+      lists that want the full height of the window, and a quest list folded into an expander above
+      the exits would have shown four rows out of five hundred.
+    -->
+    <Border Grid.Column="2" Name="SidePanelHost"
             Background="{DynamicResource SurfacePanelBrush}"
             BorderBrush="{DynamicResource BorderSubtleBrush}"
-            BorderThickness="1,0,0,0"
-            Width="290">
+            BorderThickness="1,0,0,0">
       <TabControl Name="SidePanel" Padding="0">
 
       <TabItem Header="Exits">
@@ -231,8 +246,10 @@
           <TextBlock Name="QuestHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Margin="6,0,6,0">
-          <StackPanel Name="QuestList" Spacing="1" />
+        <ScrollViewer Grid.Row="1" Margin="6,0,0,0">
+          <!-- Right margin clears the overlay scrollbar, which is drawn on top of the content
+               rather than beside it, and was sitting exactly where the wiki button is. -->
+          <StackPanel Name="QuestList" Spacing="1" Margin="0,0,14,0" />
         </ScrollViewer>
 
         <TextBlock Grid.Row="2" Name="QuestOrigin" Classes="secondary" FontSize="10"
@@ -268,8 +285,8 @@
           <TextBlock Name="NotesHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Margin="6,0,6,0">
-          <StackPanel Name="NotesList" Spacing="1" />
+        <ScrollViewer Grid.Row="1" Margin="6,0,0,0">
+          <StackPanel Name="NotesList" Spacing="1" Margin="0,0,14,0" />
         </ScrollViewer>
 
         <TextBlock Grid.Row="2" Name="NotesPath" Classes="secondary" FontSize="10"
@@ -282,6 +299,16 @@
     </Border>
 
     <!--
+      Drag to resize, double-click to fold the panel away. Both matter: the width is a preference
+      people have opinions about, and on a small screen the map is the thing you actually want.
+    -->
+    <GridSplitter Grid.Column="1" Name="PanelSplitter"
+                  Width="5"
+                  Background="{DynamicResource BorderSubtleBrush}"
+                  ResizeDirection="Columns"
+                  ToolTip.Tip="Drag to resize the panel, double-click to hide it" />
+
+    <!--
       The map, and the chrome that floats over it. A Panel z-orders by child order and the canvas
       is inserted at index 0 in code, so everything declared here draws on top of it and receives
       the clicks that land on it.
@@ -289,7 +316,7 @@
       Both of these describe the map rather than the exit list, so they belong on the map: a whole
       side pane for two floor checkboxes was a lot of window for something most maps do not use.
     -->
-    <Panel Name="MapHost">
+    <Panel Grid.Column="0" Name="MapHost">
 
       <!--
         Where a note gets typed. Floats over the map rather than opening a dialog: you have just
@@ -442,6 +469,8 @@
       </Border>
 
     </Panel>
+
+    </Grid>
 
   </DockPanel>
 

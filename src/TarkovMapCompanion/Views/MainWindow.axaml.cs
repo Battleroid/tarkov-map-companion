@@ -236,6 +236,7 @@ public partial class MainWindow : Window
 
         WireQuests();
         WireNotes();
+        WireSidebar();
 
         SuggestionAccept.Click += OnSuggestionAccepted;
         SuggestionDismiss.Click += (_, _) => HideSuggestion();
@@ -1382,6 +1383,78 @@ public partial class MainWindow : Window
     /// </remarks>
     private void SyncMinimapLayers() =>
         _minimap?.MirrorLayers(_canvas.ActiveFloors, _canvas.ShowBaseLayer);
+
+    // ---- Side panel -------------------------------------------------------
+
+    /// <summary>Width to come back to when the panel is unfolded.</summary>
+    private double _sidebarRestoreWidth = 290.0;
+
+    private ColumnDefinition SidebarColumn => ContentGrid.ColumnDefinitions[2];
+
+    private void WireSidebar()
+    {
+        ApplySidebarWidth(_settings.SidebarWidth);
+
+        // Dragging is the resize; the width is only worth saving once the drag has finished, not
+        // on every pixel of it.
+        PanelSplitter.DragCompleted += (_, _) => Apply(() =>
+        {
+            _settings.SidebarWidth = SidebarColumn.Width.Value;
+            _sidebarRestoreWidth = _settings.SidebarWidth;
+        });
+
+        // Double-click the divider does the same thing, but a gesture cannot be the only way back
+        // from a panel that is no longer on screen. The button is the answer to "where did it go".
+        PanelSplitter.DoubleTapped += (_, e) =>
+        {
+            PanelToggle.IsChecked = !SidePanelHost.IsVisible;
+            e.Handled = true;
+        };
+
+        PanelToggle.IsChecked = _settings.SidebarWidth > 0;
+        PanelToggle.IsCheckedChanged += (_, _) => ShowSidebar(PanelToggle.IsChecked ?? true);
+    }
+
+    /// <summary>Folds the panel away, or brings it back to the width it had.</summary>
+    private void ShowSidebar(bool shown)
+    {
+        if (shown == SidePanelHost.IsVisible)
+            return;
+
+        Apply(() =>
+        {
+            ApplySidebarWidth(shown ? _sidebarRestoreWidth : 0);
+            _settings.SidebarWidth = shown ? _sidebarRestoreWidth : 0;
+        });
+    }
+
+    private void ApplySidebarWidth(double width)
+    {
+        if (width > 0)
+            _sidebarRestoreWidth = Math.Clamp(width, 220.0, 700.0);
+
+        var shown = width > 0;
+
+        // The border is hidden as well as the column zeroed, so its own left edge does not leave a
+        // stray line down the map when there is nothing behind it.
+        SidePanelHost.IsVisible = shown;
+        SidebarColumn.Width = new GridLength(shown ? _sidebarRestoreWidth : 0);
+
+        // Without this the column refuses to go below its own minimum and the panel never folds.
+        SidebarColumn.MinWidth = shown ? 220 : 0;
+
+        // Folded away, the divider is the only way back, so it stops being a hairline and starts
+        // being a handle. A five-pixel strip in the border color at the edge of the window is not
+        // something anybody would guess was clickable.
+        PanelSplitter.Width = shown ? 5 : 12;
+        PanelSplitter.Background = this.FindResource(shown ? "BorderSubtleBrush" : "AccentBrush") as IBrush;
+
+        PanelSplitter.SetValue(
+            ToolTip.TipProperty,
+            shown
+                ? "Drag to resize the panel, double-click to hide it"
+                : "Double-click to bring the panel back");
+    }
 
     // ---- Notes ------------------------------------------------------------
 

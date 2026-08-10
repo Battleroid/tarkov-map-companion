@@ -193,6 +193,16 @@ public sealed class AppSettings
     /// </remarks>
     public string GameLogFolder { get; set; } = "";
 
+    /// <summary>
+    /// How wide the exits/quests/notes panel is, in pixels. 0 means folded away.
+    /// </summary>
+    /// <remarks>
+    /// A preference rather than a constant because the three tabs want different amounts of room:
+    /// the exit list is comfortable narrow, and a quest row carries a wrapping task name followed
+    /// by two buttons.
+    /// </remarks>
+    public double SidebarWidth { get; set; } = 290.0;
+
     // ---- Annotations -------------------------------------------------------
 
     /// <summary>Draw the text notes written on the map. On: they are not there unless asked for.</summary>
@@ -452,6 +462,13 @@ public sealed class AppSettings
         // The level cap at the time of writing. Only drives a filter, so being a patch behind
         // costs a tick box rather than anything real.
         PlayerLevel = Math.Clamp(PlayerLevel, 1, 79);
+
+        // Zero is folded away and legitimate; anything between that and readable is not, so a
+        // sliver left behind by a stray drag snaps back to something usable.
+        if (SidebarWidth > 0)
+            SidebarWidth = Math.Clamp(SidebarWidth, 220.0, 700.0);
+        else
+            SidebarWidth = 0;
 
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);
