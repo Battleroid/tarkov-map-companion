@@ -28,6 +28,10 @@ public partial class MainWindow : Window
     private GameMap? _suggestedMap;
     private bool _suppressMapSelectorEvent;
     private bool _suppressExtractSelectionEvent;
+
+    /// <summary>True while a selection change is being handled; see RefreshExtractRows.</summary>
+    private bool _inSelectionChange;
+    private bool _rowRefreshQueued;
     private bool _loadingControls = true;
 
     /// <summary>Where the view was before extract-focus mode took it over.</summary>
@@ -1043,10 +1047,19 @@ public partial class MainWindow : Window
         if (_suppressExtractSelectionEvent)
             return;
 
-        _session.SelectedExtract = ExtractList.SelectedItem as MapPoi;
-        UpdateExtractDetail();
-        ApplyExtractFocus();
-        _canvas.InvalidateVisual();
+        _inSelectionChange = true;
+
+        try
+        {
+            _session.SelectedExtract = ExtractList.SelectedItem as MapPoi;
+            UpdateExtractDetail();
+            ApplyExtractFocus();
+            _canvas.InvalidateVisual();
+        }
+        finally
+        {
+            _inSelectionChange = false;
+        }
     }
 
     /// <summary>
@@ -1088,6 +1101,30 @@ public partial class MainWindow : Window
     {
         if (ExtractList.ItemsSource is not IEnumerable<MapPoi> rows)
             return;
+
+        // Never while a selection change is being raised. Avalonia's selection model is mid-update
+        // at that moment when the assignment came from code rather than a click, and replacing the
+        // items under it throws "Cannot change source while update is in progress" -- unhandled, on
+        // the UI thread, so it closes the app rather than misbehaving.
+        //
+        // Waiting for the update to finish is invisible and covers every caller, which matters:
+        // clearing the selection from a button is the one that crashed, but selecting an exit by
+        // clicking its marker on the map assigns it exactly the same way.
+        if (_inSelectionChange)
+        {
+            if (_rowRefreshQueued)
+                return;
+
+            _rowRefreshQueued = true;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _rowRefreshQueued = false;
+                RefreshExtractRows();
+            });
+
+            return;
+        }
 
         var selected = ExtractList.SelectedItem;
         var items = rows.ToArray();
@@ -1380,6 +1417,14 @@ public partial class MainWindow : Window
         AnnotationSaveButton.Click += (_, _) => CommitAnnotation();
         AnnotationCancelButton.Click += (_, _) => CloseAnnotationEditor();
 
+        AnnotationDeleteButton.Click += (_, _) =>
+        {
+            if (_annotationEditingId is { } id && _session.Notes.Remove(id))
+                StatusText.Text = "Note removed.";
+
+            CloseAnnotationEditor();
+        };
+
         AnnotationTextBox.KeyDown += (_, e) =>
         {
             switch (e.Key)
@@ -1440,6 +1485,7 @@ public partial class MainWindow : Window
 
         AnnotationEditorTitle.Text = "LABEL THIS SPOT";
         AnnotationTextBox.Text = "";
+        AnnotationDeleteButton.IsVisible = false;
         AnnotationEditor.IsVisible = true;
         AnnotationTextBox.Focus();
     }
@@ -1450,8 +1496,9 @@ public partial class MainWindow : Window
         _annotationAt = null;
         _annotationEditingId = annotation.Id;
 
-        AnnotationEditorTitle.Text = "RENAME THIS NOTE";
+        AnnotationEditorTitle.Text = "EDIT THIS NOTE";
         AnnotationTextBox.Text = annotation.Text;
+        AnnotationDeleteButton.IsVisible = true;
         AnnotationEditor.IsVisible = true;
         AnnotationTextBox.Focus();
         AnnotationTextBox.SelectAll();

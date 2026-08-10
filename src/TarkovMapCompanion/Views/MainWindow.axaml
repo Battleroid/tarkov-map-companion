@@ -250,7 +250,7 @@
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="6">
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="Press Add Note, then click the map to label a spot. Notes are saved to disk and stay on the map you wrote them on." />
+                     Text="Press Add Note, then click the map to label a spot. Click any note on the map to edit or delete it. Notes are saved to disk and stay on the map you wrote them on." />
 
           <CheckBox Name="ShowAnnotationsBox" Content="Show notes on the map" FontSize="12" />
           <CheckBox Name="ShareAnnotationsBox" Content="Share my notes with the party" FontSize="12"
@@ -300,11 +300,15 @@
               MinWidth="320">
         <StackPanel Spacing="6">
           <TextBlock Name="AnnotationEditorTitle" Classes="heading" FontSize="11" Text="LABEL THIS SPOT" />
-          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
             <TextBox Grid.Column="0" Name="AnnotationTextBox" FontSize="12" Width="240"
                      Watermark="Dorms, stash, sniper spot..." MaxLength="60" />
             <Button Grid.Column="1" Name="AnnotationSaveButton" Content="Save" FontSize="11" Padding="8,2" />
-            <Button Grid.Column="2" Name="AnnotationCancelButton" Content="Cancel" FontSize="11" Padding="8,2" />
+            <!-- Only when editing one that exists, so deleting is where you already are: you
+                 clicked the note, and the thing you want to do to it is right there. -->
+            <Button Grid.Column="2" Name="AnnotationDeleteButton" Content="Delete" IsVisible="False"
+                    FontSize="11" Padding="8,2" ToolTip.Tip="Remove this note from the map" />
+            <Button Grid.Column="3" Name="AnnotationCancelButton" Content="Cancel" FontSize="11" Padding="8,2" />
           </Grid>
         </StackPanel>
       </Border>
