@@ -2295,6 +2295,15 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
         });
 
+        QuestKitToggle.IsChecked = _settings.QuestKitExpanded;
+        QuestKit.IsVisible = _settings.QuestKitExpanded;
+
+        QuestKitToggle.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.QuestKitExpanded = QuestKitToggle.IsChecked ?? true;
+            QuestKit.IsVisible = _settings.QuestKitExpanded;
+        });
+
         ClearQuestsButton.Click += (_, _) => Apply(() =>
         {
             _session.ClearTrackedTasks();
@@ -2604,7 +2613,24 @@ public partial class MainWindow : Window
         if (kit.IsEmpty)
             return;
 
-        QuestKit.Children.Add(Heading($"TAKE TO {_session.CurrentMap.DisplayName.ToUpperInvariant()}", 11));
+        // The count lives in the header so a folded-away box still says what it is holding back.
+        var parts = new List<string>();
+
+        if (kit.Keys.Count > 0)
+            parts.Add($"{kit.Keys.Count} key{(kit.Keys.Count == 1 ? "" : "s")}");
+
+        if (kit.Items.Count > 0)
+            parts.Add($"{kit.Items.Count} item{(kit.Items.Count == 1 ? "" : "s")}");
+
+        // A wrapping TextBlock rather than a plain string: "Take to Streets of Tarkov, 17 keys,
+        // 10 items" does not fit a 290-pixel panel on one line, and a ToggleButton clips its
+        // content rather than growing.
+        QuestKitToggle.Content = new TextBlock
+        {
+            Text = $"Take to {_session.CurrentMap.DisplayName} · {string.Join(", ", parts)}",
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+        };
 
         if (kit.Keys.Count > 0)
             AddSection("Keys", [.. kit.Keys.Select(k => new Data.TaskItemNeed(k, 1))]);

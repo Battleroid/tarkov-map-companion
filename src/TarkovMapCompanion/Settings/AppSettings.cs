@@ -295,6 +295,17 @@ public sealed class AppSettings
     public bool ShowQuestNames { get; set; } = true;
 
     /// <summary>
+    /// Whether the take-to-this-map list is unfolded.
+    /// </summary>
+    /// <remarks>
+    /// Persisted, unlike the map's own floating panels. Those are things you are doing now; this
+    /// is closer to "I pack from my own memory and do not want the reminder", which is a standing
+    /// position rather than a mood. The header stays either way, so a collapsed one still says how
+    /// much it is hiding.
+    /// </remarks>
+    public bool QuestKitExpanded { get; set; } = true;
+
+    /// <summary>
     /// Let the game's own notification log decide which quests are being tracked.
     /// </summary>
     /// <remarks>
