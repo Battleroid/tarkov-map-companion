@@ -147,17 +147,64 @@ public sealed class ScreenshotNameParserTests
         if (pngs.Length == 0)
             return;
 
-        // Tarkov leaves the coordinates out entirely when you are not in a raid: a screenshot from
-        // the menu or the hideout is just a date, a time and a frozen clock. Those are real Tarkov
-        // screenshots that genuinely cannot be placed, so the parser is right to refuse them and
-        // this test has to tell the two cases apart rather than demanding everything parse.
+        // Three shapes turn up in a real folder, and only one of them is a raid.
+        //
+        // From the menu, Tarkov writes a date, a time and a frozen clock, and no coordinates at
+        // all. From the hideout it writes coordinates and rotation but still no raid clock -- and
+        // those are hideout coordinates, a few meters from the origin, which placed on a map put a
+        // marker in the corner of whichever one happens to be open. Only a name carrying the raid
+        // clock describes somewhere on a map.
+        //
+        // So "has coordinates" is not the same question as "was in a raid", and this test used to
+        // ask the first while claiming to ask the second. Measured on the folder that caught it:
+        // 20 names had coordinates, 10 of those had no clock, and every one of the 10 sat within
+        // 30 m of the origin while every clocked one was 60 m or more out.
         var positional = pngs.Where(p => Path.GetFileName(p).Contains(", ", StringComparison.Ordinal)).ToArray();
-        var failures = positional.Where(p => !ScreenshotNameParser.TryParse(p, out _)).ToArray();
+
+        var inRaid = positional.Where(HasRaidClock).ToArray();
+        var hideout = positional.Where(p => !HasRaidClock(p)).ToArray();
+
+        var failures = inRaid.Where(p => !ScreenshotNameParser.TryParse(p, out _)).ToArray();
 
         Assert.True(
             failures.Length == 0,
-            $"{failures.Length} of {positional.Length} in-raid screenshots failed to parse:{Environment.NewLine}" +
+            $"{failures.Length} of {inRaid.Length} in-raid screenshots failed to parse:{Environment.NewLine}" +
             string.Join(Environment.NewLine, failures.Select(Path.GetFileName)));
+
+        // And the hideout ones are refused rather than placed, which is the half of this that
+        // keeps an unexplainable marker off the map.
+        var misread = hideout.Where(p => ScreenshotNameParser.TryParse(p, out _)).ToArray();
+
+        Assert.True(
+            misread.Length == 0,
+            $"{misread.Length} hideout screenshots were read as raid positions:{Environment.NewLine}" +
+            string.Join(Environment.NewLine, misread.Select(Path.GetFileName)));
+    }
+
+    /// <summary>The in-raid clock: the last field, and the one a raid name always carries.</summary>
+    private static readonly System.Text.RegularExpressions.Regex RaidClock =
+        new(@"_\d+\.\d+\s*(\(\d+\))?\.png$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static bool HasRaidClock(string path) => RaidClock.IsMatch(Path.GetFileName(path));
+
+    /// <summary>
+    /// A hideout screenshot carries a position, and it is not a position on any map.
+    /// </summary>
+    /// <remarks>
+    /// Verbatim from a real folder. Standing in the hideout puts you within a few meters of the
+    /// origin, so reading one as a raid fix drops a marker in the corner of the open map -- and it
+    /// repeats, because you stand in the same spot every time. Four of these were byte-identical.
+    /// </remarks>
+    [Fact]
+    public void AHideoutScreenshotIsRefusedEvenThoughItHasCoordinates()
+    {
+        Assert.False(ScreenshotNameParser.TryParse(
+            @"C:\s\2026-08-16[19-22]_7.62, 1.81, -2.35_0.07680, 0.60435, -0.05869, 0.79083 (0).png",
+            out _));
+
+        Assert.False(ScreenshotNameParser.TryParse(
+            @"C:\s\2026-08-15[02-58]_-0.22, 1.26, 7.22_0.00996, 0.95883, -0.03390, 0.28177 (0).png",
+            out _));
     }
 
     [Fact]
