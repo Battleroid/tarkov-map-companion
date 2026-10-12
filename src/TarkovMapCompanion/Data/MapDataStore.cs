@@ -28,6 +28,12 @@ public sealed class MapDataStore
     public const string DataUrl = "https://json.tarkov.dev/regular/maps";
     public const string TranslationsUrl = "https://json.tarkov.dev/regular/maps_en";
 
+    /// <summary>
+    /// The same translation document in Simplified Chinese. Embedded alongside the English one so
+    /// the display language can be switched without a refetch.
+    /// </summary>
+    public const string TranslationsZhUrl = "https://json.tarkov.dev/regular/maps_zh";
+
     private const string SnapshotResourceName = "TarkovMapCompanion.Data.Snapshots.mapdata.json.gz";
     private const string CacheFileName = "mapdata.json";
 
@@ -99,6 +105,8 @@ public sealed class MapDataStore
             _document = document;
             Origin = "tarkov.dev";
 
+            Localization.MapNames.Apply(document);
+
             await WriteCacheAsync(document, cancellationToken).ConfigureAwait(false);
 
             Updated?.Invoke(this, EventArgs.Empty);
@@ -116,7 +124,11 @@ public sealed class MapDataStore
             string.Equals(m.NormalizedName, normalizedName, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Resolves a localization key such as <c>EXFIL_ZB013</c> to readable text.</summary>
-    public string Translate(string? key)
+    public string Translate(string? key) =>
+        Localization.Localizer.Pick(TranslateEn(key), TranslateZh(key));
+
+    /// <summary>The English text for a localization key, or the key itself when it has none.</summary>
+    public string TranslateEn(string? key)
     {
         if (string.IsNullOrEmpty(key))
             return "";
@@ -124,6 +136,30 @@ public sealed class MapDataStore
         return _document.Translations.TryGetValue(key, out var text) && !string.IsNullOrWhiteSpace(text)
             ? text
             : key;
+    }
+
+    /// <summary>The Chinese text for a localization key, or empty when there is none.</summary>
+    public string TranslateZh(string? key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return "";
+
+        return _document.TranslationsZh.TryGetValue(key, out var text) && !string.IsNullOrWhiteSpace(text)
+            ? text
+            : "";
+    }
+
+    /// <summary>
+    /// Both names for a localization key at once: the English one always, the Chinese one only when
+    /// it differs from it.
+    /// </summary>
+    public (string English, string? Chinese) TranslatePair(string? key)
+    {
+        var english = TranslateEn(key);
+        var chinese = TranslateZh(key);
+
+        return (english,
+            chinese.Length > 0 && !string.Equals(chinese, english, StringComparison.Ordinal) ? chinese : null);
     }
 
     /// <summary>Maps a BSG map id to a normalized name, for transit destinations.</summary>
@@ -173,8 +209,9 @@ public sealed class MapDataStore
     {
         var dataTask = http.GetStringAsync(DataUrl, cancellationToken);
         var translationsTask = http.GetStringAsync(TranslationsUrl, cancellationToken);
+        var translationsZhTask = http.GetStringAsync(TranslationsZhUrl, cancellationToken);
 
-        await Task.WhenAll(dataTask, translationsTask).ConfigureAwait(false);
+        await Task.WhenAll(dataTask, translationsTask, translationsZhTask).ConfigureAwait(false);
 
         // Both documents wrap their payload in a "data" envelope.
         var data = JsonSerializer.Deserialize<DataEnvelope<MapDataDocument>>(dataTask.Result, JsonOptions)?.Data
@@ -183,7 +220,11 @@ public sealed class MapDataStore
         var translations = JsonSerializer
             .Deserialize<DataEnvelope<Dictionary<string, string>>>(translationsTask.Result, JsonOptions)?.Data;
 
+        var translationsZh = JsonSerializer
+            .Deserialize<DataEnvelope<Dictionary<string, string>>>(translationsZhTask.Result, JsonOptions)?.Data;
+
         data.Translations = translations ?? [];
+        data.TranslationsZh = translationsZh ?? [];
         data.FetchedAt = DateTimeOffset.UtcNow;
 
         return data;
@@ -210,9 +251,27 @@ public sealed class MapDataStore
     public string StationaryWeaponName(string? id) =>
         id is not null && _document.StationaryWeapons.TryGetValue(id, out var w) ? Translate(w.Name) : "Mounted gun";
 
-    /// <summary>Readable name for a mob id such as <c>bossBully</c>.</summary>
+    /// <summary>Both names for a loot-container type id.</summary>
+    public (string English, string? Chinese) LootContainerPair(string? id) =>
+        id is not null && _document.LootContainers.TryGetValue(id, out var c)
+            ? TranslatePair(c.Name)
+            : ("Container", null);
+
+    /// <summary>Both names for a stationary-weapon id.</summary>
+    public (string English, string? Chinese) StationaryWeaponPair(string? id) =>
+        id is not null && _document.StationaryWeapons.TryGetValue(id, out var w)
+            ? TranslatePair(w.Name)
+            : ("Mounted gun", null);
+
+    /// <summary>
+    /// Readable name for a mob id such as <c>bossBully</c>.
+    /// </summary>
+    /// <remarks>
+    /// Always English: boss and other named-AI proper names are on the locked "stays English" list,
+    /// because there is no agreed Chinese glossary for them.
+    /// </remarks>
     public string MobName(string? id) =>
-        id is not null && _document.Mobs.TryGetValue(id, out var m) ? Translate(m.Name) : Translate(id);
+        id is not null && _document.Mobs.TryGetValue(id, out var m) ? TranslateEn(m.Name) : TranslateEn(id);
 
     // ---- Storage ------------------------------------------------------------
 
@@ -226,6 +285,9 @@ public sealed class MapDataStore
 
             _document = document;
             Origin = origin;
+
+            // Keep map display names in step with whichever document we ended up loading.
+            Localization.MapNames.Apply(document);
             return true;
         }
         catch (Exception ex) when (ex is JsonException or IOException or InvalidDataException)

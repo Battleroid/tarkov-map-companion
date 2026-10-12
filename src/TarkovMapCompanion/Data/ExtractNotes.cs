@@ -47,6 +47,15 @@ public sealed class ExtractNote
 
     /// <summary>What you need in order to use it, condensed to a line or two.</summary>
     [JsonPropertyName("requirement")] public string? Requirement { get; set; }
+
+    /// <summary>
+    /// Simplified-Chinese rendering of <see cref="Requirement"/>, sourced from the display-only
+    /// overlay. Never replaces the English field, which stays the OCR/keying source of truth.
+    /// </summary>
+    [JsonPropertyName("requirementZh")] public string? RequirementZh { get; set; }
+
+    /// <summary>Simplified-Chinese rendering of <see cref="Availability"/>, from the overlay.</summary>
+    [JsonPropertyName("availabilityZh")] public string? AvailabilityZh { get; set; }
 }
 
 /// <summary>
@@ -55,7 +64,9 @@ public sealed class ExtractNote
 public sealed class ExtractNotesStore
 {
     public const string UserFileName = "extract-notes.json";
+    public const string UserOverlayFileName = "extract-notes.zh.json";
     private const string SnapshotResourceName = "TarkovMapCompanion.Data.Snapshots.extract-notes.json";
+    private const string OverlayResourceName = "TarkovMapCompanion.Data.Snapshots.extract-notes.zh.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -89,6 +100,43 @@ public sealed class ExtractNotesStore
         else
         {
             Origin = bundled is null ? "none" : "wiki snapshot";
+        }
+
+        // The Chinese overlay is display-only: it decorates the English notes and never replaces
+        // them, and a missing or broken one simply leaves the English text in place.
+        MergeOverlay(ReadEmbeddedOverlay());
+        MergeOverlay(ReadUserOverlay());
+    }
+
+    /// <summary>
+    /// Copies the Chinese fields from an overlay document onto the already-loaded notes, matched by
+    /// the same lenient <see cref="Key"/>. Entries with no English counterpart, or empty Chinese
+    /// values, are ignored.
+    /// </summary>
+    private void MergeOverlay(ExtractNotesDocument? overlay)
+    {
+        if (overlay is null)
+            return;
+
+        foreach (var (map, notes) in overlay.Maps)
+        {
+            if (!_byMap.TryGetValue(map, out var bucket))
+                continue;
+
+            foreach (var note in notes)
+            {
+                if (string.IsNullOrWhiteSpace(note.Name))
+                    continue;
+
+                if (!bucket.TryGetValue(Key(note.Name), out var existing))
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(note.RequirementZh))
+                    existing.RequirementZh = note.RequirementZh;
+
+                if (!string.IsNullOrWhiteSpace(note.AvailabilityZh))
+                    existing.AvailabilityZh = note.AvailabilityZh;
+            }
         }
     }
 
@@ -140,13 +188,17 @@ public sealed class ExtractNotesStore
         return new string(buffer[..length]);
     }
 
-    private static ExtractNotesDocument? ReadEmbedded()
+    private static ExtractNotesDocument? ReadEmbedded() => ReadEmbedded(SnapshotResourceName);
+
+    private static ExtractNotesDocument? ReadEmbeddedOverlay() => ReadEmbedded(OverlayResourceName);
+
+    private static ExtractNotesDocument? ReadEmbedded(string resourceName)
     {
         try
         {
             using var stream = System.Reflection.Assembly
                 .GetExecutingAssembly()
-                .GetManifestResourceStream(SnapshotResourceName);
+                .GetManifestResourceStream(resourceName);
 
             return stream is null ? null : JsonSerializer.Deserialize<ExtractNotesDocument>(stream, JsonOptions);
         }
@@ -172,6 +224,28 @@ public sealed class ExtractNotesStore
         {
             // A broken user file must not cost the bundled notes.
             Console.Error.WriteLine($"extract notes: ignoring unreadable user file: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Path a user can create to correct the Chinese overlay; optional, like the English one.</summary>
+    public static string UserOverlayFilePath => Path.Combine(AppPaths.ConfigDirectory, UserOverlayFileName);
+
+    private static ExtractNotesDocument? ReadUserOverlay()
+    {
+        try
+        {
+            var path = UserOverlayFilePath;
+            if (!File.Exists(path))
+                return null;
+
+            using var stream = File.OpenRead(path);
+            return JsonSerializer.Deserialize<ExtractNotesDocument>(stream, JsonOptions);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            // A broken overlay must not cost the English notes.
+            Console.Error.WriteLine($"extract notes: ignoring unreadable Chinese overlay: {ex.Message}");
             return null;
         }
     }

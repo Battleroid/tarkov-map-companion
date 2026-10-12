@@ -1,4 +1,5 @@
 using System.Globalization;
+using TarkovMapCompanion.Localization;
 
 namespace TarkovMapCompanion.Maps;
 
@@ -45,7 +46,9 @@ public sealed class GameMap
     internal GameMap(MapGroupJson group, MapVariantJson variant)
     {
         NormalizedName = group.NormalizedName;
-        DisplayName = ToDisplayName(group.NormalizedName);
+
+        // The data's own name (keyed by map id) wins; the derived name is the fallback.
+        DisplayName = MapNames.Display(group.NormalizedName);
         Description = group.Description;
         Key = variant.Key;
 

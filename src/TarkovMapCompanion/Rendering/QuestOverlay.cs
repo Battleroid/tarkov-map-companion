@@ -31,10 +31,7 @@ public sealed class QuestOverlay : IMapOverlay, ILabeledOverlay
 
     private const byte ZoneStrokeAlpha = 150;
 
-    private static readonly SKTypeface LabelTypeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface LabelTypeface = AppFonts.Label;
 
     private static readonly SKPaint LabelHalo = new()
     {

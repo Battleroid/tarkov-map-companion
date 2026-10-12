@@ -37,10 +37,7 @@ public sealed class Waypoint
 /// </remarks>
 public sealed class WaypointOverlay : IAnimatedOverlay
 {
-    private static readonly SKTypeface Typeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface Typeface = AppFonts.Label;
 
     /// <summary>Wall clock for the marching arrows. Shared, monotonic, and thread-safe to read.</summary>
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();

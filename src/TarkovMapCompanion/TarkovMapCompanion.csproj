@@ -43,6 +43,17 @@
   <ItemGroup>
     <EmbeddedResource Include="Data\Snapshots\*.json" />
     <EmbeddedResource Include="Data\Snapshots\*.json.gz" />
+    <!--
+      ".zh." in the middle of the name makes MSBuild read the segment as a culture and route the
+      file to a satellite assembly instead of embedding it, which leaves the runtime lookup
+      empty. Pin the logical name so it lands under the exact id ExtractNotesStore asks for.
+    -->
+    <EmbeddedResource Update="Data\Snapshots\extract-notes.zh.json">
+      <WithCulture>false</WithCulture>
+      <LogicalName>TarkovMapCompanion.Data.Snapshots.extract-notes.zh.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\StringsEn.json" />
+    <EmbeddedResource Include="Localization\StringsZh.json" />
   </ItemGroup>
 
   <ItemGroup>

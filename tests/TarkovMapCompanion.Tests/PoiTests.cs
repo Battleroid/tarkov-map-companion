@@ -62,14 +62,17 @@ public sealed class PoiTests
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store);
 
         var extracts = pois.Where(p => p.IsExtract).ToArray();
-        Assert.Equal(27, extracts.Length);
+        Assert.Equal(28, extracts.Length);
 
         // Localization keys must have been resolved; a raw EXFIL_ key means the merge broke.
         Assert.DoesNotContain(extracts, e => e.Name.StartsWith("EXFIL", StringComparison.Ordinal));
 
+        // Names as the refreshed snapshot spells them (upstream renamed Scav Checkpoint to
+        // Reserve Checkpoint and split Crossroads by faction).
         Assert.Contains(extracts, e => e.Name == "Dorms V-Ex" && e.Kind == PoiKind.ExtractPmc);
-        Assert.Contains(extracts, e => e.Name == "Scav Checkpoint" && e.Kind == PoiKind.ExtractScav);
-        Assert.Contains(extracts, e => e.Name == "Crossroads" && e.Kind == PoiKind.ExtractShared);
+        Assert.Contains(extracts, e => e.Name == "Reserve Checkpoint" && e.Kind == PoiKind.ExtractScav);
+        Assert.Contains(extracts, e => e.Name.StartsWith("Boiler Room Basement", StringComparison.Ordinal)
+                                       && e.Kind == PoiKind.ExtractShared);
     }
 
     [Fact]
@@ -112,12 +115,13 @@ public sealed class PoiTests
         var map = Catalog.Find("customs")!;
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store);
 
-        var zb013 = pois.Single(p => p.Name == "ZB-013");
+        // Upstream renamed the ZB-013 extract to ZB-1013 in the data refresh this snapshot carries.
+        var zb = pois.Single(p => p.Name == "ZB-1013");
 
-        Assert.Contains(zb013.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal));
+        Assert.Contains(zb.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal));
 
         // The raw switch name is a scene path; it must not leak into the UI.
-        Assert.DoesNotContain(zb013.Details, d => d.Contains("DesignStuff", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(zb.Details, d => d.Contains("DesignStuff", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

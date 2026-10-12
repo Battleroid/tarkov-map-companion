@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using TarkovMapCompanion.Data;
 
@@ -16,12 +17,23 @@ public static class FetchData
 {
     private const string DefaultOutput = "src/TarkovMapCompanion/Data/Snapshots/mapdata.json.gz";
 
+    /// <summary>
+    /// Raw UTF-8 rather than the default <c>\uXXXX</c> escapes: the snapshot stays greppable for
+    /// things like <c>海关</c>, is smaller, and deserializes identically either way.
+    /// </summary>
+    private static readonly JsonSerializerOptions SnapshotJson = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     public static async Task<int> RunAsync(string[] args)
     {
         var output = args.Length > 0 ? args[0] : DefaultOutput;
 
         Console.WriteLine($"source     {MapDataStore.DataUrl}");
         Console.WriteLine($"           {MapDataStore.TranslationsUrl}");
+        Console.WriteLine($"           {MapDataStore.TranslationsZhUrl}");
 
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
 
@@ -38,6 +50,7 @@ public static class FetchData
 
         Console.WriteLine($"maps       {document.Maps.Count}");
         Console.WriteLine($"strings    {document.Translations.Count}");
+        Console.WriteLine($"strings-zh {document.TranslationsZh.Count}");
 
         var extracts = document.Maps.Values.Sum(m => m.Extracts?.Count ?? 0);
         var spawns = document.Maps.Values.Sum(m => m.Spawns?.Count ?? 0);
@@ -58,7 +71,7 @@ public static class FetchData
             await JsonSerializer.SerializeAsync(
                 gzip,
                 document,
-                new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull })
+                SnapshotJson)
                 .ConfigureAwait(false);
         }
 

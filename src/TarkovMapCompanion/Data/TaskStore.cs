@@ -28,6 +28,12 @@ public sealed class TaskStore
     public const string TradersUrl = "https://json.tarkov.dev/regular/traders";
     public const string TraderTranslationsUrl = "https://json.tarkov.dev/regular/traders_en";
 
+    /// <summary>The Simplified-Chinese counterpart of <see cref="TranslationsUrl"/>.</summary>
+    public const string TranslationsZhUrl = "https://json.tarkov.dev/regular/tasks_zh";
+
+    /// <summary>The Simplified-Chinese counterpart of <see cref="TraderTranslationsUrl"/>.</summary>
+    public const string TraderTranslationsZhUrl = "https://json.tarkov.dev/regular/traders_zh";
+
     /// <summary>
     /// Item names only, which is 385 KB against the 16 MB the full item payload costs.
     /// </summary>
@@ -36,6 +42,9 @@ public sealed class TaskStore
     /// actually reference survive into the snapshot.
     /// </remarks>
     public const string ItemTranslationsUrl = "https://json.tarkov.dev/regular/items_en";
+
+    /// <summary>The Simplified-Chinese counterpart of <see cref="ItemTranslationsUrl"/>.</summary>
+    public const string ItemTranslationsZhUrl = "https://json.tarkov.dev/regular/items_zh";
 
     private const string SnapshotResourceName = "TarkovMapCompanion.Data.Snapshots.tasks.json.gz";
     private const string CacheFileName = "tasks.json";
@@ -133,22 +142,31 @@ public sealed class TaskStore
     {
         var tasksTask = http.GetStringAsync(DataUrl, cancellationToken);
         var stringsTask = http.GetStringAsync(TranslationsUrl, cancellationToken);
+        var stringsZhTask = http.GetStringAsync(TranslationsZhUrl, cancellationToken);
         var tradersTask = http.GetStringAsync(TradersUrl, cancellationToken);
         var traderStringsTask = http.GetStringAsync(TraderTranslationsUrl, cancellationToken);
+        var traderStringsZhTask = http.GetStringAsync(TraderTranslationsZhUrl, cancellationToken);
         var itemStringsTask = http.GetStringAsync(ItemTranslationsUrl, cancellationToken);
+        var itemStringsZhTask = http.GetStringAsync(ItemTranslationsZhUrl, cancellationToken);
 
-        await Task.WhenAll(tasksTask, stringsTask, tradersTask, traderStringsTask, itemStringsTask)
+        await Task.WhenAll(
+                tasksTask, stringsTask, stringsZhTask,
+                tradersTask, traderStringsTask, traderStringsZhTask,
+                itemStringsTask, itemStringsZhTask)
             .ConfigureAwait(false);
 
         var upstream = Unwrap<UpstreamTaskDocument>(tasksTask.Result)
                        ?? throw new JsonException("task document had no 'data' member");
 
         var strings = Unwrap<Dictionary<string, string>>(stringsTask.Result) ?? [];
+        var stringsZh = Unwrap<Dictionary<string, string>>(stringsZhTask.Result) ?? [];
         var traders = Unwrap<Dictionary<string, UpstreamTrader>>(tradersTask.Result) ?? [];
         var traderStrings = Unwrap<Dictionary<string, string>>(traderStringsTask.Result) ?? [];
+        var traderStringsZh = Unwrap<Dictionary<string, string>>(traderStringsZhTask.Result) ?? [];
         var itemStrings = Unwrap<Dictionary<string, string>>(itemStringsTask.Result) ?? [];
+        var itemStringsZh = Unwrap<Dictionary<string, string>>(itemStringsZhTask.Result) ?? [];
 
-        return Project(upstream, strings, traders, traderStrings, itemStrings);
+        return Project(upstream, strings, stringsZh, traders, traderStrings, traderStringsZh, itemStrings, itemStringsZh);
     }
 
     private static T? Unwrap<T>(string json) =>
@@ -158,23 +176,31 @@ public sealed class TaskStore
     internal static TaskDocument Project(
         UpstreamTaskDocument upstream,
         IReadOnlyDictionary<string, string> strings,
+        IReadOnlyDictionary<string, string> stringsZh,
         IReadOnlyDictionary<string, UpstreamTrader> traders,
         IReadOnlyDictionary<string, string> traderStrings,
-        IReadOnlyDictionary<string, string>? itemStrings = null)
+        IReadOnlyDictionary<string, string>? traderStringsZh = null,
+        IReadOnlyDictionary<string, string>? itemStrings = null,
+        IReadOnlyDictionary<string, string>? itemStringsZh = null)
     {
         var itemNames = itemStrings ?? new Dictionary<string, string>();
+        var itemNamesZh = itemStringsZh ?? new Dictionary<string, string>();
+        var traderNamesZh = traderStringsZh ?? new Dictionary<string, string>();
 
         // Keyed "<id> Name", the same convention the map and task documents use. An id with no
         // name is dropped rather than shown as a hex blob.
-        TaskItemData? Item(string? id) =>
-            id is { Length: > 0 } && itemNames.TryGetValue(id + " Name", out var found) && found.Length > 0
-                ? new TaskItemData { Id = id, Name = found }
-                : null;
+        TaskItemData? Item(string? id)
+        {
+            if (id is not { Length: > 0 } || !itemNames.TryGetValue(id + " Name", out var found) || found.Length == 0)
+                return null;
 
-        string Text(string? key) =>
-            key is not null && strings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
-                ? value
-                : key ?? "";
+            return new TaskItemData
+            {
+                Id = id,
+                Name = found,
+                NameZh = ResolveZh(itemNamesZh, id + " Name", found),
+            };
+        }
 
         string TraderName(string? id)
         {
@@ -186,16 +212,29 @@ public sealed class TaskStore
                 : trader.NormalizedName ?? id;
         }
 
+        // Fetched and carried, but never shown: trader names stay English (locked decision).
+        string? TraderNameZh(string? id)
+        {
+            if (id is null || !traders.TryGetValue(id, out var trader) || trader.Name is not { } key)
+                return null;
+
+            return traderNamesZh.TryGetValue(key, out var name) && name.Length > 0 ? name : null;
+        }
+
         var document = new TaskDocument { FetchedAt = DateTimeOffset.UtcNow };
 
         foreach (var task in upstream.Tasks.Values)
         {
+            var name = Resolve(strings, task.Name);
+
             var projected = new TaskData
             {
                 Id = task.Id ?? "",
-                Name = Text(task.Name),
+                Name = name,
+                NameZh = ResolveZh(stringsZh, task.Name, name),
                 NormalizedName = task.NormalizedName ?? "",
                 Trader = TraderName(task.Trader),
+                TraderZh = TraderNameZh(task.Trader),
                 MinPlayerLevel = task.MinPlayerLevel ?? 0,
                 KappaRequired = task.KappaRequired ?? false,
                 LightkeeperRequired = task.LightkeeperRequired ?? false,
@@ -227,7 +266,7 @@ public sealed class TaskStore
             }
 
             foreach (var objective in task.Objectives ?? [])
-                projected.Objectives.Add(ProjectObjective(objective, Text, Item));
+                projected.Objectives.Add(ProjectObjective(objective, strings, stringsZh, Item));
 
             document.Tasks.Add(projected);
         }
@@ -236,16 +275,38 @@ public sealed class TaskStore
         return document;
     }
 
+    /// <summary>Resolves a localization key against one table, falling back to the key itself.</summary>
+    private static string Resolve(IReadOnlyDictionary<string, string> table, string? key) =>
+        key is not null && table.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : key ?? "";
+
+    /// <summary>
+    /// The Chinese text for a key, or null when there is none or it is identical to the English
+    /// text (in which case the English fallback already reads correctly).
+    /// </summary>
+    private static string? ResolveZh(IReadOnlyDictionary<string, string> table, string? key, string english)
+    {
+        if (key is null || !table.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return string.Equals(value, english, StringComparison.Ordinal) ? null : value;
+    }
+
     private static TaskObjectiveData ProjectObjective(
         UpstreamObjective objective,
-        Func<string?, string> text,
+        IReadOnlyDictionary<string, string> strings,
+        IReadOnlyDictionary<string, string> stringsZh,
         Func<string?, TaskItemData?> item)
     {
+        var description = Resolve(strings, objective.Description);
+
         var projected = new TaskObjectiveData
         {
             Id = objective.Id ?? "",
             Type = objective.Type ?? "",
-            Description = text(objective.Description),
+            Description = description,
+            DescriptionZh = ResolveZh(stringsZh, objective.Description, description),
             Optional = objective.Optional ?? false,
             Count = objective.Count,
             FoundInRaid = objective.FoundInRaid ?? false,

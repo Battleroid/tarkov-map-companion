@@ -2,9 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:loc="using:TarkovMapCompanion.Localization"
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.MinimapWindow"
-        Title="Minimap"
+        Title="{loc:Tr Minimap.Title}"
         Width="360" Height="360"
         MinWidth="180" MinHeight="180"
         Topmost="True"
@@ -46,14 +47,14 @@
           <Slider Grid.Column="2" Name="OpacitySlider" Classes="compact"
                   Minimum="0.25" Maximum="1.0"
                   Width="52" Margin="0,0,6,0" VerticalAlignment="Center"
-                  ToolTip.Tip="How solid the minimap is" />
+                  ToolTip.Tip="{loc:Tr Minimap.OpacityTip}" />
 
           <Button Grid.Column="3" Name="ZoomOutButton" Content="−" FontSize="11" Padding="5,0"
-                  MinHeight="0" ToolTip.Tip="Show more ground" />
+                  MinHeight="0" ToolTip.Tip="{loc:Tr Minimap.ZoomOutTip}" />
           <Button Grid.Column="4" Name="ZoomInButton" Content="+" FontSize="11" Padding="5,0"
-                  MinHeight="0" Margin="3,0" ToolTip.Tip="Show less ground" />
+                  MinHeight="0" Margin="3,0" ToolTip.Tip="{loc:Tr Minimap.ZoomInTip}" />
           <Button Grid.Column="5" Name="CloseButton" Content="✕" FontSize="10" Padding="5,0"
-                  MinHeight="0" ToolTip.Tip="Close the minimap (Escape)" />
+                  MinHeight="0" ToolTip.Tip="{loc:Tr Minimap.CloseTip}" />
         </Grid>
       </Border>
 

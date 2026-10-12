@@ -9,6 +9,16 @@ public enum AppTheme
     Dark,
 }
 
+/// <summary>Which language the UI draws in. Applied on restart, not live.</summary>
+public enum AppLanguage
+{
+    /// <summary>English. Also the fallback for any string with no translation.</summary>
+    English,
+
+    /// <summary>Simplified Chinese.</summary>
+    ChineseSimplified,
+}
+
 /// <summary>
 /// How (and whether) the app removes screenshots from the watched folder.
 /// Defaults to <see cref="Off"/>: this feature deletes the user's files, so it is opt-in.
@@ -452,6 +462,12 @@ public sealed class AppSettings
 
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
+    /// <summary>
+    /// The language the UI draws in. A settings file written before this existed simply uses the
+    /// default; there is no migration to run.
+    /// </summary>
+    public AppLanguage Language { get; set; } = AppLanguage.English;
+
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>
     public double FontSize { get; set; } = 14.0;
 
@@ -556,6 +572,10 @@ public sealed class AppSettings
 
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);
+
+        // A hand-edited file could name a value the enum does not have; English is the safe default.
+        if (!Enum.IsDefined(Language))
+            Language = AppLanguage.English;
 
         if (string.IsNullOrWhiteSpace(CurrentMap))
             CurrentMap = "customs";

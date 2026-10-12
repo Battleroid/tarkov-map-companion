@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using TarkovMapCompanion.Data;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Settings;
 
 namespace TarkovMapCompanion.Views;
@@ -112,7 +113,21 @@ public partial class PreferencesWindow : Window
         UpdateRaidLengthText();
 
         ThemeBox.ItemsSource = Enum.GetValues<AppTheme>();
+
+        // Items stay the enum (that is what settings.json persists); only the rendered label is
+        // localized, so SelectionChanged keeps matching on AppTheme as it always did.
+        ThemeBox.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<AppTheme>(
+            (theme, _) => new TextBlock { Text = Localizer.ThemeLabel(theme) });
+
         ThemeBox.SelectedItem = _settings.Theme;
+
+        LanguageLabel.Text = Localization.Localizer.Loc("prefs.language");
+        LanguageBox.ItemsSource = new[]
+        {
+            Localization.Localizer.Loc("language.english"),
+            Localization.Localizer.Loc("language.chineseSimplified"),
+        };
+        LanguageBox.SelectedIndex = _settings.Language == AppLanguage.ChineseSimplified ? 1 : 0;
 
         FontSlider.Value = _settings.FontSize;
         UpdateFontLabel();
@@ -337,6 +352,26 @@ public partial class PreferencesWindow : Window
             (Avalonia.Application.Current as App)?.ApplyTheme(theme);
         });
 
+        LanguageBox.SelectionChanged += (_, _) => Apply(() =>
+        {
+            var language = LanguageBox.SelectedIndex == 1
+                ? AppLanguage.ChineseSimplified
+                : AppLanguage.English;
+
+            if (language == _settings.Language)
+            {
+                // Back to the running language: there is nothing left to restart for.
+                LanguageRestartText.IsVisible = false;
+                return;
+            }
+
+            // Applied on restart, not live: this only persists the choice and says so. Rebuilding
+            // every already-open window in a new language is a later phase.
+            _settings.Language = language;
+            LanguageRestartText.Text = Localization.Localizer.Loc("prefs.language.restart");
+            LanguageRestartText.IsVisible = true;
+        });
+
         FontSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property != Slider.ValueProperty)
@@ -390,7 +425,7 @@ public partial class PreferencesWindow : Window
 
         var picked = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Choose the Tarkov screenshot folder",
+            Title = Localizer.Loc("Prefs.ChooseScreenshotFolder"),
             AllowMultiple = false,
             SuggestedStartLocation = start,
         });
@@ -432,8 +467,7 @@ public partial class PreferencesWindow : Window
         if (best is null)
         {
             FolderStatus.Text =
-                "No Tarkov screenshots in any of the usual places. Take one in raid, find where the "
-                + "PNG landed, and point Browse at that folder.";
+                Localizer.Loc("Prefs.NoScreenshotsFound");
 
             FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             return;
@@ -443,7 +477,7 @@ public partial class PreferencesWindow : Window
         ApplyFolder();
 
         FolderStatus.Text =
-            $"Found {best.ScreenshotCount} screenshot{(best.ScreenshotCount == 1 ? "" : "s")} here, via {best.Source}.";
+            Localizer.Loc("Prefs.ScreenshotsFound", best.ScreenshotCount, best.ScreenshotCount == 1 ? "" : "s", best.Source);
     }
 
     // ---- Game log folder ----------------------------------------------------
@@ -458,7 +492,7 @@ public partial class PreferencesWindow : Window
 
         var picked = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Choose Tarkov's Logs folder",
+            Title = Localizer.Loc("Prefs.ChooseLogFolder"),
             AllowMultiple = false,
             SuggestedStartLocation = start,
         });
@@ -492,8 +526,7 @@ public partial class PreferencesWindow : Window
         if (best is null)
         {
             GameLogStatus.Text =
-                "Could not find a Tarkov install with logs in it. Point Browse at the Logs folder "
-                + "next to EscapeFromTarkov.exe.";
+                Localizer.Loc("Prefs.NoTarkovInstall");
 
             GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             return;
@@ -507,7 +540,7 @@ public partial class PreferencesWindow : Window
     {
         if (!_settings.ReadGameLog)
         {
-            GameLogStatus.Text = "Not reading the game's log.";
+            GameLogStatus.Text = Localizer.Loc("Prefs.NotReadingLog");
             GameLogStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
             return;
         }
@@ -518,7 +551,7 @@ public partial class PreferencesWindow : Window
 
         if (folder is null)
         {
-            GameLogStatus.Text = "Could not find the Tarkov install. Press Find, or set the folder yourself.";
+            GameLogStatus.Text = Localizer.Loc("Prefs.LogInstallNotFound");
             GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             return;
         }
@@ -527,12 +560,12 @@ public partial class PreferencesWindow : Window
 
         if (launches == 0)
         {
-            GameLogStatus.Text = $"No Tarkov logs in {folder}.";
+            GameLogStatus.Text = Localizer.Loc("Prefs.NoLogsInFolder", folder);
             GameLogStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             return;
         }
 
-        GameLogStatus.Text = $"Following {folder} ({launches} game launches recorded).";
+        GameLogStatus.Text = Localizer.Loc("Prefs.FollowingLog", folder, launches);
         GameLogStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
     }
 
@@ -542,7 +575,7 @@ public partial class PreferencesWindow : Window
 
         if (!Directory.Exists(folder))
         {
-            FolderStatus.Text = "That folder does not exist. Press Find to look for it.";
+            FolderStatus.Text = Localizer.Loc("Prefs.FolderMissing");
             FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             UpdateCullWarning();
             return;
@@ -555,15 +588,14 @@ public partial class PreferencesWindow : Window
         if (count == 0)
         {
             FolderStatus.Text =
-                "No Tarkov screenshots here yet. If you have taken some in raid, the game is writing "
-                + "somewhere else -- press Find.";
+                Localizer.Loc("Prefs.NoScreenshotsYet");
 
             FolderStatus.Foreground = this.FindResource("WarningBrush") as Avalonia.Media.IBrush;
             UpdateCullWarning();
             return;
         }
 
-        FolderStatus.Text = $"Found {count} Tarkov screenshot{(count == 1 ? "" : "s")}.";
+        FolderStatus.Text = Localizer.Loc("Prefs.ScreenshotsPresent", count, count == 1 ? "" : "s");
         FolderStatus.Foreground = this.FindResource("TextSecondaryBrush") as Avalonia.Media.IBrush;
 
         UpdateCullWarning();
@@ -605,33 +637,31 @@ public partial class PreferencesWindow : Window
 
         if (_settings.CullMode == CullMode.DeleteAfterRead)
         {
-            CullWarning.Text = "Every new screenshot will be sent to the Recycle Bin as soon as "
-                             + "its position is read. Existing files are left alone.";
+            CullWarning.Text = Localizer.Loc("Prefs.CullDeleteAfterRead");
             return;
         }
 
         var doomed = Math.Max(0, present - _settings.CullKeepCount);
         CullWarning.Text = doomed == 0
-            ? $"{present} screenshots present, under the limit of {_settings.CullKeepCount}. Nothing will be removed yet."
-            : $"{present} screenshots present. The next one taken will send {doomed} older "
-              + $"screenshot{(doomed == 1 ? "" : "s")} to the Recycle Bin.";
+            ? Localizer.Loc("Prefs.CullUnderLimit", present, _settings.CullKeepCount)
+            : Localizer.Loc("Prefs.CullWillSend", present, doomed, doomed == 1 ? "" : "s");
     }
 
     // ---- Labels -------------------------------------------------------------
 
     private void UpdatePaddingLabel() =>
-        PaddingLabel.Text = $"Focus mode padding around the player and exit: {_settings.ExtractFocusPadding:P0}";
+        PaddingLabel.Text = Localizer.Loc("Prefs.PaddingLabel", _settings.ExtractFocusPadding);
 
     private void UpdateTrailLabel() =>
         TrailLabel.Text = _settings.HistoryTrailLength == 0
-            ? "Trail: off"
-            : $"Trail: last {_settings.HistoryTrailLength} positions";
+            ? Localizer.Loc("Prefs.TrailOff")
+            : Localizer.Loc("Prefs.TrailLast", _settings.HistoryTrailLength);
 
-    private void UpdateFontLabel() => FontLabel.Text = $"Text size: {_settings.FontSize:F0} px";
+    private void UpdateFontLabel() => FontLabel.Text = Localizer.Loc("Prefs.FontLabel", _settings.FontSize);
 
     /// <summary>Says "off" rather than "0", which is the one value that changes what happens.</summary>
     private void UpdatePeerTrailLabel() =>
-        PeerTrailLabel.Text = _settings.PeerTrailLength == 0 ? "off" : "positions";
+        PeerTrailLabel.Text = _settings.PeerTrailLength == 0 ? Localizer.Loc("Prefs.PeerTrailOff") : Localizer.Loc("Prefs.PeerTrailPositions");
 
     private static Avalonia.Media.Color ToAvalonia(string? stored, SkiaSharp.SKColor fallback)
     {
@@ -664,8 +694,8 @@ public partial class PreferencesWindow : Window
     /// <summary>Says what will actually be shown, including the fallback when the box is empty.</summary>
     private void UpdatePlayerNameHint() =>
         PlayerNameHint.Text = string.IsNullOrWhiteSpace(_settings.PlayerName)
-            ? $"Your squad will see \"{Environment.UserName}\", your Windows username."
-            : $"Your squad will see \"{Party.PartyProtocol.CleanName(_settings.PlayerName)}\".";
+            ? Localizer.Loc("Prefs.PlayerNameHintDefault", Environment.UserName)
+            : Localizer.Loc("Prefs.PlayerNameHint", Party.PartyProtocol.CleanName(_settings.PlayerName));
 
     /// <summary>
     /// Names the exact forward, so nobody has to work out which address is theirs.
@@ -675,8 +705,8 @@ public partial class PreferencesWindow : Window
         var lan = Party.PortMapper.LocalAddress();
 
         PartyPortHint.Text = lan is null
-            ? $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to this PC."
-            : $"Only matters if you host. If your router will not open the port itself, forward TCP {_settings.PartyPort} to {lan} (this PC).";
+            ? Localizer.Loc("Prefs.PortHintPc", _settings.PartyPort)
+            : Localizer.Loc("Prefs.PortHintAddress", _settings.PartyPort, lan);
     }
 
     private void UpdateRaidLengthText()
@@ -686,8 +716,7 @@ public partial class PreferencesWindow : Window
 
         var minutes = _session.Player.MaxRaidLength.TotalMinutes;
         RaidLengthText.Text =
-            $"Trail is cleared between raids automatically, and never shows more than {minutes:F0} "
-            + "minutes of history. That ceiling comes from the current map's raid length.";
+            Localizer.Loc("Prefs.RaidLengthHint", minutes);
     }
 
     // ---- Data ---------------------------------------------------------------
@@ -702,23 +731,26 @@ public partial class PreferencesWindow : Window
 
         var store = _session.MapData;
         var age = store.FetchedAt is { } fetched
-            ? $"last updated {Describe(DateTimeOffset.UtcNow - fetched)}"
-            : "age unknown";
+            ? Localizer.Loc("Prefs.DataLastUpdated", Describe(DateTimeOffset.UtcNow - fetched))
+            : Localizer.Loc("Prefs.DataAgeUnknown");
 
-        DataStatus.Text = $"Exits, spawns and loot come from {store.Origin} ({age}). "
-                        + (_settings.AllowNetwork
-                            ? $"Refreshed automatically every {_settings.DataRefreshIntervalHours} hours."
-                            : "Downloads are off, so the bundled data will be used.");
+        DataStatus.Text = Localizer.Loc(
+            "Prefs.DataStatus",
+            store.Origin,
+            age,
+            _settings.AllowNetwork
+                ? Localizer.Loc("Prefs.DataStatusAuto", _settings.DataRefreshIntervalHours)
+                : Localizer.Loc("Prefs.DataStatusOffline"));
 
         RefreshDataButton.IsEnabled = _settings.AllowNetwork;
     }
 
     private static string Describe(TimeSpan age) => age.TotalDays switch
     {
-        >= 2 => $"{age.TotalDays:F0} days ago",
-        >= 1 => "yesterday",
-        _ when age.TotalHours >= 1 => $"{age.TotalHours:F0} hours ago",
-        _ => "just now",
+        >= 2 => Localizer.Loc("Time.DaysAgo", age.TotalDays),
+        >= 1 => Localizer.Loc("Time.Yesterday"),
+        _ when age.TotalHours >= 1 => Localizer.Loc("Time.HoursAgo", age.TotalHours),
+        _ => Localizer.Loc("Time.JustNow"),
     };
 
     private async Task RefreshDataAsync()
@@ -727,11 +759,11 @@ public partial class PreferencesWindow : Window
             return;
 
         RefreshDataButton.IsEnabled = false;
-        DataStatus.Text = "Downloading map data...";
+        DataStatus.Text = Localizer.Loc("Prefs.DownloadingData");
 
         var ok = await _session.MapData.RefreshAsync();
 
-        DataStatus.Text = ok ? "Map data updated." : "Could not reach tarkov.dev. The existing data is still in use.";
+        DataStatus.Text = ok ? Localizer.Loc("Prefs.DataUpdated") : Localizer.Loc("Prefs.DataUnreachable");
         RefreshDataButton.IsEnabled = _settings.AllowNetwork;
 
         if (ok)

@@ -20,6 +20,11 @@ public static class RenderTest
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        // The persisted settings decide the display language, and it has to be known before the
+        // catalog (and therefore every GameMap display name) is built.
+        var settings = new Settings.SettingsStore().Load();
+        Localization.Localizer.SetLanguage(settings.Language);
+
         var mapName = args.Length > 0 ? args[0] : "shoreline";
         var outputPath = args.Length > 1 ? args[1] : $"{mapName}.render.png";
         var width = args.Length > 2 && int.TryParse(args[2], out var w) ? w : 1600;
@@ -108,7 +113,6 @@ public static class RenderTest
         // Extract markers on top of the extract zones the artwork already draws. This is the
         // strongest check available: the two come from different sources, so if the diamonds land
         // on the red hatched strips, the projection and the POI pipeline are both right.
-        var settings = new Settings.AppSettings();
         var store = new MapDataStore(settings);
         store.LoadLocal();
         Console.WriteLine($"poi data   {store.Origin}");
@@ -365,9 +369,9 @@ public static class RenderTest
 
                     forTask.Add(new QuestMark(
                         task.Id,
-                        task.Name,
+                        task.DisplayName,
                         objective.Id,
-                        objective.Description,
+                        objective.DisplayDescription,
                         MarkerPalette.Quest,
                         new GamePosition(point.X, point.Y, point.Z),
                         Index: 0,
@@ -469,7 +473,7 @@ public static class RenderTest
 
         public void Draw(SKCanvas canvas, Viewport viewport)
         {
-            var typeface = SKTypeface.FromFamilyName("Consolas") ?? SKTypeface.Default;
+            var typeface = AppFonts.Label;
 
             using var text = new SKPaint
             {

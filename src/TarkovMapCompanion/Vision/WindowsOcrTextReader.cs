@@ -1,3 +1,4 @@
+using TarkovMapCompanion.Localization;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
@@ -40,7 +41,7 @@ public sealed class WindowsOcrTextReader : IScreenTextReader
     {
         if (!OperatingSystem.IsWindows())
         {
-            UnavailableReason = "Reading exits from screenshots needs Windows.";
+            UnavailableReason = Localizer.Loc("Ocr.NeedsWindows");
             return;
         }
 
@@ -54,15 +55,13 @@ public sealed class WindowsOcrTextReader : IScreenTextReader
         catch (Exception ex)
         {
             Diagnostics.Log.Warn($"OCR engine unavailable: {ex.Message}");
-            UnavailableReason = "Windows OCR could not be started.";
+            UnavailableReason = Localizer.Loc("Ocr.CouldNotStart");
             return;
         }
 
         if (_engine is null)
         {
-            UnavailableReason =
-                "Windows has no OCR language pack installed. Add English under "
-                + "Settings > Time & language > Language & region.";
+            UnavailableReason = Localizer.Loc("Ocr.NoLanguagePack");
         }
     }
 

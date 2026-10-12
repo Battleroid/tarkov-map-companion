@@ -1,4 +1,5 @@
 using SkiaSharp;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Party;
 
@@ -25,10 +26,7 @@ namespace TarkovMapCompanion.Rendering;
 /// </remarks>
 public sealed class PeerOverlay : IMapOverlay, ILabeledOverlay
 {
-    private static readonly SKTypeface Typeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface Typeface = AppFonts.Label;
 
     /// <summary>Past this, a position says more about where someone was than where they are.</summary>
     private const double FullyStaleSeconds = 180.0;
@@ -300,7 +298,7 @@ public sealed class PeerOverlay : IMapOverlay, ILabeledOverlay
         canvas.Restore();
 
         var label = PlayerPosition is { } player
-            ? $"{peer.Name} {player.GroundDistanceTo(peer.Position):F0} m"
+            ? Localizer.Loc("Poi.PeerDistance", peer.Name, player.GroundDistanceTo(peer.Position))
             : peer.Name;
 
         // Placed back toward the middle of the view, and clamped so it never runs off the same edge
@@ -398,12 +396,12 @@ public sealed class PeerOverlay : IMapOverlay, ILabeledOverlay
 
         var when = age switch
         {
-            < 20 => "now",
-            < 90 => $"{age:F0}s",
-            _ => $"{age / 60:F0}m",
+            < 20 => Localizer.Loc("Time.Now"),
+            < 90 => Localizer.Loc("Time.ShortSeconds", age),
+            _ => Localizer.Loc("Time.ShortMinutes", age / 60),
         };
 
-        return $"{peer.Name} · {when}";
+        return Localizer.Loc("Poi.PeerAgeLabel", peer.Name, when);
     }
 
     /// <summary>

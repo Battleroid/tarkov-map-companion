@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Settings;
@@ -284,7 +285,7 @@ public partial class MinimapWindow : Window
         var pixelsPerMeter = map.Projection.AverageScale;
         var halfExtent = Math.Max(1.0, _settings.MinimapRangeMeters * pixelsPerMeter);
 
-        RangeText.Text = $"{_settings.MinimapRangeMeters:F0} m";
+        RangeText.Text = Localizer.Loc("Minimap.Range", _settings.MinimapRangeMeters);
 
         var center = _session.Player.Current is { } fix
             ? map.ToBase(fix.Position)

@@ -1,6 +1,7 @@
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.GameLog;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
@@ -235,7 +236,7 @@ public sealed class MapSession : IDisposable
         // ground distance, the same as every other distance the app reports.
         if (!Waypoints.Add(new GamePosition(x, 0, z), basePoint))
         {
-            Status?.Invoke(this, $"A route holds at most {WaypointOverlay.MaxWaypoints} markers.");
+            Status?.Invoke(this, Localizer.Loc("Status.RouteLimit", WaypointOverlay.MaxWaypoints));
             return;
         }
 
@@ -491,7 +492,7 @@ public sealed class MapSession : IDisposable
         }
         catch (Exception ex)
         {
-            Status?.Invoke(this, $"Map data refresh failed: {ex.Message}");
+            Status?.Invoke(this, Localizer.Loc("Status.MapRefreshFailed", ex.Message));
         }
 
         try
@@ -500,7 +501,7 @@ public sealed class MapSession : IDisposable
         }
         catch (Exception ex)
         {
-            Status?.Invoke(this, $"Quest data refresh failed: {ex.Message}");
+            Status?.Invoke(this, Localizer.Loc("Status.QuestRefreshFailed", ex.Message));
         }
     }
 
@@ -619,9 +620,9 @@ public sealed class MapSession : IDisposable
 
                     forThisTask.Add(new QuestMark(
                         task.Id,
-                        task.Name,
+                        task.DisplayName,
                         objective.Id,
-                        objective.Description,
+                        objective.DisplayDescription,
                         MarkerPalette.Quest,
                         new GamePosition(point.X, point.Y, point.Z),
                         Index: 0,
@@ -784,7 +785,7 @@ public sealed class MapSession : IDisposable
         if (!Directory.Exists(folder))
         {
             Log.Warn($"[screenshots] folder does not exist: {folder}");
-            Status?.Invoke(this, $"Folder not found: {folder}");
+            Status?.Invoke(this, Localizer.Loc("Status.FolderNotFound", folder));
             return;
         }
 
@@ -815,7 +816,7 @@ public sealed class MapSession : IDisposable
             Log.Info($"[screenshots] watching {folder} ({count} already there)");
         }
 
-        Status?.Invoke(this, $"Watching {folder}");
+        Status?.Invoke(this, Localizer.Loc("Status.Watching", folder));
     }
 
     /// <summary>
@@ -843,7 +844,7 @@ public sealed class MapSession : IDisposable
         if (folder is null)
         {
             Log.Warn("[game log] could not find where Tarkov is installed; run --find-logs to see what was tried");
-            Status?.Invoke(this, "Could not find Tarkov's log folder. Set it in Settings.");
+            Status?.Invoke(this, Localizer.Loc("Status.LogFolderNotFound"));
             return;
         }
 
@@ -858,7 +859,7 @@ public sealed class MapSession : IDisposable
         Log.Info($"[game log] following {folder} ({launches} launches recorded)");
 
         if (launches == 0)
-            Status?.Invoke(this, $"No Tarkov logs in {folder} yet.");
+            Status?.Invoke(this, Localizer.Loc("Status.NoLogsYet", folder));
     }
 
     /// <summary>
@@ -1254,8 +1255,8 @@ public sealed class MapSession : IDisposable
         if (!_imageSource.IsReady)
         {
             Status?.Invoke(this, _settings.AllowNetwork
-                ? $"Could not download the {map.DisplayName} map. Check your connection."
-                : $"{map.DisplayName} is not cached and network access is off.");
+                ? Localizer.Loc("Status.MapDownloadFailed", map.DisplayName)
+                : Localizer.Loc("Status.MapNotCached", map.DisplayName));
         }
     }
 
@@ -1315,7 +1316,7 @@ public sealed class MapSession : IDisposable
         catch (Exception ex)
         {
             Log.Error($"failed to apply fix from {fix.FileName}", ex);
-            Status?.Invoke(this, $"Could not read {fix.FileName}; see {Log.Path}");
+            Status?.Invoke(this, Localizer.Loc("Status.CouldNotReadFile", fix.FileName, Log.Path));
         }
     }
 
@@ -1352,13 +1353,14 @@ public sealed class MapSession : IDisposable
             }
             else if (result.Refusal is not (CullRefusal.None or CullRefusal.WithinKeepWindow))
             {
-                Status?.Invoke(this, $"Kept {Path.GetFileName(result.Path)}: {Describe(result.Refusal)}");
+                Status?.Invoke(this, Localizer.Loc("Status.CullKept",
+                    Path.GetFileName(result.Path), Describe(result.Refusal)));
             }
         }
 
         var deleted = results.Count(r => r.Deleted);
         if (deleted > 0)
-            Status?.Invoke(this, $"Removed {deleted} old screenshot{(deleted == 1 ? "" : "s")} to the Recycle Bin");
+            Status?.Invoke(this, Localizer.Loc("Status.CullRemoved", deleted, deleted == 1 ? "" : "s"));
     }
 
     /// <summary>
@@ -1456,7 +1458,7 @@ public sealed class MapSession : IDisposable
             if (availability is null)
             {
                 Log.Warn($"exit panel read from {fix.FileName} matched no known exit on {map.NormalizedName}");
-                Status?.Invoke(this, "Found the exit panel but could not match any names; leaving all exits shown.");
+                Status?.Invoke(this, Localizer.Loc("Status.ExitPanelUnmatched"));
                 return;
             }
 
@@ -1488,11 +1490,11 @@ public sealed class MapSession : IDisposable
 
     private static string Describe(CullRefusal refusal) => refusal switch
     {
-        CullRefusal.OutsideWatchedFolder => "outside the watched folder",
-        CullRefusal.NotAScreenshotName => "not a Tarkov screenshot",
-        CullRefusal.DeleteFailed => "could not be deleted",
-        CullRefusal.Disabled => "culling is off",
-        _ => "skipped",
+        CullRefusal.OutsideWatchedFolder => Localizer.Loc("Cull.OutsideWatchedFolder"),
+        CullRefusal.NotAScreenshotName => Localizer.Loc("Cull.NotAScreenshotName"),
+        CullRefusal.DeleteFailed => Localizer.Loc("Cull.DeleteFailed"),
+        CullRefusal.Disabled => Localizer.Loc("Cull.Disabled"),
+        _ => Localizer.Loc("Cull.Skipped"),
     };
 
     public void Dispose()

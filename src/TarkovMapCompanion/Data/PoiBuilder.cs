@@ -1,4 +1,5 @@
 using TarkovMapCompanion.Data.Models;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 
 namespace TarkovMapCompanion.Data;
@@ -44,7 +45,7 @@ public static class PoiBuilder
         // Switch id -> readable name, so "activated by" can name the switch rather than hash it.
         var switchNames = (data.Switches ?? [])
             .Where(s => !string.IsNullOrEmpty(s.Id))
-            .ToDictionary(s => s.Id, s => DescribeSwitch(s, store), StringComparer.Ordinal);
+            .ToDictionary(s => s.Id, s => DescribeSwitch(s, store).Name, StringComparer.Ordinal);
 
         foreach (var extract in data.Extracts ?? [])
         {
@@ -58,14 +59,26 @@ public static class PoiBuilder
                 _ => PoiKind.ExtractShared,
             };
 
-            var name = store.Translate(extract.Name);
+            // The English name is canonical: it is what the wiki notes are keyed by and what OCR
+            // matches against. The Chinese name is only ever shown.
+            var (name, nameZh) = store.TranslatePair(extract.Name);
             var details = new List<string>();
+            var detailsZh = new List<string>();
+
+            // English line, with its Chinese counterpart when the overlay supplies one. A missing
+            // Chinese value falls back to the English text so no line ever disappears.
+            void AddLine(string english, string? chinese = null)
+            {
+                details.Add(english);
+                detailsZh.Add(string.IsNullOrWhiteSpace(chinese) ? english : chinese!);
+            }
 
             foreach (var switchId in extract.Switches ?? [])
             {
-                details.Add(switchNames.TryGetValue(switchId, out var switchName)
-                    ? $"Activated by: {switchName}"
-                    : "Requires a switch to be thrown");
+                // The wrapper is localized at build time; the Chinese list mirrors it exactly.
+                AddLine(switchNames.TryGetValue(switchId, out var switchName)
+                    ? Localizer.Loc("Poi.ActivatedBy", switchName)
+                    : Localizer.Loc("Poi.RequiresSwitch"));
             }
 
             // Everything the position data cannot tell us: payment, required items, timed
@@ -78,31 +91,39 @@ public static class PoiBuilder
             {
                 if (!string.IsNullOrWhiteSpace(note.Requirement))
                 {
-                    details.Add($"Needs: {note.Requirement}");
+                    AddLine(
+                        Localizer.LocEnglish("Poi.Needs", note.Requirement),
+                        string.IsNullOrWhiteSpace(note.RequirementZh)
+                            ? null
+                            : Localizer.Loc("Poi.Needs", note.RequirementZh));
                     conditional = true;
                 }
 
                 if (!string.IsNullOrWhiteSpace(note.Availability))
                 {
-                    details.Add($"Always open? {note.Availability}");
+                    AddLine(
+                        Localizer.LocEnglish("Poi.AlwaysOpen", note.Availability),
+                        string.IsNullOrWhiteSpace(note.AvailabilityZh)
+                            ? null
+                            : Localizer.Loc("Poi.AlwaysOpen", note.AvailabilityZh));
                     conditional = true;
                 }
                 else if (note.AlwaysAvailable == false)
                 {
-                    details.Add("Not always open");
+                    AddLine(Localizer.Loc("Poi.NotAlwaysOpen"));
                     conditional = true;
                 }
 
                 if (note.SingleUse == true)
                 {
-                    details.Add("Single use: only one player can take it");
+                    AddLine(Localizer.Loc("Poi.SingleUse"));
                     singleUse = true;
                 }
             }
             else if (name.Contains("Co-op", StringComparison.OrdinalIgnoreCase))
             {
                 // Fallback for an extract the notes file has not caught up with.
-                details.Add("Co-op: needs a player of the other faction to open it with you");
+                AddLine(Localizer.Loc("Poi.Coop"));
                 conditional = true;
             }
 
@@ -111,11 +132,13 @@ public static class PoiBuilder
                 Kind = kind,
                 Id = extract.Id,
                 Name = name,
+                NameZh = nameZh,
                 Position = ToGame(extract.Position),
                 Base = map.Projection.ToBase(extract.Position.X, extract.Position.Z),
                 Outline = ToOutline(map, extract.Outline),
                 Elevation = ToElevation(extract.Bottom, extract.Top),
                 Details = details,
+                DetailsZh = detailsZh,
 
                 // A switch-gated exit is conditional too, even without a wiki note.
                 IsConditional = conditional || extract.Switches is { Count: > 0 },
@@ -132,10 +155,11 @@ public static class PoiBuilder
                 continue;
 
             var destination = store.NormalizedNameForId(transit.Map);
+            var (name, nameZh) = store.TranslatePair(transit.Description);
             var details = new List<string>();
 
             if (destination is not null)
-                details.Add($"Leads to {GameMap.ToDisplayName(destination)}");
+                details.Add(Localizer.Loc("Poi.LeadsTo", MapNames.Display(destination)));
 
             if (!string.IsNullOrWhiteSpace(transit.Conditions))
                 details.Add(transit.Conditions);
@@ -144,7 +168,8 @@ public static class PoiBuilder
             {
                 Kind = PoiKind.Transit,
                 Id = transit.Id,
-                Name = store.Translate(transit.Description),
+                Name = name,
+                NameZh = nameZh,
                 Position = ToGame(transit.Position),
                 Base = map.Projection.ToBase(transit.Position.X, transit.Position.Z),
                 Outline = ToOutline(map, transit.Outline),
@@ -177,11 +202,11 @@ public static class PoiBuilder
         foreach (var boss in data.Bosses ?? [])
         {
             var name = store.MobName(boss.Mob);
-            var chance = boss.SpawnChance is { } c ? $"{c * 100:F0}% to spawn on this map" : null;
+            var chance = boss.SpawnChance is { } c ? Localizer.Loc("Poi.SpawnChanceMap", c * 100) : null;
 
             foreach (var location in boss.SpawnLocations ?? [])
             {
-                var zoneChance = location.Chance is { } lc && lc > 0 ? $"{lc * 100:F0}% in this zone" : null;
+                var zoneChance = location.Chance is { } lc && lc > 0 ? Localizer.Loc("Poi.SpawnChanceZone", lc * 100) : null;
 
                 var details = new[] { chance, zoneChance }.OfType<string>().ToArray();
 
@@ -207,11 +232,14 @@ public static class PoiBuilder
             if (sw.Position is null)
                 continue;
 
+            var (name, nameZh) = DescribeSwitch(sw, store);
+
             pois.Add(new MapPoi
             {
                 Kind = PoiKind.Switch,
                 Id = sw.Id,
-                Name = DescribeSwitch(sw, store),
+                Name = name,
+                NameZh = nameZh,
                 Position = ToGame(sw.Position),
                 Base = map.Projection.ToBase(sw.Position.X, sw.Position.Z),
             });
@@ -246,13 +274,13 @@ public static class PoiBuilder
 
             var details = new List<string>();
             if (l.NeedsPower == true)
-                details.Add("Needs power");
+                details.Add(Localizer.Loc("Poi.NeedsPower"));
 
             pois.Add(new MapPoi
             {
                 Kind = PoiKind.Lock,
                 Id = l.Id,
-                Name = string.IsNullOrWhiteSpace(l.LockType) ? "Locked" : Capitalize(l.LockType),
+                Name = string.IsNullOrWhiteSpace(l.LockType) ? Localizer.Loc("Poi.Locked") : Capitalize(l.LockType),
                 Position = ToGame(l.Position),
                 Base = map.Projection.ToBase(l.Position.X, l.Position.Z),
                 Details = details,
@@ -267,10 +295,13 @@ public static class PoiBuilder
             if (container.Position is null)
                 continue;
 
+            var (name, nameZh) = store.LootContainerPair(container.LootContainer);
+
             pois.Add(new MapPoi
             {
                 Kind = PoiKind.LootContainer,
-                Name = store.LootContainerName(container.LootContainer),
+                Name = name,
+                NameZh = nameZh,
                 Position = ToGame(container.Position),
                 Base = map.Projection.ToBase(container.Position.X, container.Position.Z),
             });
@@ -284,10 +315,13 @@ public static class PoiBuilder
             if (weapon.Position is null)
                 continue;
 
+            var (name, nameZh) = store.StationaryWeaponPair(weapon.StationaryWeapon);
+
             pois.Add(new MapPoi
             {
                 Kind = PoiKind.StationaryWeapon,
-                Name = store.StationaryWeaponName(weapon.StationaryWeapon),
+                Name = name,
+                NameZh = nameZh,
                 Position = ToGame(weapon.Position),
                 Base = map.Projection.ToBase(weapon.Position.X, weapon.Position.Z),
             });
@@ -301,10 +335,15 @@ public static class PoiBuilder
             if (stop.Position is null)
                 continue;
 
+            var (name, nameZh) = string.IsNullOrWhiteSpace(stop.Name)
+                ? (Localizer.Loc("Poi.BtrStop"), (string?)null)
+                : store.TranslatePair(stop.Name);
+
             pois.Add(new MapPoi
             {
                 Kind = PoiKind.BtrStop,
-                Name = string.IsNullOrWhiteSpace(stop.Name) ? "BTR stop" : store.Translate(stop.Name),
+                Name = name,
+                NameZh = nameZh,
                 Position = ToGame(stop.Position),
                 Base = map.Projection.ToBase(stop.Position.X, stop.Position.Z),
             });
@@ -333,16 +372,16 @@ public static class PoiBuilder
         var sides = spawn.Sides ?? [];
 
         if (categories.Contains("boss"))
-            return "Boss spawn";
+            return Localizer.Loc("Poi.SpawnBoss");
 
-        var side = sides.Contains("pmc") ? "PMC"
-            : sides.Contains("scav") ? "Scav"
-            : "Unknown";
+        var side = sides.Contains("pmc") ? Localizer.Loc("Poi.SidePmc")
+            : sides.Contains("scav") ? Localizer.Loc("Poi.SideScav")
+            : Localizer.Loc("Poi.SideUnknown");
 
         // "player" means a human can spawn here; anything else is AI only.
-        var who = categories.Contains("player") ? "" : " (AI)";
+        var who = categories.Contains("player") ? "" : Localizer.Loc("Poi.SpawnAi");
 
-        return $"{side} spawn{who}";
+        return Localizer.Loc("Poi.SpawnLabel", side, who);
     }
 
     /// <summary>
@@ -350,18 +389,20 @@ public static class PoiBuilder
     /// <c>switch_custom_DesignStuff_00034_reserve_electric_switcher_lever</c>, which are useless
     /// in a tooltip. Fall back to the switch type when the name is one of those.
     /// </summary>
-    private static string DescribeSwitch(SwitchData sw, MapDataStore store)
+    private static (string Name, string? NameZh) DescribeSwitch(SwitchData sw, MapDataStore store)
     {
-        var translated = store.Translate(sw.Name);
+        var (translated, translatedZh) = store.TranslatePair(sw.Name);
 
         var looksInternal = string.IsNullOrWhiteSpace(translated)
             || translated.StartsWith("switch_", StringComparison.OrdinalIgnoreCase)
             || translated.Contains("DesignStuff", StringComparison.OrdinalIgnoreCase);
 
         if (!looksInternal)
-            return translated;
+            return (translated, translatedZh);
 
-        return string.IsNullOrWhiteSpace(sw.SwitchType) ? "Switch" : $"{Capitalize(sw.SwitchType)} switch";
+        return (string.IsNullOrWhiteSpace(sw.SwitchType)
+            ? Localizer.Loc("Poi.Switch")
+            : Localizer.Loc("Poi.SwitchLabel", Capitalize(sw.SwitchType)), null);
     }
 
     /// <summary>Hazard names are role paths like <c>ScavRole/Marksman</c>.</summary>
@@ -371,11 +412,11 @@ public static class PoiBuilder
 
         return type switch
         {
-            "sniper" => "Sniper scav",
-            "minefield" => "Minefield",
-            "mortar" => "Mortar strike zone",
+            "sniper" => Localizer.Loc("Poi.HazardSniper"),
+            "minefield" => Localizer.Loc("Poi.HazardMinefield"),
+            "mortar" => Localizer.Loc("Poi.HazardMortar"),
             _ when !string.IsNullOrWhiteSpace(type) => Capitalize(type),
-            _ => hazard.Name?.Split('/').LastOrDefault() ?? "Hazard",
+            _ => hazard.Name?.Split('/').LastOrDefault() ?? Localizer.Loc("Poi.Hazard"),
         };
     }
 

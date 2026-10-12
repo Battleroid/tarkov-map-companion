@@ -9,6 +9,7 @@ using TarkovMapCompanion.GameLog;
 using Avalonia.Threading;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
@@ -160,7 +161,7 @@ public partial class MainWindow : Window
         ClearMarksButton.Click += (_, _) =>
         {
             _session.ClearWaypoints();
-            StatusText.Text = "Markers cleared.";
+            StatusText.Text = Localizer.Loc("Status.MarkersCleared");
         };
 
         _canvas.SmoothMovement = _settings.SmoothCameraMovement;
@@ -191,7 +192,7 @@ public partial class MainWindow : Window
             // Through the list, not the session, so the row highlight lets go with it. Setting the
             // session's selection alone leaves the list looking like something is still chosen.
             ExtractList.SelectedItem = null;
-            StatusText.Text = "Exit cleared.";
+            StatusText.Text = Localizer.Loc("Status.ExitCleared");
         };
         ExtractList.DoubleTapped += OnExtractListDoubleTapped;
 
@@ -323,7 +324,7 @@ public partial class MainWindow : Window
         _session.Status += (_, message) => Post(() => StatusText.Text = message);
 
         _session.Player.RaidStarted += (_, _) => Post(() =>
-            StatusText.Text = "New raid detected; cleared the previous trail.");
+            StatusText.Text = Localizer.Loc("Status.NewRaidTrail"));
         _session.FixApplied += (_, fix) => Post(() => OnFixApplied(fix));
         _session.MapChanged += (_, map) => Post(() => OnMapChanged(map));
         _session.MapSuggested += (_, map) => Post(() => ShowSuggestion(map));
@@ -375,7 +376,7 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
 
             if (availability is not null)
-                StatusText.Text = $"Read {availability.NameCount} exits from the screenshot.";
+                StatusText.Text = Localizer.Loc("Status.ReadExits", availability.NameCount);
         });
     }
 
@@ -397,7 +398,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error("UI update failed", ex);
-            StatusText.Text = $"Something went wrong updating the view; see {Log.Path}";
+            StatusText.Text = Localizer.Loc("Status.ViewUpdateFailed", Log.Path);
         }
     });
 
@@ -493,7 +494,7 @@ public partial class MainWindow : Window
             if (_session.Party.Code is { } code && Clipboard is { } clipboard)
             {
                 await clipboard.SetTextAsync(code);
-                StatusText.Text = "Session code copied.";
+                StatusText.Text = Localizer.Loc("Status.SessionCodeCopied");
             }
         };
 
@@ -537,7 +538,7 @@ public partial class MainWindow : Window
         {
             Audio.PingSound.Play();
 
-            StatusText.Text = $"{ping.Name} pinged the map.";
+            StatusText.Text = Localizer.Loc("Status.PingReceived", ping.Name);
             _mapClock?.Wake();
             _canvas.InvalidateVisual();
         });
@@ -549,8 +550,8 @@ public partial class MainWindow : Window
         var lan = Party.PortMapper.LocalAddress();
 
         PartyIdleHint.Text = lan is null
-            ? $"If your router will not open TCP {_settings.PartyPort}, forward it to this PC."
-            : $"If your router will not open TCP {_settings.PartyPort}, forward it to {lan}.";
+            ? Localizer.Loc("Party.ForwardToPc", _settings.PartyPort)
+            : Localizer.Loc("Party.ForwardToAddress", _settings.PartyPort, lan);
     }
 
     private async Task StartHostingAsync()
@@ -573,7 +574,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(code))
         {
-            StatusText.Text = "Paste the session code first.";
+            StatusText.Text = Localizer.Loc("Status.PasteCodeFirst");
             return;
         }
 
@@ -601,8 +602,8 @@ public partial class MainWindow : Window
     /// <summary>The port and address to forward to, spelled out rather than left to be looked up.</summary>
     private string ForwardingAdvice(int port) =>
         _session.Party.LocalAddress is { } address
-            ? $"Forward TCP {port} to {address} (this PC) in your router, then try again."
-            : $"Forward TCP {port} to this PC in your router, then try again.";
+            ? Localizer.Loc("Party.ForwardAdviceAddress", port, address)
+            : Localizer.Loc("Party.ForwardAdvice", port);
 
     private void UpdatePartyPanel()
     {
@@ -619,13 +620,10 @@ public partial class MainWindow : Window
         PartyFailedPanel.IsVisible = party.State == PartyState.Failed && party.ListenPort > 0;
         if (PartyFailedPanel.IsVisible)
         {
-            PartyFailedText.Text =
-                "Could not open a port automatically. "
-                + ForwardingAdvice(party.ListenPort)
-                + " Failing that, have someone else host.";
+            PartyFailedText.Text = Localizer.Loc("Party.PortOpenFailed", ForwardingAdvice(party.ListenPort));
         }
 
-        LeavePartyButton.Content = party.State == PartyState.Hosting ? "Stop session" : "Leave session";
+        LeavePartyButton.Content = party.State == PartyState.Hosting ? Localizer.Loc("Main.StopSession") : Localizer.Loc("Main.LeaveSession");
 
         PartyRoster.ItemsSource = party.Peers.Select(BuildRow).ToArray();
 
@@ -634,11 +632,11 @@ public partial class MainWindow : Window
         // screen, which is where you read about a feature rather than while using it.
         PartyHint.Text = party.State switch
         {
-            PartyState.Starting => "Opening a port...",
-            PartyState.Joining => "Connecting...",
-            PartyState.Hosting when party.PublicEndpoint is { } endpoint => $"Hosting on {endpoint} (TCP)",
-            PartyState.Hosting => $"Hosting on port {party.ListenPort} (TCP)",
-            PartyState.Joined => "Connected.",
+            PartyState.Starting => Localizer.Loc("Party.OpeningPort"),
+            PartyState.Joining => Localizer.Loc("Party.Connecting"),
+            PartyState.Hosting when party.PublicEndpoint is { } endpoint => Localizer.Loc("Party.HostingOnEndpoint", endpoint),
+            PartyState.Hosting => Localizer.Loc("Party.HostingOnPort", party.ListenPort),
+            PartyState.Joined => Localizer.Loc("Party.Connected"),
             _ => "",
         };
 
@@ -661,12 +659,11 @@ public partial class MainWindow : Window
         ToolTip.SetTip(PartyHint, party.State != PartyState.Hosting
             ? null
             : openedItself
-                ? $"Your router opened this port. If nobody can connect, {Uncapitalized(ForwardingAdvice(party.ListenPort))}"
-                : $"Your router would not open this port. {ForwardingAdvice(party.ListenPort)} "
-                  + "Only the host needs this; people joining you open nothing.");
+                ? Localizer.Loc("Party.RouterOpenedTip", Uncapitalized(ForwardingAdvice(party.ListenPort)))
+                : Localizer.Loc("Party.RouterRefusedTip", ForwardingAdvice(party.ListenPort)));
 
         // The pill carries the roster count, so collapsed still answers "is anyone here".
-        PartyOverlayToggle.Content = active ? $"Party · {party.Peers.Count}" : "Party";
+        PartyOverlayToggle.Content = active ? Localizer.Loc("Party.PillWithCount", party.Peers.Count) : Localizer.Loc("Main.Party");
 
         // Anything that has to be read comes to full strength. The rest of the time it stays out of
         // the way of the map, which is the thing actually being looked at.
@@ -694,17 +691,17 @@ public partial class MainWindow : Window
 
         var detail = peer switch
         {
-            { IsSelf: true } => "you",
-            { HasPosition: false } => "no position yet",
+            { IsSelf: true } => Localizer.Loc("Party.You"),
+            { HasPosition: false } => Localizer.Loc("Party.NoPosition"),
 
             // Named rather than hidden. Knowing a teammate is on another map is useful; drawing
             // them in this map's coordinates would not be.
             var p when !string.Equals(p.Map, _session.CurrentMap.NormalizedName, StringComparison.OrdinalIgnoreCase)
-                => $"on {GameMap.ToDisplayName(p.Map)}",
+                => Localizer.Loc("Party.OnMap", MapNames.Display(p.Map)),
 
-            var p when p.AgeSeconds < 20 => "now",
-            var p when p.AgeSeconds < 90 => $"{p.AgeSeconds:F0}s ago",
-            var p => $"{p.AgeSeconds / 60:F0}m ago",
+            var p when p.AgeSeconds < 20 => Localizer.Loc("Time.Now"),
+            var p when p.AgeSeconds < 90 => Localizer.Loc("Time.SecondsAgo", p.AgeSeconds),
+            var p => Localizer.Loc("Time.MinutesAgo", p.AgeSeconds / 60),
         };
 
         // Your own row shows the color you actually draw in, so the roster and the map agree.
@@ -730,7 +727,7 @@ public partial class MainWindow : Window
             ? _session.Party.HostLatencyMs
             : peer.LatencyMs;
 
-        return ms is { } value ? $"{value} ms" : "";
+        return ms is { } value ? Localizer.Loc("Party.Latency", value) : "";
     }
 
     // ---- Route markers ------------------------------------------------------
@@ -745,7 +742,7 @@ public partial class MainWindow : Window
         _canvas.Cursor = new Cursor(on ? StandardCursorType.Cross : StandardCursorType.Arrow);
 
         StatusText.Text = on
-            ? "Marker mode: click the map in the order you want to visit. Click Mark Route again, or press Escape, to finish."
+            ? Localizer.Loc("Status.MarkerModeOn")
             : DescribeRoute();
     }
 
@@ -754,8 +751,8 @@ public partial class MainWindow : Window
         var count = _session.Waypoints.Count;
 
         return count == 0
-            ? "No markers set."
-            : $"{count} marker{(count == 1 ? "" : "s")} to visit before the exit.";
+            ? Localizer.Loc("Status.NoMarkers")
+            : Localizer.Loc("Status.MarkersToVisit", count, count == 1 ? "" : "s");
     }
 
     private void UpdateWaypointControls()
@@ -763,7 +760,7 @@ public partial class MainWindow : Window
         var count = _session.Waypoints.Count;
 
         ClearMarksButton.IsVisible = count > 0;
-        ClearMarksButton.Content = $"Clear marks ({count})";
+        ClearMarksButton.Content = Localizer.Loc("Main.ClearMarksCount", count);
     }
 
     // ---- Exit filter --------------------------------------------------------
@@ -844,18 +841,18 @@ public partial class MainWindow : Window
 
     private static string LayerLabel(PoiKind kind) => kind switch
     {
-        PoiKind.ExtractPmc => "Exits: PMC",
-        PoiKind.ExtractScav => "Exits: Scav",
-        PoiKind.ExtractShared => "Exits: shared",
-        PoiKind.Transit => "Transits",
-        PoiKind.Spawn => "Spawn points",
-        PoiKind.BossZone => "Boss zones",
-        PoiKind.LootContainer => "Loot containers",
-        PoiKind.Hazard => "Hazards",
-        PoiKind.Lock => "Locked doors",
-        PoiKind.Switch => "Switches",
-        PoiKind.StationaryWeapon => "Mounted guns",
-        PoiKind.BtrStop => "BTR stops",
+        PoiKind.ExtractPmc => Localizer.Loc("Layer.ExitsPmc"),
+        PoiKind.ExtractScav => Localizer.Loc("Layer.ExitsScav"),
+        PoiKind.ExtractShared => Localizer.Loc("Layer.ExitsShared"),
+        PoiKind.Transit => Localizer.Loc("Layer.Transits"),
+        PoiKind.Spawn => Localizer.Loc("Layer.SpawnPoints"),
+        PoiKind.BossZone => Localizer.Loc("Layer.BossZones"),
+        PoiKind.LootContainer => Localizer.Loc("Layer.LootContainers"),
+        PoiKind.Hazard => Localizer.Loc("Layer.Hazards"),
+        PoiKind.Lock => Localizer.Loc("Layer.LockedDoors"),
+        PoiKind.Switch => Localizer.Loc("Layer.Switches"),
+        PoiKind.StationaryWeapon => Localizer.Loc("Layer.MountedGuns"),
+        PoiKind.BtrStop => Localizer.Loc("Layer.BtrStops"),
         _ => kind.ToString(),
     };
 
@@ -895,7 +892,7 @@ public partial class MainWindow : Window
         }
 
         HeatmapRadius.Value = heatmap.RadiusMeters;
-        HeatmapRadiusLabel.Text = $"Radius: {heatmap.RadiusMeters:F0} m";
+        HeatmapRadiusLabel.Text = Localizer.Loc("Heatmap.Radius", heatmap.RadiusMeters);
         HeatmapRadius.PropertyChanged += (_, e) =>
         {
             if (e.Property != Slider.ValueProperty)
@@ -903,13 +900,13 @@ public partial class MainWindow : Window
 
             heatmap.RadiusMeters = HeatmapRadius.Value;
             _settings.HeatmapRadiusMeters = heatmap.RadiusMeters;
-            HeatmapRadiusLabel.Text = $"Radius: {heatmap.RadiusMeters:F0} m";
+            HeatmapRadiusLabel.Text = Localizer.Loc("Heatmap.Radius", heatmap.RadiusMeters);
             heatmap.Invalidate();
             _canvas.InvalidateVisual();
         };
 
         HeatmapOpacity.Value = heatmap.Opacity;
-        HeatmapOpacityLabel.Text = $"Opacity: {heatmap.Opacity:P0}";
+        HeatmapOpacityLabel.Text = Localizer.Loc("Heatmap.Opacity", heatmap.Opacity);
         HeatmapOpacity.PropertyChanged += (_, e) =>
         {
             if (e.Property != Slider.ValueProperty)
@@ -917,17 +914,17 @@ public partial class MainWindow : Window
 
             heatmap.Opacity = HeatmapOpacity.Value;
             _settings.HeatmapOpacity = heatmap.Opacity;
-            HeatmapOpacityLabel.Text = $"Opacity: {heatmap.Opacity:P0}";
+            HeatmapOpacityLabel.Text = Localizer.Loc("Heatmap.Opacity", heatmap.Opacity);
             _canvas.InvalidateVisual();
         };
     }
 
     private static string HeatmapGroupLabel(SpawnGroup group) => group switch
     {
-        SpawnGroup.Pmc => "PMC players",
-        SpawnGroup.Scav => "Scavs",
-        SpawnGroup.AiPmc => "AI PMCs",
-        SpawnGroup.Boss => "Bosses",
+        SpawnGroup.Pmc => Localizer.Loc("Heatmap.Pmc"),
+        SpawnGroup.Scav => Localizer.Loc("Heatmap.Scav"),
+        SpawnGroup.AiPmc => Localizer.Loc("Heatmap.AiPmc"),
+        SpawnGroup.Boss => Localizer.Loc("Heatmap.Boss"),
         _ => group.ToString(),
     };
 
@@ -956,7 +953,7 @@ public partial class MainWindow : Window
 
         if (on)
         {
-            StatusText.Text = "Bring up the extraction list in game (double-tap O) and take a screenshot.";
+            StatusText.Text = Localizer.Loc("Status.ReadExitsPrompt");
             return;
         }
 
@@ -978,12 +975,12 @@ public partial class MainWindow : Window
         var exits = _session.Pois.Extracts.ToArray();
         var shown = exits.Count(availability.Includes);
 
-        var text = $"{availability.TakenAt:HH:mm} screenshot: {shown} of {exits.Length} exits open this raid.";
+        var text = Localizer.Loc("Status.ExitAvailability", availability.TakenAt, shown, exits.Length);
 
         // A row we could not place is reported rather than swallowed: the honest reading is
         // "the app did not understand this", not "that exit is unavailable".
         if (availability.Unresolved.Count > 0)
-            text += $" Unrecognized: {string.Join(", ", availability.Unresolved)}.";
+            text += Localizer.Loc("Status.UnrecognizedExits", string.Join(", ", availability.Unresolved));
 
         ReadExitsText.Text = text;
     }
@@ -1014,10 +1011,10 @@ public partial class MainWindow : Window
         var exits = (sortByDistance
                 ? visible.OrderBy(p => p.AvailableThisRaid == false)
                     .ThenBy(p => p.DistanceMeters ?? double.MaxValue)
-                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
                 : visible.OrderBy(p => p.AvailableThisRaid == false)
                     .ThenBy(p => p.Kind)
-                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+                    .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
         // Keep a selection the filter would otherwise hide, so choosing "Running as PMC" while
@@ -1034,10 +1031,10 @@ public partial class MainWindow : Window
         var hidden = all.Length - exits.Count;
 
         ExitHint.Text = all.Length == 0
-            ? "No exit data for this map yet."
+            ? Localizer.Loc("Main.NoExitData")
             : hidden > 0
-                ? $"{exits.Count} of {all.Length} exits shown, {hidden} hidden by the filter."
-                : $"{exits.Count} exits. Pick one to draw a guide line from the player.";
+                ? Localizer.Loc("Main.ExitsFiltered", exits.Count, all.Length, hidden)
+                : Localizer.Loc("Main.ExitsCount", exits.Count);
 
         UpdateExtractDetail();
     }
@@ -1211,31 +1208,31 @@ public partial class MainWindow : Window
             lines.Add(mark.Description);
 
         if (mark.OneOf)
-            lines.Add("One of several places it can be");
+            lines.Add(Localizer.Loc("Quest.OneOfSeveral"));
 
         if (_session.Player.Current is { } fix)
-            lines.Add($"{fix.Position.GroundDistanceTo(mark.Position):F0} m away");
+            lines.Add(Localizer.Loc("Common.DistanceAway", fix.Position.GroundDistanceTo(mark.Position)));
 
-        lines.Add("Click to open this quest");
+        lines.Add(Localizer.Loc("Quest.ClickToOpen"));
         return string.Join(Environment.NewLine, lines);
     }
 
     private string DescribeForTooltip(MapPoi poi)
     {
-        var lines = new List<string> { poi.Name };
+        var lines = new List<string> { poi.DisplayName };
 
         if (!string.IsNullOrEmpty(poi.FactionLabel))
             lines.Add(poi.FactionLabel);
 
         if (_session.Player.Current is { } fix)
-            lines.Add($"{fix.Position.GroundDistanceTo(poi.Position):F0} m away");
+            lines.Add(Localizer.Loc("Common.DistanceAway", fix.Position.GroundDistanceTo(poi.Position)));
 
         // Folded away with the detail panel's copy, or hovering would put back the clutter the
-        // panel was just told to hide.
+        // panel was just told to hide. Drawn through the same bilingual rows as the panel.
         if (_settings.ShowExitConditions)
-            lines.AddRange(poi.Details);
+            lines.AddRange(poi.DetailLines.Select(line => line.Text));
         else if (poi.Details.Count > 0)
-            lines.Add($"{poi.Details.Count} condition{(poi.Details.Count == 1 ? "" : "s")}");
+            lines.Add(Localizer.Loc("Poi.ConditionCount", poi.Details.Count, poi.Details.Count == 1 ? "" : "s"));
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -1264,7 +1261,7 @@ public partial class MainWindow : Window
         if (_session.Waypoints.IsPlacing)
         {
             _session.AddWaypoint(position);
-            StatusText.Text = $"Marker {_session.Waypoints.Count} placed. Click Mark Route again, or press Escape, to finish.";
+            StatusText.Text = Localizer.Loc("Status.MarkerPlaced", _session.Waypoints.Count);
             return;
         }
 
@@ -1314,16 +1311,14 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Startup failed: {ex.Message}";
+            StatusText.Text = Localizer.Loc("Status.StartupFailed", ex.Message);
         }
 
         // Said last so it is what remains on screen. Two copies fight over reading and culling the
         // same folder, and the symptoms look like unrelated bugs rather than like a duplicate.
         if (Program.AnotherInstanceRunning)
         {
-            StatusText.Text =
-                "Another copy of this app is already running. Close one -- two will read every "
-                + "screenshot twice and fight over removing them.";
+            StatusText.Text = Localizer.Loc("Status.SecondInstance");
         }
     }
 
@@ -1348,7 +1343,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not load {map.DisplayName}: {ex.Message}";
+            StatusText.Text = Localizer.Loc("Status.MapLoadFailed", map.DisplayName, ex.Message);
         }
     }
 
@@ -1455,8 +1450,8 @@ public partial class MainWindow : Window
         PanelSplitter.SetValue(
             ToolTip.TipProperty,
             shown
-                ? "Drag to resize the panel, double-click to hide it"
-                : "Double-click to bring the panel back");
+                ? Localizer.Loc("Main.PanelSplitterTip")
+                : Localizer.Loc("Main.PanelSplitterRestoreTip"));
     }
 
     // ---- Quest detail -----------------------------------------------------
@@ -1520,7 +1515,7 @@ public partial class MainWindow : Window
 
         QuestPane.Children.Add(new TextBlock
         {
-            Text = task.Name,
+            Text = task.DisplayName,
             FontSize = 16,
             FontWeight = FontWeight.SemiBold,
             TextWrapping = TextWrapping.Wrap,
@@ -1530,13 +1525,13 @@ public partial class MainWindow : Window
         var facts = new List<string> { task.Trader };
 
         if (task.MinPlayerLevel > 0)
-            facts.Add($"level {task.MinPlayerLevel}");
+            facts.Add(Localizer.Loc("Quest.Level", task.MinPlayerLevel));
 
         if (task.KappaRequired)
-            facts.Add("Kappa");
+            facts.Add(Localizer.Loc("Quest.Kappa"));
 
         if (task.LightkeeperRequired)
-            facts.Add("Lightkeeper");
+            facts.Add(Localizer.Loc("Quest.Lightkeeper"));
 
         if (task.Faction is { Length: > 0 } faction)
             facts.Add(faction);
@@ -1560,7 +1555,7 @@ public partial class MainWindow : Window
         if (task.Keys.Count > 0)
             QuestPane.Children.Add(BuildKeys(task));
 
-        QuestPane.Children.Add(Heading("OBJECTIVES", 12));
+        QuestPane.Children.Add(Heading(Localizer.Loc("Quest.Objectives"), 12));
 
         var here = 0;
 
@@ -1576,7 +1571,7 @@ public partial class MainWindow : Window
         {
             QuestPane.Children.Add(new TextBlock
             {
-                Text = "No objectives listed for this task.",
+                Text = Localizer.Loc("Quest.NoObjectives"),
                 Classes = { "secondary" },
                 FontSize = 12,
             });
@@ -1587,8 +1582,8 @@ public partial class MainWindow : Window
         footer.Children.Add(new TextBlock
         {
             Text = here == 0
-                ? $"Nothing from this task is on {_session.CurrentMap.DisplayName}."
-                : $"{here} place{(here == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}.",
+                ? Localizer.Loc("Quest.NothingHere", _session.CurrentMap.DisplayName)
+                : Localizer.Loc("Quest.PlacesHere", here, here == 1 ? "" : "s", _session.CurrentMap.DisplayName),
             Classes = { "secondary" },
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
@@ -1600,19 +1595,19 @@ public partial class MainWindow : Window
         {
             footer.Children.Add(new TextBlock
             {
-                Text = $"{ticked} of {task.Objectives.Count} marked done.",
+                Text = Localizer.Loc("Quest.MarkedDone", ticked, task.Objectives.Count),
                 Classes = { "secondary" },
                 FontSize = 11,
             });
 
             var reset = new Button
             {
-                Content = "Clear the ticks",
+                Content = Localizer.Loc("Quest.ClearTicks"),
                 FontSize = 11,
                 Padding = new Thickness(8, 2),
                 MinHeight = 0,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                [ToolTip.TipProperty] = "Un-mark every objective of this task, for a new wipe or a repeatable",
+                [ToolTip.TipProperty] = Localizer.Loc("Quest.ClearTicksTip"),
             };
 
             reset.Click += (_, _) => Apply(() =>
@@ -1634,7 +1629,7 @@ public partial class MainWindow : Window
 
         var track = new CheckBox
         {
-            Content = "Track on the map",
+            Content = Localizer.Loc("Quest.Track"),
             IsChecked = _session.IsTracked(task.Id),
             FontSize = 12,
         };
@@ -1654,9 +1649,9 @@ public partial class MainWindow : Window
             {
                 Text = progress switch
                 {
-                    QuestProgress.Active => "The game says you have this one accepted.",
-                    QuestProgress.Completed => "The game says you have handed this one in.",
-                    QuestProgress.Failed => "The game says this one was failed.",
+                    QuestProgress.Active => Localizer.Loc("Quest.ProgressActive"),
+                    QuestProgress.Completed => Localizer.Loc("Quest.ProgressCompleted"),
+                    QuestProgress.Failed => Localizer.Loc("Quest.ProgressFailed"),
                     _ => "",
                 },
                 Classes = { "secondary" },
@@ -1669,12 +1664,12 @@ public partial class MainWindow : Window
 
         var route = new Button
         {
-            Content = "Add to route",
+            Content = Localizer.Loc("Quest.AddToRoute"),
             FontSize = 11,
             Padding = new Thickness(8, 3),
             MinHeight = 0,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            [ToolTip.TipProperty] = "Add every objective of this task that is on this map",
+            [ToolTip.TipProperty] = Localizer.Loc("Quest.AddToRouteTip"),
         };
 
         route.Click += (_, _) => AddTaskToRoute(task);
@@ -1685,7 +1680,7 @@ public partial class MainWindow : Window
         {
             var link = new Button
             {
-                Content = "Wiki",
+                Content = Localizer.Loc("Quest.Wiki"),
                 FontSize = 11,
                 Padding = new Thickness(8, 3),
                 MinHeight = 0,
@@ -1703,7 +1698,7 @@ public partial class MainWindow : Window
     private Control BuildPrerequisites(Data.Models.TaskData task)
     {
         var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 10) };
-        block.Children.Add(Heading("NEEDS FIRST", 12));
+        block.Children.Add(Heading(Localizer.Loc("Quest.NeedsFirst"), 12));
 
         foreach (var id in task.Requires)
         {
@@ -1712,7 +1707,7 @@ public partial class MainWindow : Window
 
             block.Children.Add(new TextBlock
             {
-                Text = (done ? "✓ " : "· ") + (required?.Name ?? "a task this build does not know"),
+                Text = (done ? "✓ " : "· ") + (required?.Name ?? Localizer.Loc("Quest.UnknownTask")),
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
 
@@ -1736,12 +1731,12 @@ public partial class MainWindow : Window
     private Control BuildKeys(Data.Models.TaskData task)
     {
         var block = new StackPanel { Spacing = 2, Margin = new Thickness(0, 0, 0, 10) };
-        block.Children.Add(Heading("KEYS", 12));
+        block.Children.Add(Heading(Localizer.Loc("Quest.Keys"), 12));
 
         foreach (var group in task.Keys.OrderByDescending(k => _session.IsOnCurrentMap(k.MapId)))
         {
             var here = _session.IsOnCurrentMap(group.MapId);
-            var where = here ? "here" : _session.MapNameFor(group.MapId) ?? "a map this build does not know";
+            var where = here ? Localizer.Loc("Quest.Here") : _session.MapNameFor(group.MapId) ?? Localizer.Loc("Quest.UnknownMap");
 
             // Keys carry no quantity: one key opens the door however many tasks are behind it.
             var chips = ItemChips(group.Keys.Select(k => new Data.TaskItemNeed(k, 1)), 12);
@@ -1852,12 +1847,12 @@ public partial class MainWindow : Window
         {
             IsChecked = done,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-            [ToolTip.TipProperty] = "Mark this one done. It stays on the map, faded.",
+            [ToolTip.TipProperty] = Localizer.Loc("Quest.MarkDoneTip"),
         };
 
         var text = new TextBlock
         {
-            Text = objective.Description,
+            Text = objective.DisplayDescription,
             FontSize = 13,
             TextWrapping = TextWrapping.Wrap,
             Opacity = done ? 0.5 : objective.Optional ? 0.7 : 1.0,
@@ -1887,7 +1882,7 @@ public partial class MainWindow : Window
 
             block.Children.Add(new TextBlock
             {
-                Text = carried ? "Bring" : "Items",
+                Text = carried ? Localizer.Loc("Quest.Bring") : Localizer.Loc("Quest.Items"),
                 Classes = { "heading" },
                 FontSize = 10,
                 Margin = new Thickness(0, 3, 0, 1),
@@ -1903,20 +1898,20 @@ public partial class MainWindow : Window
         var notes = new List<string>();
 
         if (done)
-            notes.Add("done");
+            notes.Add(Localizer.Loc("Quest.Done"));
 
         if (objective.Optional)
-            notes.Add("optional");
+            notes.Add(Localizer.Loc("Quest.Optional"));
 
         if (objective.Count is > 1)
-            notes.Add($"{objective.Count} needed");
+            notes.Add(Localizer.Loc("Quest.Needed", objective.Count));
 
         if (objective.FoundInRaid)
-            notes.Add("found in raid");
+            notes.Add(Localizer.Loc("Quest.FoundInRaid"));
 
         notes.Add(onThisMap > 0
-            ? $"{onThisMap} on {_session.CurrentMap.DisplayName}"
-            : objective.Points.Count > 0 ? "on another map" : "nowhere in particular");
+            ? Localizer.Loc("Quest.OnMapCount", onThisMap, _session.CurrentMap.DisplayName)
+            : objective.Points.Count > 0 ? Localizer.Loc("Quest.OnAnotherMap") : Localizer.Loc("Quest.Nowhere"));
 
         var footer = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
 
@@ -1938,12 +1933,12 @@ public partial class MainWindow : Window
         {
             var route = new Button
             {
-                Content = "Route",
+                Content = Localizer.Loc("Quest.Route"),
                 FontSize = 10,
                 Padding = new Thickness(6, 1),
                 MinHeight = 0,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                [ToolTip.TipProperty] = "Add just this objective to your route",
+                [ToolTip.TipProperty] = Localizer.Loc("Quest.RouteTip"),
             };
 
             route.Click += (_, _) => AddObjectiveToRoute(task, objective);
@@ -1967,8 +1962,8 @@ public partial class MainWindow : Window
             AddQuestToRoute(mark, quiet: true);
 
         StatusText.Text = marks.Length == 0
-            ? "Nothing from that objective is on this map."
-            : $"Added {marks.Length} place{(marks.Length == 1 ? "" : "s")} from {task.Name}.";
+            ? Localizer.Loc("Status.NothingFromObjective")
+            : Localizer.Loc("Status.AddedPlaces", marks.Length, marks.Length == 1 ? "" : "s", task.DisplayName);
     }
 
     private static TextBlock Heading(string text, double size) => new()
@@ -2016,7 +2011,7 @@ public partial class MainWindow : Window
         AnnotationDeleteButton.Click += (_, _) =>
         {
             if (_annotationEditingId is { } id && _session.Notes.Remove(id))
-                StatusText.Text = "Note removed.";
+                StatusText.Text = Localizer.Loc("Status.NoteRemoved");
 
             CloseAnnotationEditor();
         };
@@ -2045,8 +2040,8 @@ public partial class MainWindow : Window
             var removed = _session.Notes.RemoveAllOn(_session.CurrentMap.NormalizedName);
 
             StatusText.Text = removed == 0
-                ? $"No notes on {_session.CurrentMap.DisplayName}."
-                : $"Removed {removed} note{(removed == 1 ? "" : "s")} from {_session.CurrentMap.DisplayName}.";
+                ? Localizer.Loc("Status.NoNotes", _session.CurrentMap.DisplayName)
+                : Localizer.Loc("Status.NotesRemoved", removed, removed == 1 ? "" : "s", _session.CurrentMap.DisplayName);
         };
 
         BuildNotesList();
@@ -2066,7 +2061,7 @@ public partial class MainWindow : Window
             : Avalonia.Input.Cursor.Default;
 
         StatusText.Text = on
-            ? "Click the map to write a note there."
+            ? Localizer.Loc("Status.NoteModeOn")
             : "";
 
         if (!on)
@@ -2079,7 +2074,7 @@ public partial class MainWindow : Window
         _annotationAt = basePoint;
         _annotationEditingId = null;
 
-        AnnotationEditorTitle.Text = "LABEL THIS SPOT";
+        AnnotationEditorTitle.Text = Localizer.Loc("Main.LabelThisSpot");
         AnnotationTextBox.Text = "";
         AnnotationDeleteButton.IsVisible = false;
         AnnotationEditor.IsVisible = true;
@@ -2092,7 +2087,7 @@ public partial class MainWindow : Window
         _annotationAt = null;
         _annotationEditingId = annotation.Id;
 
-        AnnotationEditorTitle.Text = "EDIT THIS NOTE";
+        AnnotationEditorTitle.Text = Localizer.Loc("Main.EditThisNote");
         AnnotationTextBox.Text = annotation.Text;
         AnnotationDeleteButton.IsVisible = true;
         AnnotationEditor.IsVisible = true;
@@ -2107,14 +2102,14 @@ public partial class MainWindow : Window
         if (_annotationEditingId is { } id)
         {
             if (_session.Notes.Retext(id, text))
-                StatusText.Text = "Note renamed.";
+                StatusText.Text = Localizer.Loc("Status.NoteRenamed");
         }
         else if (_annotationAt is { } at)
         {
             if (_session.AddAnnotation(at, text) is not null)
-                StatusText.Text = $"Note added to {_session.CurrentMap.DisplayName}.";
+                StatusText.Text = Localizer.Loc("Status.NoteAdded", _session.CurrentMap.DisplayName);
             else
-                StatusText.Text = $"A map holds at most {Data.AnnotationStore.MaxPerMap} notes.";
+                StatusText.Text = Localizer.Loc("Status.NotesLimit", Data.AnnotationStore.MaxPerMap);
         }
 
         CloseAnnotationEditor();
@@ -2139,9 +2134,9 @@ public partial class MainWindow : Window
         var shared = here.Count(a => a.Author is not null);
 
         NotesHint.Text = here.Count == 0
-            ? $"No notes on {_session.CurrentMap.DisplayName} yet."
-            : $"{here.Count} on {_session.CurrentMap.DisplayName}"
-              + (shared > 0 ? $", {shared} from the squad." : ".");
+            ? Localizer.Loc("Status.NoNotesYet", _session.CurrentMap.DisplayName)
+            : Localizer.Loc("Notes.OnMapCount", here.Count, _session.CurrentMap.DisplayName)
+              + (shared > 0 ? Localizer.Loc("Notes.FromSquad", shared) : ".");
     }
 
     private Control BuildNoteRow(Data.MapAnnotation annotation)
@@ -2168,7 +2163,7 @@ public partial class MainWindow : Window
         };
 
         if (!mine)
-            label.SetValue(ToolTip.TipProperty, $"Shared by {annotation.Author}");
+            label.SetValue(ToolTip.TipProperty, Localizer.Loc("Notes.SharedBy", annotation.Author ?? ""));
 
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
@@ -2179,7 +2174,7 @@ public partial class MainWindow : Window
         {
             var rename = new Button
             {
-                Content = "Edit",
+                Content = Localizer.Loc("Notes.Edit"),
                 FontSize = 10,
                 Padding = new Thickness(6, 1),
                 MinHeight = 0,
@@ -2196,7 +2191,7 @@ public partial class MainWindow : Window
                 MinHeight = 0,
                 Margin = new Thickness(4, 0, 0, 0),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                [ToolTip.TipProperty] = "Delete this note",
+                [ToolTip.TipProperty] = Localizer.Loc("Notes.DeleteTip"),
             };
 
             remove.Click += (_, _) => _session.Notes.Remove(annotation.Id);
@@ -2227,7 +2222,7 @@ public partial class MainWindow : Window
     {
         var picked = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Import map notes",
+            Title = Localizer.Loc("Notes.ImportTitle"),
             AllowMultiple = false,
         });
 
@@ -2239,12 +2234,12 @@ public partial class MainWindow : Window
             var added = _session.Notes.Import(path);
 
             StatusText.Text = added == 0
-                ? "Nothing new in that file; every note in it was already here."
-                : $"Imported {added} note{(added == 1 ? "" : "s")}.";
+                ? Localizer.Loc("Status.NotesNothingNew")
+                : Localizer.Loc("Status.NotesImported", added, added == 1 ? "" : "s");
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not import that file: {ex.Message}";
+            StatusText.Text = Localizer.Loc("Status.ImportFailed", ex.Message);
         }
     }
 
@@ -2252,7 +2247,7 @@ public partial class MainWindow : Window
     {
         var picked = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Export map notes",
+            Title = Localizer.Loc("Notes.ExportTitle"),
             SuggestedFileName = "tarkov-map-notes.json",
             DefaultExtension = "json",
         });
@@ -2263,11 +2258,11 @@ public partial class MainWindow : Window
         try
         {
             var written = _session.Notes.Export(path);
-            StatusText.Text = $"Wrote {written} note{(written == 1 ? "" : "s")} to {path}.";
+            StatusText.Text = Localizer.Loc("Status.NotesWrote", written, written == 1 ? "" : "s", path);
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Could not write that file: {ex.Message}";
+            StatusText.Text = Localizer.Loc("Status.WriteFailed", ex.Message);
         }
     }
 
@@ -2319,8 +2314,8 @@ public partial class MainWindow : Window
             _canvas.InvalidateVisual();
 
             StatusText.Text = tracked == 0
-                ? "The log has no quest of yours open. Nothing is tracked now."
-                : $"Tracking the {tracked} quest{(tracked == 1 ? "" : "s")} the game has open.";
+                ? Localizer.Loc("Status.NoOpenQuests")
+                : Localizer.Loc("Status.TrackingQuests", tracked, tracked == 1 ? "" : "s");
         });
 
         // The floor the log implies is known before any of this ran, since the watcher reads the
@@ -2349,7 +2344,7 @@ public partial class MainWindow : Window
         // get it appended rather than sitting there as two identical lines. Computed over every
         // task, not the filtered set, so a name does not stop being ambiguous when you search.
         var ambiguous = _session.Tasks.Tasks
-            .GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(t => t.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -2368,8 +2363,8 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 8, 0, 2),
             });
 
-            foreach (var task in group.OrderBy(t => t.MinPlayerLevel).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
-                QuestList.Children.Add(BuildQuestRow(task, ambiguous.Contains(task.Name)));
+            foreach (var task in group.OrderBy(t => t.MinPlayerLevel).ThenBy(t => t.DisplayName, StringComparer.OrdinalIgnoreCase))
+                QuestList.Children.Add(BuildQuestRow(task, ambiguous.Contains(task.DisplayName)));
         }
 
         UpdateQuestHint(matching.Length);
@@ -2397,9 +2392,9 @@ public partial class MainWindow : Window
             if (search.Length == 0)
                 return true;
 
-            return task.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+            return task.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
                    || task.Trader.Contains(search, StringComparison.OrdinalIgnoreCase)
-                   || task.Objectives.Any(o => o.Description.Contains(search, StringComparison.OrdinalIgnoreCase));
+                   || task.Objectives.Any(o => o.DisplayDescription.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -2416,19 +2411,19 @@ public partial class MainWindow : Window
         {
             IsChecked = _session.IsTracked(task.Id),
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            [ToolTip.TipProperty] = "Draw this task's objectives on the map",
+            [ToolTip.TipProperty] = Localizer.Loc("Quest.DrawTip"),
         };
 
         var title = new TextBlock
         {
-            Text = task.Name,
+            Text = task.DisplayName,
             Classes = { "link" },
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 0, 0),
             Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-            [ToolTip.TipProperty] = "Click the name to read this task: objectives, keys and items",
+            [ToolTip.TipProperty] = Localizer.Loc("Quest.ReadTip"),
         };
 
         title.PointerPressed += (_, _) => OpenQuest(task.Id);
@@ -2445,23 +2440,23 @@ public partial class MainWindow : Window
         // Most tasks have no level requirement at all, and "level 0" reads as a fact rather than
         // as the absence of one.
         if (task.MinPlayerLevel > 0)
-            notes.Add($"level {task.MinPlayerLevel}");
+            notes.Add(Localizer.Loc("Quest.Level", task.MinPlayerLevel));
 
         if (ambiguous)
             notes.Add(task.NormalizedName);
 
         if (task.KappaRequired)
-            notes.Add("Kappa");
+            notes.Add(Localizer.Loc("Quest.Kappa"));
 
         if (task.LightkeeperRequired)
-            notes.Add("Lightkeeper");
+            notes.Add(Localizer.Loc("Quest.Lightkeeper"));
 
         if (task.Faction is { Length: > 0 } faction)
             notes.Add(faction);
 
         // Said plainly rather than by omission. A ticked task whose objectives are all somewhere
         // else draws nothing, and without this the panel looks broken rather than correct.
-        notes.Add(here ? "on this map" : "not on this map");
+        notes.Add(here ? Localizer.Loc("Quest.OnThisMap") : Localizer.Loc("Quest.NotOnThisMap"));
 
         var subtitle = new TextBlock
         {
@@ -2484,12 +2479,12 @@ public partial class MainWindow : Window
         {
             var route = new Button
             {
-                Content = "Route",
+                Content = Localizer.Loc("Quest.Route"),
                 FontSize = 10,
                 Padding = new Thickness(6, 1),
                 MinHeight = 0,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                [ToolTip.TipProperty] = "Add this task's objectives on this map to your route",
+                [ToolTip.TipProperty] = Localizer.Loc("Quest.RouteThisMapTip"),
             };
 
             route.Click += (_, _) => AddTaskToRoute(task);
@@ -2508,7 +2503,7 @@ public partial class MainWindow : Window
                 MinHeight = 0,
                 Margin = new Thickness(4, 0, 0, 0),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                [ToolTip.TipProperty] = "Open the wiki page for this task",
+                [ToolTip.TipProperty] = Localizer.Loc("Quest.WikiTip"),
             };
 
             link.Click += (_, _) => OpenUrl(wiki);
@@ -2542,11 +2537,11 @@ public partial class MainWindow : Window
                 _session.IsObjectiveDone(o.Id) && o.Points.Any(p => _session.IsOnCurrentMap(p.MapId)));
 
             StatusText.Text = hereAndDone
-                ? $"Every part of {task.Name} on this map is already marked done."
+                ? Localizer.Loc("Status.AllPartsDone", task.Name)
 
                 // Only tracked tasks have marks, so this is the "ticked it and pressed Route in one
                 // motion" case rather than an error.
-                : $"Tick {task.Name} first, then add it to your route.";
+                : Localizer.Loc("Status.TickFirst", task.Name);
 
             return;
         }
@@ -2554,7 +2549,7 @@ public partial class MainWindow : Window
         foreach (var mark in added)
             AddQuestToRoute(mark, quiet: true);
 
-        StatusText.Text = $"Added {added.Length} objective{(added.Length == 1 ? "" : "s")} from {task.Name} to your route.";
+        StatusText.Text = Localizer.Loc("Status.AddedObjectives", added.Length, added.Length == 1 ? "" : "s", task.Name);
     }
 
     private void AddQuestToRoute(QuestMark mark, bool quiet = false)
@@ -2565,7 +2560,7 @@ public partial class MainWindow : Window
         _session.AddWaypoint(map.ToBase(mark.Position));
 
         if (!quiet)
-            StatusText.Text = $"Added {mark.TaskName} to your route. Undo marker takes it back.";
+            StatusText.Text = Localizer.Loc("Status.AddedTaskToRoute", mark.TaskName);
     }
 
     private void UpdateQuestHint(int? shown)
@@ -2574,20 +2569,20 @@ public partial class MainWindow : Window
         var drawn = _session.Quests.Marks.Count;
 
         QuestHint.Text = tracked == 0
-            ? "Tick a task to draw it on the map. Click its name to read it."
-            : $"{tracked} tracked, {drawn} objective{(drawn == 1 ? "" : "s")} on {_session.CurrentMap.DisplayName}."
-              + " Click a name to read the task.";
+            ? Localizer.Loc("Quest.HintNone")
+            : Localizer.Loc("Quest.HintCount", tracked, drawn, drawn == 1 ? "" : "s", _session.CurrentMap.DisplayName)
+              + Localizer.Loc("Quest.HintSuffix");
 
         BuildQuestKit();
 
         if (shown is { } count)
         {
-            var origin = $"{count} of {_session.Tasks.Tasks.Count} tasks shown · data from {_session.Tasks.Origin}";
+            var origin = Localizer.Loc("Quest.Origin", count, _session.Tasks.Tasks.Count, _session.Tasks.Origin);
 
             // Only when there is a choice to be confused about. On a one-character account this
             // would be a hex string in the corner saying nothing.
             if (_session.QuestProfileCount > 1 && _session.QuestProfile is { Length: > 8 } profile)
-                origin += $" · following character {profile[^8..]} of {_session.QuestProfileCount}";
+                origin += Localizer.Loc("Quest.FollowingCharacter", profile[^8..], _session.QuestProfileCount);
 
             QuestOrigin.Text = origin;
         }
@@ -2617,26 +2612,26 @@ public partial class MainWindow : Window
         var parts = new List<string>();
 
         if (kit.Keys.Count > 0)
-            parts.Add($"{kit.Keys.Count} key{(kit.Keys.Count == 1 ? "" : "s")}");
+            parts.Add(Localizer.Loc("Quest.KeyCount", kit.Keys.Count, kit.Keys.Count == 1 ? "" : "s"));
 
         if (kit.Items.Count > 0)
-            parts.Add($"{kit.Items.Count} item{(kit.Items.Count == 1 ? "" : "s")}");
+            parts.Add(Localizer.Loc("Quest.ItemCount", kit.Items.Count, kit.Items.Count == 1 ? "" : "s"));
 
         // A wrapping TextBlock rather than a plain string: "Take to Streets of Tarkov, 17 keys,
         // 10 items" does not fit a 290-pixel panel on one line, and a ToggleButton clips its
         // content rather than growing.
         QuestKitToggle.Content = new TextBlock
         {
-            Text = $"Take to {_session.CurrentMap.DisplayName} · {string.Join(", ", parts)}",
+            Text = Localizer.Loc("Quest.TakeTo", _session.CurrentMap.DisplayName, string.Join(", ", parts)),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
         };
 
         if (kit.Keys.Count > 0)
-            AddSection("Keys", [.. kit.Keys.Select(k => new Data.TaskItemNeed(k, 1))]);
+            AddSection(Localizer.Loc("Quest.Keys"), [.. kit.Keys.Select(k => new Data.TaskItemNeed(k, 1))]);
 
         if (kit.Items.Count > 0)
-            AddSection("Items", kit.Items);
+            AddSection(Localizer.Loc("Quest.Items"), kit.Items);
 
         void AddSection(string label, IReadOnlyList<Data.TaskItemNeed> items)
         {
@@ -2658,7 +2653,7 @@ public partial class MainWindow : Window
             {
                 QuestKit.Children.Add(new TextBlock
                 {
-                    Text = $"and {items.Count - Shown} more",
+                    Text = Localizer.Loc("Quest.AndMore", items.Count - Shown),
                     Classes = { "secondary" },
                     FontSize = 10,
                 });
@@ -2695,9 +2690,9 @@ public partial class MainWindow : Window
         // Factory's Tunnels being the obvious case.
         var ground = new CheckBox
         {
-            Content = "Ground",
+            Content = Localizer.Loc("Layer.Ground"),
             IsChecked = _canvas.ShowBaseLayer,
-            [ToolTip.TipProperty] = "Turn off to see a level underneath the ground floor",
+            [ToolTip.TipProperty] = Localizer.Loc("Layer.GroundTip"),
         };
 
         ground.IsCheckedChanged += (_, _) => Apply(() =>
@@ -2715,7 +2710,8 @@ public partial class MainWindow : Window
         {
             var toggle = new CheckBox
             {
-                Content = floor.Name,
+                // Only the label is localized; floor.Name stays the layer lookup key.
+                Content = Localizer.FloorLabel(floor.Name),
                 IsChecked = _canvas.ActiveFloors.Contains(floor.Name),
             };
 
@@ -2748,17 +2744,17 @@ public partial class MainWindow : Window
         var nothingShown = !_canvas.ShowBaseLayer && _canvas.ActiveFloors.Count == 0;
 
         FloorHint.IsVisible = nothingShown;
-        FloorHint.Text = nothingShown ? "All levels are off, so the map is blank." : "";
+        FloorHint.Text = nothingShown ? Localizer.Loc("Layer.AllLevelsOff") : "";
 
         // The collapsed pill has to carry the state, or a map showing an underground level with the
         // panel shut looks like the artwork is simply wrong.
         var shown = _canvas.ActiveFloors.Count + (_canvas.ShowBaseLayer ? 1 : 0);
         FloorOverlayToggle.Content = shown switch
         {
-            0 => "Levels · none",
-            1 when _canvas.ShowBaseLayer => "Levels",
-            1 => $"Levels · {_canvas.ActiveFloors.First()}",
-            _ => $"Levels · {shown}",
+            0 => Localizer.Loc("Layer.LevelsNone"),
+            1 when _canvas.ShowBaseLayer => Localizer.Loc("Main.Levels"),
+            1 => Localizer.Loc("Layer.LevelsOne", _canvas.ActiveFloors.First()),
+            _ => Localizer.Loc("Layer.LevelsCount", shown),
         };
 
         // Blank map is worth reading even when the panel is collapsed and translucent.
@@ -2771,10 +2767,11 @@ public partial class MainWindow : Window
     {
         var elapsed = _session.Player.RaidElapsed;
 
-        PositionText.Text =
-            $"{fix.Position.X,8:F1} {fix.Position.Y,7:F1} {fix.Position.Z,8:F1}   " +
-            $"{fix.YawDegrees,5:F0}°   raid {fix.RaidTimeDisplay}   " +
-            $"+{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
+        PositionText.Text = Localizer.Loc(
+            "Status.PositionReadout",
+            fix.Position.X, fix.Position.Y, fix.Position.Z,
+            fix.YawDegrees, fix.RaidTimeDisplay,
+            (int)elapsed.TotalMinutes, elapsed.Seconds);
 
         UpdateExtractDetail();
 
@@ -2802,7 +2799,7 @@ public partial class MainWindow : Window
         }
 
         _suggestedMap = map;
-        SuggestionText.Text = $"That looks like {map.DisplayName}.";
+        SuggestionText.Text = Localizer.Loc("Status.SuggestionLooksLike", map.DisplayName);
         SuggestionBar.IsVisible = true;
     }
 
@@ -2825,7 +2822,7 @@ public partial class MainWindow : Window
         if (_settings.AutoSwitchMapFromGameLog)
         {
             HideSuggestion();
-            StatusText.Text = $"The game is loading {map.DisplayName}.";
+            StatusText.Text = Localizer.Loc("Status.GameLoadingMap", map.DisplayName);
 
             // Through the selector rather than SetMapAsync directly, so the combo box, the floor
             // list and the extract list all follow along exactly as they do for a manual change.
@@ -2834,15 +2831,15 @@ public partial class MainWindow : Window
         }
 
         _suggestedMap = map;
-        SuggestionText.Text = $"The game is loading {map.DisplayName}.";
+        SuggestionText.Text = Localizer.Loc("Status.GameLoadingMap", map.DisplayName);
         SuggestionBar.IsVisible = true;
     }
 
     private void OnRaidStateChanged(bool started)
     {
         StatusText.Text = started
-            ? "Raid started; cleared the previous trail."
-            : "Back at the menu.";
+            ? Localizer.Loc("Status.RaidStarted")
+            : Localizer.Loc("Status.BackAtMenu");
 
         _canvas.InvalidateVisual();
     }
@@ -2878,6 +2875,6 @@ public partial class MainWindow : Window
             app.SaveSettings();
         }
 
-        StatusText.Text = $"Theme: {_settings.Theme}";
+        StatusText.Text = Localizer.Loc("Status.ThemeChanged", Localizer.ThemeLabel(_settings.Theme));
     }
 }

@@ -37,10 +37,7 @@ public sealed class AnnotationOverlay : IMapOverlay, ILabeledOverlay
     private const float AnchorRadius = 2.5f;
     private const double HitSlack = 8.0;
 
-    private static readonly SKTypeface LabelTypeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface LabelTypeface = AppFonts.Label;
 
     private static readonly SKPaint LabelHalo = new()
     {

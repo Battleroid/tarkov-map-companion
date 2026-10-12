@@ -34,10 +34,7 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
     /// typeface by family name) per label per frame cost about 10 ms a frame on Customs, which is
     /// most of a 60 fps budget spent on font lookups.
     /// </summary>
-    private static readonly SKTypeface LabelTypeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface LabelTypeface = AppFonts.Label;
 
     private static readonly SKPaint LabelHalo = new()
     {
@@ -287,7 +284,7 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
         // unless it is being pointed at. The marker stays; the noise goes.
         var labeled = isExtract && !muted && (ShowExtractNames || highlighted);
         if (labeled)
-            DrawLabel(canvas, x, y, radius + 4, poi.Name);
+            DrawLabel(canvas, x, y, radius + 4, poi.DisplayName);
     }
 
     private void DrawSelection(SKCanvas canvas, Viewport viewport, MapPoi selected)
