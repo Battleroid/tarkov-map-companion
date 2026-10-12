@@ -59,7 +59,8 @@ public sealed class ExitFilterTests
 
         var asPmc = exits.Where(p => ExitFilter.AsPmc.Includes(p.Kind)).ToArray();
 
-        // Customs has 16 Scav-only exits; a PMC should never see them.
+        // Customs has 11 Scav-only exits (after the pmc+scav duplicates collapse); a PMC should
+        // never see them.
         Assert.DoesNotContain(asPmc, p => p.Kind == PoiKind.ExtractScav);
         Assert.Contains(asPmc, p => p.Name == "Dorms V-Ex");
         Assert.Contains(asPmc, p => p.Name.Contains("Boiler Room Basement", StringComparison.Ordinal));

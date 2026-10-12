@@ -189,16 +189,21 @@ public sealed class ExtractNotesTests
         Assert.Empty(fence.Details);
     }
 
+    /// <summary>
+    /// Customs' switch link is mis-assigned upstream -- one Reserve switch id sits on all 28 extracts
+    /// -- so it must not mark the whole map conditional. Built with no notes at all, ZB-1013 has no
+    /// condition of its own here, so it must read as an ordinary extract; its real gating is the wiki
+    /// requirement, which the conditional tests that load notes exercise.
+    /// </summary>
     [Fact]
-    public void SwitchGatedExtractsCountAsConditionalEvenWithoutAWikiNote()
+    public void AMisassignedSwitchDoesNotMakeEveryExtractConditional()
     {
         var store = LoadMapData();
         var map = Catalog.Find("customs")!;
 
-        // Built with no notes at all: the switch on the ZB extract must still mark it conditional.
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store, notes: null);
 
-        Assert.True(pois.Single(p => p.Name == "ZB-1013").IsConditional);
+        Assert.False(pois.Single(p => p.Name == "ZB-1013").IsConditional);
     }
 
     [Fact]

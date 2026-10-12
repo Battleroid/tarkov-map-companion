@@ -768,10 +768,38 @@ public sealed class MapSession : IDisposable
         var match = Pois.Extracts.FirstOrDefault(p =>
             string.Equals(p.Id, _settings.SelectedExtractId, StringComparison.Ordinal));
 
+        // Upstream now ships one physical exit as two records -- a pmc one and a scav one, same name
+        // a few metres apart -- and the builder folds those into a single POI that keeps whichever
+        // half is representative. A selection saved before that fold therefore names an id no POI
+        // carries any more. The two halves share a name, so fall back to it rather than lose the
+        // selection the one time it matters.
+        match ??= ExtractByName(_settings.SelectedExtractId);
+
         // Assign through the field, not the property: the saved id belongs to whichever map it
         // was chosen on, and clearing it here would lose it when switching maps and back.
         Pois.Selected = match;
         ExtractLine.Target = match;
+    }
+
+    /// <summary>
+    /// Finds the extract POI whose raw id is <paramref name="savedId"/>, matched by name.
+    /// </summary>
+    /// <remarks>
+    /// The raw record is still in the map data under its own id -- only the built POI is gone -- so
+    /// its localization key is what bridges the two. Names are not unique in principle, but on one
+    /// map they are, and the exact-id lookup above is tried first.
+    /// </remarks>
+    private MapPoi? ExtractByName(string savedId)
+    {
+        var key = _mapData.ForMap(CurrentMap.NormalizedName)?.Extracts?
+            .FirstOrDefault(e => string.Equals(e.Id, savedId, StringComparison.Ordinal))?.Name;
+
+        if (string.IsNullOrEmpty(key))
+            return null;
+
+        var name = _mapData.Translate(key);
+        return Pois.Extracts.FirstOrDefault(p =>
+            string.Equals(p.Name, name, StringComparison.Ordinal));
     }
 
     public void StartWatching()
