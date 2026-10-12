@@ -137,6 +137,13 @@ public sealed class PoiTests
         var railroad = extracts.Single(e => e.Name == "Railroad to Reserve");
         Assert.Equal("通往军事基地的铁路", railroad.NameZh);
 
+        // ZB-1011 is a code the game shows verbatim, but the Chinese table translates its scav half
+        // to 工厂远角. A code stays a code: the merged row must not carry that translation, so the
+        // display falls back to ZB-1011 itself in every language.
+        var zb1011 = extracts.Single(e => e.Name == "ZB-1011");
+        Assert.Null(zb1011.NameZh);
+        Assert.Equal("ZB-1011", zb1011.DisplayName);
+
         // Names as the refreshed snapshot spells them (upstream renamed Scav Checkpoint to
         // Reserve Checkpoint).
         Assert.Contains(extracts, e => e.Name == "Dorms V-Ex" && e.Kind == PoiKind.ExtractPmc);

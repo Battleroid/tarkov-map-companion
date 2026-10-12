@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using TarkovMapCompanion.Data.Models;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Localization;
@@ -44,6 +45,17 @@ public static class PoiBuilder
     /// leaving genuinely distant same-named exits as separate POIs.
     /// </remarks>
     private const double ExtractMergeRadiusMeters = 10.0;
+
+    /// <summary>
+    /// Extract names that are plain codes, e.g. <c>ZB-1011</c> or <c>D-2</c>, which the game shows
+    /// verbatim in every language.
+    /// </summary>
+    /// <remarks>
+    /// The shipped Chinese table localises a couple of these anyway -- it renders <c>ZB-1011</c> as
+    /// 工厂远角 -- but the client keeps the code, and a translated code is wrong at a glance in a
+    /// list the player is scanning under time pressure. Codes therefore stay codes.
+    /// </remarks>
+    private static readonly Regex CodeExtractName = new(@"^[A-Z]+-\d+$", RegexOptions.Compiled);
 
     /// <summary>
     /// Mis-assigned switch ids already reported, keyed "<c>map|switchId</c>".
@@ -299,7 +311,11 @@ public static class PoiBuilder
             Kind = kind,
             Id = representative.Source.Id,
             Name = name,
-            NameZh = representative.ChineseName,
+
+            // A code name carries no translation in any language: the display falls back to the code
+            // itself, so ZB-1011 cannot arrive as 工厂远角 just because a sibling record's Chinese
+            // happened to translate it.
+            NameZh = CodeExtractName.IsMatch(name) ? null : representative.ChineseName,
             Position = ToGame(position),
             Base = map.Projection.ToBase(position.X, position.Z),
             Outline = ToOutline(map, representative.Source.Outline),
