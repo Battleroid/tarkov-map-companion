@@ -8,8 +8,8 @@ namespace TarkovMapCompanion.Tests;
 
 /// <summary>
 /// The display-only localization added on top of the English source of truth: the wiki exit
-/// conditions gain a Chinese echo, and the floor toggles get translated labels without the layer
-/// keys underneath them changing.
+/// conditions gain a Chinese rendering shown in place of the English one, and the floor toggles
+/// get translated labels without the layer keys underneath them changing.
 /// </summary>
 public sealed class ExitLocalizationTests
 {
@@ -119,11 +119,11 @@ public sealed class ExitLocalizationTests
 
         // No Chinese supplied: the display must be exactly the English list.
         Assert.Equal(withNote.Details, withNote.DetailLines.Select(l => l.Text));
-        Assert.All(withNote.DetailLines, l => Assert.False(l.IsSecondary));
+        Assert.Single(withNote.DetailLines);
     }
 
     [Fact]
-    public void InEnglishBilingualRowsNeverDuplicate()
+    public void InEnglishEachDetailDrawsAsASingleEnglishLine()
     {
         var poi = new MapPoi
         {
@@ -135,10 +135,75 @@ public sealed class ExitLocalizationTests
             DetailsZh = ["需要：5000 卢布"],
         };
 
-        // The test process runs in English, so only the primary English line is drawn.
+        // The test process runs in English, so the Chinese rendering is not shown at all -- and
+        // there is no English echo to duplicate the one line.
         Assert.Single(poi.DetailLines);
         Assert.Equal("Needs: 5000 Roubles", poi.DetailLines[0].Text);
-        Assert.False(poi.DetailLines[0].IsSecondary);
+    }
+
+    /// <summary>
+    /// The product decision is one line per detail: under Chinese the Chinese text is shown in
+    /// place of the English, not above it.
+    /// </summary>
+    [Fact]
+    public void UnderChineseEachDetailDrawsAsASingleChineseLine()
+    {
+        var poi = new MapPoi
+        {
+            Kind = PoiKind.ExtractPmc,
+            Name = "Dorms V-Ex",
+            Position = new GamePosition(0, 0, 0),
+            Base = new MapPoint(0, 0),
+            Details = ["Needs: 5000 Roubles", "Single use"],
+            DetailsZh = ["需要：5000 卢布", "单次使用"],
+        };
+
+        var previous = Localizer.Language;
+        Localizer.SetLanguage(AppLanguage.ChineseSimplified);
+
+        try
+        {
+            var lines = poi.DetailLines;
+
+            // One line per detail, in Chinese, with no English original underneath.
+            Assert.Equal(2, lines.Count);
+            Assert.Equal(new[] { "需要：5000 卢布", "单次使用" }, lines.Select(l => l.Text));
+            Assert.DoesNotContain(lines, l => l.Text.Contains("Roubles", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Localizer.SetLanguage(previous);
+        }
+    }
+
+    [Fact]
+    public void UnderChineseALineWithoutChineseFallsBackToEnglishIndividually()
+    {
+        var poi = new MapPoi
+        {
+            Kind = PoiKind.ExtractPmc,
+            Name = "Mixed",
+            Position = new GamePosition(0, 0, 0),
+            Base = new MapPoint(0, 0),
+            Details = ["Needs: 5000 Roubles", "Single use"],
+            DetailsZh = ["需要：5000 卢布"],
+        };
+
+        var previous = Localizer.Language;
+        Localizer.SetLanguage(AppLanguage.ChineseSimplified);
+
+        try
+        {
+            var lines = poi.DetailLines;
+
+            Assert.Equal(2, lines.Count);
+            Assert.Equal("需要：5000 卢布", lines[0].Text);
+            Assert.Equal("Single use", lines[1].Text);
+        }
+        finally
+        {
+            Localizer.SetLanguage(previous);
+        }
     }
 
     // ---- Floor labels ----------------------------------------------------------------------

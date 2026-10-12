@@ -257,16 +257,11 @@
                   <ItemsControl ItemsSource="{Binding DetailLines}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="data:PoiDetailLine">
-                        <!-- The Chinese line is the normal one; the English original rides
-                             underneath it, dimmer, while the UI is in Chinese. In English there
-                             is only the primary line, exactly as before. -->
-                        <StackPanel>
-                          <TextBlock Text="{Binding Text}" IsVisible="{Binding IsPrimary}"
-                                     FontSize="11" TextWrapping="Wrap"
-                                     Foreground="{DynamicResource WarningBrush}" />
-                          <TextBlock Text="{Binding Text}" IsVisible="{Binding IsSecondary}"
-                                     Classes="secondary" FontSize="10" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <!-- One line, in the active language: the Chinese text when Chinese is
+                             active, otherwise the English original. There is no second echo line. -->
+                        <TextBlock Text="{Binding Text}"
+                                   FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource WarningBrush}" />
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>

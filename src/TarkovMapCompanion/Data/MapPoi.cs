@@ -101,19 +101,21 @@ public sealed class MapPoi
     /// no Chinese for a line, in which case the display falls back to the English text.
     /// </summary>
     /// <remarks>
-    /// Built alongside <see cref="Details"/> from the wiki overlay, so the English original is
-    /// never lost: the display shows the Chinese line with the English one underneath it.
+    /// Built alongside <see cref="Details"/> from the wiki overlay. The English list stays the
+    /// canonical, OCR-facing one; this is only ever used to pick the text the active language
+    /// should show.
     /// </remarks>
     public IReadOnlyList<string> DetailsZh { get; init; } = [];
 
     /// <summary>
-    /// The detail block as it should actually be drawn: the Chinese line first, with the English
-    /// original underneath it while the active language is Simplified Chinese.
+    /// The detail block as it should actually be drawn: one line per detail, in the active
+    /// language.
     /// </summary>
     /// <remarks>
-    /// In English, or where a line has no Chinese, this is exactly <see cref="Details"/> and the
-    /// row looks as it always has. A Chinese line identical to the English one (the programmatic
-    /// lines, whose wrapper is already localized) collapses to a single line rather than repeating.
+    /// When Simplified Chinese is active and a line has a Chinese rendering, that line is shown;
+    /// otherwise the English original stands in. There is no bilingual echo: the row shows a single
+    /// line, so exactly one <see cref="PoiDetailLine"/> is produced per entry in
+    /// <see cref="Details"/>.
     /// </remarks>
     public IReadOnlyList<PoiDetailLine> DetailLines
     {
@@ -130,17 +132,8 @@ public sealed class MapPoi
                 var english = Details[i];
                 var chinese = i < DetailsZh.Count ? DetailsZh[i] : null;
 
-                if (bilingual
-                    && chinese is { Length: > 0 }
-                    && !string.Equals(chinese, english, StringComparison.Ordinal))
-                {
-                    lines.Add(new PoiDetailLine(chinese, IsSecondary: false));
-                    lines.Add(new PoiDetailLine(english, IsSecondary: true));
-                }
-                else
-                {
-                    lines.Add(new PoiDetailLine(english, IsSecondary: false));
-                }
+                var text = bilingual && chinese is { Length: > 0 } ? chinese : english;
+                lines.Add(new PoiDetailLine(text));
             }
 
             return lines;
@@ -243,12 +236,5 @@ public sealed class MapPoi
 }
 
 /// <summary>One line of a POI's detail block, already resolved for the active language.</summary>
-/// <remarks>
-/// <see cref="IsSecondary"/> marks the faded English echo shown under a Chinese line in bilingual
-/// mode; a primary line is rendered in the normal (warning-tinted) style.
-/// </remarks>
-public sealed record PoiDetailLine(string Text, bool IsSecondary)
-{
-    public bool IsPrimary => !IsSecondary;
-}
+public sealed record PoiDetailLine(string Text);
 

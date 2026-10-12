@@ -37,7 +37,11 @@ public sealed class ExtractNotesTests
         var notes = LoadNotes();
 
         Assert.Equal("wiki snapshot", notes.Origin);
-        Assert.True(notes.CountFor("customs") > 20);
+
+        // Loose floors: the wiki reworks its extraction tables between snapshots (Customs alone
+        // went from 26 rows to 16 in one such rework, dropping retired exits and adding renamed
+        // ones), so this only guards that the file loaded at all, not an exact row count.
+        Assert.True(notes.CountFor("customs") > 10);
         Assert.True(notes.CountFor("woods") > 15);
     }
 
@@ -58,6 +62,24 @@ public sealed class ExtractNotesTests
         Assert.NotNull(note);
         Assert.NotNull(note!.Requirement);
         Assert.Contains(expected, note.Requirement, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    // Tails that sat beyond the old 190-character cap, so a regression back to a short cap would
+    // silently drop the actionable half of each requirement again. Every one of these was verified
+    // to be absent from the 190-character rendering of the same live text.
+    [InlineData("interchange", "Saferoom Exfil", "the button next to it")]
+    [InlineData("terminal", "Zubr Boat", "TerraGroup evidence")]
+    [InlineData("customs", "Railroad Passage (Flare)", "Signal pistol")]
+    [InlineData("ground-zero", "Mira Ave (Flare)", "Signal pistol")]
+    [InlineData("woods", "Power Line Passage (Flare)", "Only one person amongst a lobby-made group")]
+    public void LongRequirementsKeepTheirActionableTail(string map, string extract, string expected)
+    {
+        var note = LoadNotes().Find(map, extract);
+
+        Assert.NotNull(note);
+        Assert.NotNull(note!.Requirement);
+        Assert.Contains(expected, note.Requirement, StringComparison.Ordinal);
     }
 
     [Fact]

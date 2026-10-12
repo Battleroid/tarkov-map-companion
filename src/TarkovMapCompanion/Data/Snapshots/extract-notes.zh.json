@@ -3,8 +3,7 @@
     "customs": [
       {
         "name": "Boiler Room Basement (Co-op)",
-        "requirementZh": "Scav + PMC",
-        "availabilityZh": "PMC：否 · Scav：是"
+        "requirementZh": "Scav + PMC"
       },
       {
         "name": "Dorms V-Ex",
@@ -12,11 +11,12 @@
       },
       {
         "name": "Old Gas Station",
-        "requirementZh": "绿色信号弹 = 开启"
+        "requirementZh": "绿色信号弹 = 仅限 PMC 开启",
+        "availabilityZh": "PMC：否 · Scav：是"
       },
       {
         "name": "Railroad Passage (Flare)",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
       },
       {
         "name": "Smugglers' Boat",
@@ -27,7 +27,7 @@
         "requirementZh": "写有代码词 Voron 的纸条"
       },
       {
-        "name": "ZB-013",
+        "name": "ZB-1013",
         "requirementZh": "在起重机区的 4 号仓库拉下开关 · 用于打开通往撤离点的门"
       }
     ],
@@ -48,7 +48,7 @@
     "ground-zero": [
       {
         "name": "Mira Ave (Flare)",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 靠在撤离点黄色巴士上的 Scav 尸体每个战局会刷新一枚信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启…"
       },
       {
         "name": "Police Cordon V-Ex",
@@ -66,13 +66,13 @@
     "icebreaker": [
       {
         "name": "Helicopter",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，直升机不会来 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，直升机不会来 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 每位玩家 2400 欧元"
       }
     ],
     "interchange": [
       {
         "name": "Path to River (Flare)",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
       },
       {
         "name": "Power Station V-Ex",
@@ -80,7 +80,7 @@
       },
       {
         "name": "Saferoom Exfil",
-        "requirementZh": "1. 在发电站开启电源 · 2. 在「Burger Spot」餐厅冲掉小便池 · 3. 在显露的读卡面板刷 Object #11SR 门禁卡 · 4. 从内部用……锁上撤离门"
+        "requirementZh": "1. 在发电站开启电源 · 2. 在「Burger Spot」餐厅冲掉小便池 · 3. 在显露的读卡面板刷 Object #11SR 门禁卡 · 4. 从内部用旁边的按钮锁上撤离门"
       },
       {
         "name": "Scav Camp (Co-Op)",
@@ -120,7 +120,7 @@
       },
       {
         "name": "D-2",
-        "requirementZh": "1. 在地下掩体系统的指挥区拉下开关，开启电源 · 2. 按下推拉门旁边墙上的按钮"
+        "requirementZh": "1. 在地下掩体系统拉下开关，开启电源 · 2. 按下推拉门旁边墙上的按钮"
       },
       {
         "name": "Exit to Woods",
@@ -164,7 +164,7 @@
       },
       {
         "name": "Klimov Street (Flare)",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
       },
       {
         "name": "Pinewood Basement (Co-Op)",
@@ -182,7 +182,7 @@
     "terminal": [
       {
         "name": "Zubr Boat",
-        "requirementZh": "可用船位取决于进入战局的玩家人数： · 1-3 名玩家时 3 个船位 · 4 名玩家时 3 至 4 个船位 · 5 名玩家时 4 至 5 个船位 · 携带……的玩家"
+        "requirementZh": "可用船位取决于进入战局的玩家人数： · 1-3 名玩家时 3 个船位 · 4 名玩家时 3 至 4 个船位 · 5 名玩家时 4 至 5 个船位 · 携带装有 TerraGroup 证据的安全箱 Alpha-1 的玩家必须把它带在身上"
       }
     ],
     "the-lab": [
@@ -236,7 +236,7 @@
       },
       {
         "name": "Power Line Passage (Flare)",
-        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号…"
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
       },
       {
         "name": "Railway Bridge to Tarkov",
