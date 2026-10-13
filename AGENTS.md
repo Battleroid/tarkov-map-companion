@@ -21,6 +21,12 @@ scripts\publish.ps1                             # single-file publish -> publish
 `global.json` pins 8.0.421 (`rollForward: latestFeature`); without it nothing builds. To diagnose
 without a window: `--render-test`, `--read-exits`, `--find-screenshots`, `--find-logs`.
 
+**Re-run `scripts\publish.ps1` after every change that should be visible in the app.** `publish\` is
+gitignored, so it silently goes stale and the user keeps launching a binary from before the fix — a
+WebSync LAN-address fix was verified in the Debug build while the shipped `publish\` exe still had
+the old behaviour. The user runs the published exe for hands-on testing, so a green `dotnet test`
+does not mean what they are running is current.
+
 ## Stack
 
 .NET 8 · Avalonia 11 · SkiaSharp · Svg.Skia. Windows-only (uses the built-in Windows OCR).
