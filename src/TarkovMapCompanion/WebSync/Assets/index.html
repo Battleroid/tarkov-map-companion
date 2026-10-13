@@ -333,13 +333,15 @@
     var sig=S.mapKey+"|"+(im&&im.type)+"|"+Array.from(S.active).sort().join(",");
     if(sig===S.artSig) return;
     S.artSig=sig;
-    world.innerHTML=""; tileImgs=new Map(); tileSig=""; tileLogged=false;
+    tileImgs.forEach(function(oldImg){ clearTimeout(oldImg._t); });   // drop pending tile timeouts of the old build
+    world.innerHTML=""; tileImgs=new Map(); tileSig=""; tileLogged=false; tileFailed=false;
     if(!m||!im){ artStatus("ok"); return; }
     if(im.type==="svg") loadSvg(m);
     else { artStatus("loading","加载地图…"); updateTiles(true); if(!tileImgs.size) artStatus("ok"); }
   }
   // ---- artwork reporting (observability) ----------------------------------------------------
-  var tileLogged=false;
+  var ART_TIMEOUT=20000;                                       // bounded lifetime for every artwork request
+  var tileLogged=false, tileFailed=false;
   function artStatus(state, msg){
     if(!artEl) return;
     if(state==="ok"){ artEl.className=""; return; }                       // no class => hidden (opacity:0)
@@ -352,8 +354,15 @@
     if(detail!=null && detail!=="") line+=" | "+String(detail);
     (warn?console.warn:console.error)(line);
   }
+  function tileFail(url){
+    if(tileFailed) return;                                    // surface at most once per rebuild
+    tileFailed=true;
+    artFail("底图瓦片加载失败", url, null);
+  }
+  function tileWatch(){ tileFail(this.src); }                  // bound per <img>: fires only if it never settles
   function tileLoaded(){
-    if(artEl&&artEl.classList.contains("loading")) artStatus("ok");      // only clears a pending load
+    if(artEl&&artEl.classList.contains("loading")) artStatus("ok");      // clears a pending load
+    tileFailed=false;                                         // a tile arrived: allow a later failure to surface again
     if(!tileLogged){ tileLogged=true; console.info("[websync] 底图瓦片已渲染", S.mapKey, tileSig); }
   }
 
@@ -362,10 +371,16 @@
     var url=withKey("/map/"+encodeURIComponent(m.key)+".svg?floors="+floors+"&base=true");
     var req=++S.artReq;
     artStatus("loading","加载地图…");
-    fetch(url).then(function(r){
+    var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+    var timedOut=false, timeoutReported=false;
+    function reportTimeout(){ if(timeoutReported) return; timeoutReported=true; if(req===S.artReq) artFail("底图获取超时", url, null); }
+    var timer=setTimeout(function(){ timedOut=true; if(ctrl) ctrl.abort(); else reportTimeout(); }, ART_TIMEOUT);
+    function done(){ clearTimeout(timer); }
+    fetch(url, ctrl?{ signal:ctrl.signal }:undefined).then(function(r){
       if(!r.ok){ var e=new Error("HTTP "+r.status); e.status=r.status; throw e; }
       return r.text();
     }).then(function(text){
+      done();
       if(req!==S.artReq) return;                       // benign: a newer request superseded this one
       var doc, root, perr="";
       try{ doc=new DOMParser().parseFromString(text,"image/svg+xml"); root=doc.documentElement; }
@@ -393,7 +408,9 @@
       artStatus("ok");
       console.info("[websync] 底图已渲染", url);
     }).catch(function(err){
+      done();
       if(req!==S.artReq) return;                       // benign: superseded before it settled, do not alarm
+      if(timedOut){ reportTimeout(); return; }
       var status=err&&err.status;
       if(status!=null) artFail("底图获取失败 · HTTP "+status, url, null);
       else artFail("底图获取失败 · 网络错误", url, (err&&err.message)||String(err));
@@ -426,15 +443,16 @@
       if(tileImgs.has(key)) continue;
       var img=document.createElement("img"); img.className="tile";
       img.decoding="async";
-      img.onerror=function(){ artFail("底图瓦片加载失败", this.src, null); };
-      img.onload=function(){ tileLoaded(); };
+      img._t=setTimeout(tileWatch.bind(img), ART_TIMEOUT);   // bounded: never wait forever
+      img.onerror=function(){ clearTimeout(this._t); tileFail(this.src); };
+      img.onload=function(){ clearTimeout(this._t); tileLoaded(); };
       var u=im.urlTemplate.replace("{z}",level).replace("{x}",x).replace("{y}",y);
       img.src=withKey(u)+"&base=true"+(floor?"&floor="+encodeURIComponent(floor):"");
       img.style.left=(x*cell)+"px"; img.style.top=(y*cell)+"px";
       img.style.width=cell+"px"; img.style.height=cell+"px";
       tileImgs.set(key,img); world.appendChild(img);
     }
-    tileImgs.forEach(function(img,k){ if(!need.has(k)){ img.remove(); tileImgs.delete(k); } });
+    tileImgs.forEach(function(img,k){ if(!need.has(k)){ img.remove(); clearTimeout(img._t); tileImgs.delete(k); } });
   }
 
   // ---- render loop (redraws only on real change; pings keep it alive while alive) ------------
@@ -620,15 +638,25 @@
   measure();
   setStatus("connecting");
   requestRender();
-  fetch(withKey("/api/state")).then(function(r){
-    if(!r.ok){ var e=new Error("HTTP "+r.status); e.status=r.status; throw e; }
-    return r.json();
-  }).then(function(j){ if(j) applySnapshot(j); })
-    .catch(function(err){
-      var url=withKey("/api/state"), status=err&&err.status;
-      if(status!=null) artFail("地图数据加载失败 · HTTP "+status, url, null);
-      else artFail("地图数据加载失败 · 网络错误", url, (err&&err.message)||String(err));
-    });
+  (function loadState(){
+    var url=withKey("/api/state");
+    var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+    var timedOut=false, timeoutReported=false, timer=0;
+    function reportTimeout(){ if(timeoutReported) return; timeoutReported=true; artFail("地图数据加载超时", url, null); }
+    function done(){ clearTimeout(timer); }
+    timer=setTimeout(function(){ timedOut=true; if(ctrl) ctrl.abort(); else reportTimeout(); }, ART_TIMEOUT);
+    fetch(url, ctrl?{ signal:ctrl.signal }:undefined).then(function(r){
+      if(!r.ok){ var e=new Error("HTTP "+r.status); e.status=r.status; throw e; }
+      return r.json();
+    }).then(function(j){ done(); if(j) applySnapshot(j); })
+      .catch(function(err){
+        done();
+        if(timedOut){ reportTimeout(); return; }
+        var status=err&&err.status;
+        if(status!=null) artFail("地图数据加载失败 · HTTP "+status, url, null);
+        else artFail("地图数据加载失败 · 网络错误", url, (err&&err.message)||String(err));
+      });
+  })();
   connect();
 })();
 </script>

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.WebSockets;
 using System.Reflection;
@@ -574,13 +575,17 @@ internal sealed class WebSyncServer : IDisposable
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
+        Log.Info("websync websocket client connected");
+
         // Register sends the full snapshot first (the first-frame contract lives in the broadcaster,
         // not here) and publishes the client for subsequent incremental broadcasts.
         _broadcaster.Register(socket);
 
+        var connectedAt = DateTime.UtcNow;
+
         try
         {
-            await ReceiveLoopAsync(socket).ConfigureAwait(false);
+            await ReceiveLoopAsync(socket, connectedAt).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -601,44 +606,77 @@ internal sealed class WebSyncServer : IDisposable
     /// The payload is discarded: the mirror is read-only, so a client frame means nothing beyond
     /// "still here". A message larger than the fixed buffer makes <c>EndOfMessage</c> false, which is
     /// the 4 KB cap the spec calls for, and closes with 1009. A 60s silence (two missed 30s pings)
-    /// is treated as a dead peer.
+    /// is treated as a dead peer. Each received frame and the loop's exit are logged so a client that
+    /// connects but never gets its imagery can be told apart from one that never sends at all.
     /// </remarks>
-    private static async Task ReceiveLoopAsync(WebSocket socket)
+    /// <param name="socket">The accepted, registered client socket.</param>
+    /// <param name="connectedAt">When the upgrade was accepted, for the lifetime and inter-frame deltas.</param>
+    private static async Task ReceiveLoopAsync(WebSocket socket, DateTime connectedAt)
     {
         var buffer = new byte[ClientFrameCapBytes];
+        var frames = 0;
+        var previousFrameAt = connectedAt;
+        var endReason = "socket not open";
 
-        while (socket.State == WebSocketState.Open)
+        try
         {
-            WebSocketReceiveResult result;
-
-            try
+            while (socket.State == WebSocketState.Open)
             {
-                // A fresh window per read: any complete frame resets the liveness clock.
-                using var timeout = new CancellationTokenSource(ClientLivenessTimeout);
-                result = await socket
-                    .ReceiveAsync(new ArraySegment<byte>(buffer), timeout.Token)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                Log.Info("websync dropping a websocket client that went silent");
-                break;
-            }
+                WebSocketReceiveResult result;
 
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
-                await CloseOutputAsync(socket).ConfigureAwait(false);
-                break;
-            }
+                try
+                {
+                    // A fresh window per read: any complete frame resets the liveness clock.
+                    using var timeout = new CancellationTokenSource(ClientLivenessTimeout);
+                    result = await socket
+                        .ReceiveAsync(new ArraySegment<byte>(buffer), timeout.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    endReason = "liveness timeout";
+                    Log.Info("websync dropping a websocket client that went silent");
+                    break;
+                }
 
-            // EndOfMessage is false exactly when the message did not fit the 4 KB buffer: too big.
-            if (!result.EndOfMessage)
-            {
-                await CloseWithStatusAsync(socket, WebSocketCloseStatus.MessageTooBig).ConfigureAwait(false);
-                break;
-            }
+                frames++;
+                var now = DateTime.UtcNow;
+                var sincePreviousMs = (now - previousFrameAt).TotalMilliseconds;
+                previousFrameAt = now;
 
-            // A complete text/binary frame (a heartbeat) is all this direction needs.
+                Log.Info(
+                    $"websync websocket frame {result.MessageType} {result.Count} bytes; "
+                    + $"{sincePreviousMs:F0} ms since previous frame");
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    endReason = "closed by peer";
+                    await CloseOutputAsync(socket).ConfigureAwait(false);
+                    break;
+                }
+
+                // EndOfMessage is false exactly when the message did not fit the 4 KB buffer: too big.
+                if (!result.EndOfMessage)
+                {
+                    endReason = "message too big";
+                    await CloseWithStatusAsync(socket, WebSocketCloseStatus.MessageTooBig).ConfigureAwait(false);
+                    break;
+                }
+
+                // A complete text/binary frame (a heartbeat) is all this direction needs.
+            }
+        }
+        catch
+        {
+            // Let the caller log the failure; this only names the loop's exit reason for the summary.
+            endReason = "exception";
+            throw;
+        }
+        finally
+        {
+            var lifetimeMs = (DateTime.UtcNow - connectedAt).TotalMilliseconds;
+            Log.Info(
+                $"websync websocket loop ended ({endReason}); frames={frames}; lifetime={lifetimeMs:F0} ms");
         }
     }
 
@@ -708,14 +746,22 @@ internal sealed class WebSyncServer : IDisposable
     {
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
 
+        var floorsRaw = context.Request.Query["floors"].ToString();
+        var baseRaw = context.Request.Query["base"].ToString();
+
         var map = FindMap(mapId);
+
+        Log.Info($"websync map.svg request map={mapId} floors=\"{floorsRaw}\" base=\"{baseRaw}\"");
 
         // An unknown key or a map with no vector artwork: there is nothing here to serve.
         if (map is null || !map.HasSvg)
+        {
+            Log.Info($"websync map.svg -> 404 (unknown map or no svg) map={mapId}");
             return Results.NotFound();
+        }
 
-        var floorNames = ParseFloorNames(context.Request.Query["floors"].ToString());
-        var includeBase = ParseIncludeBase(context.Request.Query["base"].ToString());
+        var floorNames = ParseFloorNames(floorsRaw);
+        var includeBase = ParseIncludeBase(baseRaw);
 
         var layerIds = map.Floors
             .Where(f => floorNames.Contains(f.Name) && f.SvgLayerId is not null)
@@ -727,14 +773,26 @@ internal sealed class WebSyncServer : IDisposable
         // Stable key: the same floors in a different order, or with duplicates, share one entry.
         var cacheKey = $"{mapId}|{includeBase}|{string.Join('|', layerIds)}";
         if (_svgCache.TryGetValue(cacheKey, out var cached))
+        {
+            Log.Info(
+                $"websync map.svg -> cache hit map={mapId} bytes={Encoding.UTF8.GetByteCount(cached)}");
             return SvgResponse(cached, context);
+        }
 
+        Log.Info($"websync map.svg -> cache miss; fetching asset map={mapId} url={map.SvgUrl}");
+
+        var started = Stopwatch.GetTimestamp();
         var text = await _assets.GetStringAsync(map.SvgUrl!, "svg", ct).ConfigureAwait(false);
+        var fetchMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+        Log.Info(
+            $"websync map.svg asset fetched map={mapId} elapsed={fetchMs:F0} ms textNull={text is null}");
 
         if (text is null)
         {
             // Offline with nothing cached, or a transient upstream failure. Both mean "the imagery is
             // not available right now", which is a 503: a 404 would claim the map does not exist.
+            Log.Info($"websync map.svg -> 503 (imagery unavailable) map={mapId}");
             return Results.Text(
                 Localizer.Loc("WebSync.ImageryUnavailable"),
                 "text/plain; charset=utf-8",
@@ -744,6 +802,9 @@ internal sealed class WebSyncServer : IDisposable
 
         var filtered = SvgLayerFilter.Filter(text, map.BaseSvgLayerId, layerIds, includeBase);
         _svgCache[cacheKey] = filtered;
+
+        Log.Info(
+            $"websync map.svg -> 200 served map={mapId} bytes={Encoding.UTF8.GetByteCount(filtered)}");
 
         return SvgResponse(filtered, context);
     }
