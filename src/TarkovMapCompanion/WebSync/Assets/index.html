@@ -490,14 +490,31 @@
         return;
       }
       root.querySelectorAll("script").forEach(function(n){ n.remove(); });   // never run embedded scripts
+      // SvgMapSource stretches picture.CullRect -- NOT the SVG's viewBox -- onto SvgBaseRect
+      // (unitsToBaseX = svgRect.Width / cullRect.Width), and the markers are placed in that same
+      // base space, so the artwork must use the same rect or the two drift apart. CullRect is the
+      // picture's viewport as Svg.Skia resolves it from the document's declared width/height, else
+      // its viewBox, rounded to whole user units with the origin at 0. It is deliberately not the
+      // tight bbox of the drawn children: browser getBBox disagrees wildly (Customs' children
+      // measure 1230x761 against a 1062x535 viewBox) and cannot be used. This reproduces Skia's
+      // number from the document the client already fetched, so no extra wire field is needed.
+      // Falls back to the declared width/height when the viewBox is absent or unusable.
       var vb=root.getAttribute("viewBox");
-      if(!vb){
-        var w=parseFloat(root.getAttribute("width"))||0, h=parseFloat(root.getAttribute("height"))||0;
-        vb=(w&&h)?("0 0 "+w+" "+h):("0 0 "+(S.svgRect?S.svgRect.w:1000)+" "+(S.svgRect?S.svgRect.h:1000));
+      var vx=0, vy=0, vw=0, vh=0;
+      if(vb){
+        var q=vb.trim().split(/[\s,]+/).map(Number);
+        if(q.length===4 && q[2]>0 && q[3]>0){ vx=q[0]; vy=q[1]; vw=q[2]; vh=q[3]; }
       }
+      if(!(vw>0&&vh>0)){
+        vw=parseFloat(root.getAttribute("width"))||(S.svgRect?S.svgRect.w:1000);
+        vh=parseFloat(root.getAttribute("height"))||(S.svgRect?S.svgRect.h:1000);
+        vx=0; vy=0;
+      }
+      var cw=Math.round(vw), chh=Math.round(vh);
+      var content=(cw>0&&chh>0)?(Math.round(vx)+" "+Math.round(vy)+" "+cw+" "+chh):("0 0 "+vw+" "+vh);
       var svg=document.createElementNS(NS,"svg");
-      svg.setAttribute("viewBox",vb);
-      svg.setAttribute("preserveAspectRatio","none");   // stretch to svgBaseRect, as SvgMapSource does
+      svg.setAttribute("viewBox",content);
+      svg.setAttribute("preserveAspectRatio","none");   // stretch the content rect to svgBaseRect
       var r=S.svgRect||S.baseRect;
       svg.style.left=r.x+"px"; svg.style.top=r.y+"px"; svg.style.width=r.w+"px"; svg.style.height=r.h+"px";
       var f=document.createDocumentFragment();
