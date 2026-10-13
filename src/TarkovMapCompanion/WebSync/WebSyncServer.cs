@@ -494,6 +494,18 @@ internal sealed class WebSyncServer : IDisposable
     /// </summary>
     private IResult HandleRoot(HttpContext context)
     {
+        // The client page is read from the executable's embedded resource, so it changes with every
+        // release while its URL never does. Without an explicit policy a browser heuristically caches
+        // the HTML and keeps serving the previous build's page -- which is what hid several rounds of
+        // client changes. A single-page client must be revalidated on every navigation, so no-store is
+        // unconditional. must-revalidate is the belt to no-store's braces (a no-store response is
+        // effectively already revalidated); Pragma: no-cache is the HTTP/1.0 pairing that older
+        // proxies and WebViews still honour, since it is the only cache directive some of them read.
+        // Set on every branch below, so the keyed page, the placeholder and the missing-key hint can
+        // never be served stale relative to one another after the key state changes.
+        context.Response.Headers["Cache-Control"] = "no-store, must-revalidate";
+        context.Response.Headers["Pragma"] = "no-cache";
+
         if (TokenMatches(context.Request.Query["key"].ToString()))
         {
             if (TryReadClientPage(out var clientPage))

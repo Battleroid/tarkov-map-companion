@@ -576,6 +576,7 @@
 
   // ---- render loop (redraws only on real change; pings keep it alive while alive) ------------
   var raf=0, needs=true;
+  var SELF_CHECK=/[?&]selfcheck=1/.test(location.search), selfCheckDone=false;
   function requestRender(){ needs=true; if(!raf) raf=requestAnimationFrame(frame); }
   function hasPings(now){
     var ps=(S.snap&&S.snap.pings)||[]; for(var i=0;i<ps.length;i++){ if(now-pingStamp(ps[i])<3000) return true; } return false;
@@ -589,36 +590,68 @@
     measure();
     world.style.transform="translate("+view.tx+"px,"+view.ty+"px) scale("+view.scale+")";
     draw(now); updateTiles(false);
+    if(SELF_CHECK) selfCheck();
     if(hasPings(now)) requestRender(); else if(needs) requestRender();
   }
 
+  // ---- regression self-check (opt-in: ?selfcheck=1) -----------------------------------------
+  // Proves the invariant the marker layer depends on: a state-changing marker (tri()'s translate/
+  // rotate, the dashed conditional ring) must leave the transform exactly as it found it, so a
+  // marker drawn after one lands on the same pixel as one drawn first. It samples the canvas matrix
+  // around both primitives and logs PASSED/FAILED. Off unless the URL asks for it, so production
+  // never pays for it, and the one probe frame is cleared by the extra render it requests.
+  function selfCheck(){
+    if(selfCheckDone||typeof ctx.getTransform!=="function") return;
+    selfCheckDone=true;
+    var a=Bp(40,40);
+    var before=ctx.getTransform();
+    tri(a.x,a.y,9,30,"#fff","rgba(0,0,0,.5)");
+    scoped(function(){ ctx.beginPath(); ctx.arc(a.x,a.y,11,0,TAU);
+      ctx.lineWidth=1.6; ctx.strokeStyle="rgba(255,255,255,.3)"; ctx.setLineDash([3,2.5]); ctx.stroke(); });
+    var after=ctx.getTransform();
+    var same=before.a===after.a&&before.b===after.b&&before.c===after.c
+           &&before.d===after.d&&before.e===after.e&&before.f===after.f;
+    console[same?"info":"error"]("[websync] transform self-check "+(same?"PASSED":"FAILED")
+      +" (a="+after.a+",d="+after.d+",e="+after.e+",f="+after.f+")");
+    requestRender();
+  }
+
   // ---- draw primitives ----------------------------------------------------------------------
+  // Canvas 2D state is cumulative across draws and frames, while the artwork is DOM and therefore
+  // immune: a primitive that leaves lineWidth/font/globalAlpha/lineDash/dash set alters every marker
+  // drawn after it, and a save()/restore() imbalance could even leave a translate/rotate applied, so
+  // the marker layer and the artwork drift apart. scoped() draws one unit of work inside its own
+  // save()/restore() and restores in a finally even if the callback throws, so the state stack is
+  // always empty when a frame returns to the top. Every state-changing primitive below is wrapped.
+  function scoped(fn){ ctx.save(); try{ return fn(); } finally { ctx.restore(); } }
   function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
     ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
     ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-  function dot(x,y,r,fill,stroke){ ctx.beginPath(); ctx.arc(x,y,r,0,TAU);
-    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }
-  function diamond(x,y,r,fill,stroke){ ctx.beginPath(); ctx.moveTo(x,y-r); ctx.lineTo(x+r,y);
+  function dot(x,y,r,fill,stroke){ scoped(function(){ ctx.beginPath(); ctx.arc(x,y,r,0,TAU);
+    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }); }
+  function diamond(x,y,r,fill,stroke){ scoped(function(){ ctx.beginPath(); ctx.moveTo(x,y-r); ctx.lineTo(x+r,y);
     ctx.lineTo(x,y+r); ctx.lineTo(x-r,y); ctx.closePath();
-    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }
-  function tri(x,y,r,angle,fill,stroke){ ctx.save(); ctx.translate(x,y); ctx.rotate(angle*Math.PI/180);
+    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }); }
+  function tri(x,y,r,angle,fill,stroke){ scoped(function(){ ctx.translate(x,y); ctx.rotate(angle*Math.PI/180);
     ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.72,r*.86); ctx.lineTo(0,r*.42); ctx.lineTo(-r*.72,r*.86);
     ctx.closePath(); if(fill){ctx.fillStyle=fill;ctx.fill();}
-    if(stroke){ctx.lineWidth=2;ctx.lineJoin="round";ctx.strokeStyle=stroke;ctx.stroke();} ctx.restore(); }
+    if(stroke){ctx.lineWidth=2;ctx.lineJoin="round";ctx.strokeStyle=stroke;ctx.stroke();} }); }
   function label(text,x,y,color){
     text=String(text||""); if(!text) return;
-    ctx.font="600 12px "+FONT; var w=ctx.measureText(text).width, px=6, h=18;
-    var bx=clamp(x-w/2-px, 4, Math.max(4,vw-w-px*2-4)), by=y+9;
-    ctx.fillStyle="rgba(9,11,13,.68)"; rr(bx,by,w+px*2,h,6); ctx.fill();
-    ctx.fillStyle=color||"#e8ecef"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(text, bx+w/2+px, by+h/2+.5);
+    scoped(function(){
+      ctx.font="600 12px "+FONT; var w=ctx.measureText(text).width, px=6, h=18;
+      var bx=clamp(x-w/2-px, 4, Math.max(4,vw-w-px*2-4)), by=y+9;
+      ctx.fillStyle="rgba(9,11,13,.68)"; rr(bx,by,w+px*2,h,6); ctx.fill();
+      ctx.fillStyle=color||"#e8ecef"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(text, bx+w/2+px, by+h/2+.5);
+    });
   }
   function route(points,color,width,dash){
     if(!points||points.length<2) return;
-    ctx.save(); ctx.beginPath();
-    for(var i=0;i<points.length;i++){ var o=P(points[i].x,points[i].z); if(i)ctx.lineTo(o.x,o.y); else ctx.moveTo(o.x,o.y); }
-    ctx.lineWidth=width; ctx.strokeStyle=color; ctx.lineJoin="round"; ctx.lineCap="round";
-    if(dash) ctx.setLineDash(dash); ctx.stroke(); ctx.restore();
+    scoped(function(){ ctx.beginPath();
+      for(var i=0;i<points.length;i++){ var o=P(points[i].x,points[i].z); if(i)ctx.lineTo(o.x,o.y); else ctx.moveTo(o.x,o.y); }
+      ctx.lineWidth=width; ctx.strokeStyle=color; ctx.lineJoin="round"; ctx.lineCap="round";
+      if(dash) ctx.setLineDash(dash); ctx.stroke(); });
   }
   function peerColor(n){ var ps=(S.snap&&S.snap.peers)||[]; for(var i=0;i<ps.length;i++) if(ps[i].name===n) return ps[i].color; return null; }
 
@@ -691,19 +724,31 @@
     var fx=(sx<ax)?sx+w:sx, fy=sy-12*0.3, dx=ax-fx, dy=ay-fy, len=Math.hypot(dx,dy);
     if(len<=6) return;                          // stopping short points at the marker, not through it
     var k=(len-6)/len;
-    ctx.save(); ctx.lineWidth=1; ctx.strokeStyle=LEADER_COLOR;
-    ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+dx*k,fy+dy*k); ctx.stroke(); ctx.restore();
+    scoped(function(){ ctx.lineWidth=1; ctx.strokeStyle=LEADER_COLOR;
+      ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+dx*k,fy+dy*k); ctx.stroke(); });
   }
   function poiLabel(text,x,baseline){
-    ctx.font=POI_LABEL; ctx.textAlign="left"; ctx.textBaseline="alphabetic"; ctx.lineJoin="round";
-    ctx.lineWidth=HALO_W; ctx.strokeStyle=HALO_COLOR; ctx.strokeText(text,x,baseline);
-    ctx.fillStyle="#ffffff"; ctx.fillText(text,x,baseline);
+    scoped(function(){
+      ctx.font=POI_LABEL; ctx.textAlign="left"; ctx.textBaseline="alphabetic"; ctx.lineJoin="round";
+      ctx.lineWidth=HALO_W; ctx.strokeStyle=HALO_COLOR; ctx.strokeText(text,x,baseline);
+      ctx.fillStyle="#ffffff"; ctx.fillText(text,x,baseline);
+    });
   }
 
   function draw(now){
+    // A frame must start from a known transform, not whatever the previous frame left behind.
+    // Reset to identity and clear the whole backing store first, then install the dpr scale; nothing
+    // is drawn between the two setTransform calls (a draw under identity would land at half size once
+    // the dpr scale is applied afterwards). The matrix is fully determined here, so pan/zoom can only
+    // come from view.tx/view.scale -- the same numbers that drive the DOM artwork's transform.
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,cw,ch);
     var dpr=window.devicePixelRatio||1; ctx.setTransform(dpr,0,0,dpr,0,0);
+    // setTransform resets the matrix but not the rest of the cumulative 2D state. Every primitive is
+    // balanced now, but reset the paint baseline too so even a mid-frame exception cannot let one
+    // frame's lineWidth/font/alpha/dash bleed into the next.
+    ctx.globalAlpha=1; ctx.lineWidth=1; ctx.lineJoin="miter"; ctx.lineCap="butt";
+    ctx.setLineDash([]); ctx.textAlign="start"; ctx.textBaseline="alphabetic";
     // s.proj does not exist: the projection lives at S.proj (from s.map.projection). Checking the
     // snapshot property instead of the global silently returned on every frame, so the canvas never
     // received a single marker. Guard the projection we actually draw with.
@@ -734,34 +779,42 @@
         var muted=isEx && p.available===false;      // only exits fade; an unknown raid stays solid
         var fill=muted?withAlpha(col,MUTED_ALPHA):col;
         var edge=muted?POI_MUTED_OUTLINE:POI_OUTLINE;
-        if(isEx) diamond(x,y,r,fill,edge); else dot(x,y,r,fill,edge);
 
-        // "not simply open": the same dashed cue the desktop draws around a conditional exit.
-        // Single-use exits share it -- the desktop has no separate map mark for them.
-        if(isEx && !muted && (p.conditional||p.singleUse)){
-          ctx.save(); ctx.beginPath(); ctx.arc(x,y,r+RING_GAP,0,TAU);
-          ctx.lineWidth=RING_W; ctx.strokeStyle=RING_COLOR; ctx.setLineDash([3,2.5]);
-          ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-        }
+        // One marker -- dot/diamond, conditional ring and name -- in a single save()/restore scope,
+        // so a later edit to any one of them cannot leak state into the rest (dot/diamond are already
+        // balanced on their own; this is the belt-and-braces at the marker level).
+        scoped(function(){
+          if(isEx) diamond(x,y,r,fill,edge); else dot(x,y,r,fill,edge);
 
-        // Names only on exits, never on a muted one -- the desktop's default (ShowExtractNames
-        // && !muted). The placer drops any name that would collide with one already placed.
-        if(isEx && !muted){
-          var text=String(p.name||"");
-          if(text){
-            ctx.font=POI_LABEL;
-            var tw=ctx.measureText(text).width, spot=placer.place(x,y,r+4,tw);
-            if(spot){ if(spot.leader) poiLeader(x,y,spot.x,spot.y,tw); poiLabel(text,spot.x,spot.y); }
+          // "not simply open": the same dashed cue the desktop draws around a conditional exit.
+          // Single-use exits share it -- the desktop has no separate map mark for them.
+          if(isEx && !muted && (p.conditional||p.singleUse)){
+            ctx.beginPath(); ctx.arc(x,y,r+RING_GAP,0,TAU);
+            ctx.lineWidth=RING_W; ctx.strokeStyle=RING_COLOR; ctx.setLineDash([3,2.5]);
+            ctx.stroke();
           }
-        }
+
+          // Names only on exits, never on a muted one -- the desktop's default (ShowExtractNames
+          // && !muted). The placer drops any name that would collide with one already placed.
+          if(isEx && !muted){
+            var text=String(p.name||"");
+            if(text){
+              ctx.font=POI_LABEL;
+              var tw=ctx.measureText(text).width, spot=placer.place(x,y,r+4,tw);
+              if(spot){ if(spot.leader) poiLeader(x,y,spot.x,spot.y,tw); poiLabel(text,spot.x,spot.y); }
+            }
+          }
+        });
       }
     }
 
     // 2 annotations
     (s.annotations||[]).forEach(function(a){
       var o=P(a.x,a.z);
-      ctx.beginPath(); ctx.moveTo(o.x-3,o.y+1); ctx.lineTo(o.x,o.y+9); ctx.lineTo(o.x+3,o.y+1); ctx.closePath();
-      ctx.fillStyle="#e8d9a0"; ctx.fill();
+      scoped(function(){
+        ctx.beginPath(); ctx.moveTo(o.x-3,o.y+1); ctx.lineTo(o.x,o.y+9); ctx.lineTo(o.x+3,o.y+1); ctx.closePath();
+        ctx.fillStyle="#e8d9a0"; ctx.fill();
+      });
       dot(o.x,o.y-3,6,"#e8d9a0","rgba(10,12,14,.7)");
       if(zoomed) label(a.text||"标注",o.x,o.y+10,"#f2e9c8");
     });
@@ -780,16 +833,18 @@
     (s.waypoints||[]).forEach(function(w){
       var o=P(w.x,w.z), dim=w.visited;
       dot(o.x,o.y,11,"rgba(10,12,14,.72)", dim?"rgba(224,164,88,.35)":"#e0a458");
-      ctx.fillStyle=dim?"rgba(224,164,88,.6)":"#f2c15b"; ctx.font="700 11px "+FONT;
-      ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(String(w.n),o.x,o.y+.5);
+      scoped(function(){
+        ctx.fillStyle=dim?"rgba(224,164,88,.6)":"#f2c15b"; ctx.font="700 11px "+FONT;
+        ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(String(w.n),o.x,o.y+.5);
+      });
     });
 
     // 6 extract guide line
     var ex=s.extract;
     if(ex&&ex.guideBase&&s.player){
       var a=P(s.player.x,s.player.z), b=Bp(ex.guideBase.x,ex.guideBase.y);
-      ctx.save(); ctx.setLineDash([9,7]); ctx.lineWidth=2.6; ctx.strokeStyle="rgba(127,209,166,.9)";
-      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.restore();
+      scoped(function(){ ctx.setLineDash([9,7]); ctx.lineWidth=2.6; ctx.strokeStyle="rgba(127,209,166,.9)";
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
       dot(b.x,b.y,5,"#7fd1a6","rgba(10,12,14,.7)");
       var t=""; if(ex.distanceMeters!=null) t=Math.round(ex.distanceMeters)+"米";
       if(ex.relativeBearingDegrees!=null){ var dd=Math.round(ex.relativeBearingDegrees);
@@ -809,17 +864,19 @@
     (s.pings||[]).forEach(function(p){
       var age=now-pingStamp(p); if(age<0||age>3000) return;
       var k=age/3000, o=P(p.x,p.z);
-      ctx.globalAlpha=1-k; ctx.beginPath(); ctx.arc(o.x,o.y,8+k*28,0,TAU);
-      ctx.lineWidth=3; ctx.strokeStyle="#ff6b6b"; ctx.stroke(); ctx.globalAlpha=1;
+      scoped(function(){ ctx.globalAlpha=1-k; ctx.beginPath(); ctx.arc(o.x,o.y,8+k*28,0,TAU);
+        ctx.lineWidth=3; ctx.strokeStyle="#ff6b6b"; ctx.stroke(); });
     });
 
     // 9 trail
     var tr=(s.player&&s.player.trail)||[];
     if(tr.length>1){
-      ctx.beginPath();
-      for(var i=0;i<tr.length;i++){ var o=P(tr[i].x,tr[i].z); if(i)ctx.lineTo(o.x,o.y); else ctx.moveTo(o.x,o.y); }
-      ctx.lineWidth=2.6; ctx.lineCap="round"; ctx.lineJoin="round";
-      ctx.strokeStyle="rgba(224,164,88,.55)"; ctx.stroke();
+      scoped(function(){
+        ctx.beginPath();
+        for(var i=0;i<tr.length;i++){ var o=P(tr[i].x,tr[i].z); if(i)ctx.lineTo(o.x,o.y); else ctx.moveTo(o.x,o.y); }
+        ctx.lineWidth=2.6; ctx.lineCap="round"; ctx.lineJoin="round";
+        ctx.strokeStyle="rgba(224,164,88,.55)"; ctx.stroke();
+      });
     }
 
     // 10 player
