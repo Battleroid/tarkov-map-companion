@@ -402,7 +402,10 @@
       var r=S.svgRect||S.baseRect;
       svg.style.left=r.x+"px"; svg.style.top=r.y+"px"; svg.style.width=r.w+"px"; svg.style.height=r.h+"px";
       var f=document.createDocumentFragment();
-      while(root.firstChild) f.appendChild(document.importNode(root.firstChild,true));
+      // appendChild MOVES each node out of the parsed document, so root drains and this terminates.
+      // importNode would copy and leave the original in place, and root.firstChild would never go
+      // null -- an infinite loop that freezes the page before anything can be painted.
+      while(root.firstChild) f.appendChild(root.firstChild);
       svg.appendChild(f);
       world.appendChild(svg);
       artStatus("ok");
