@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -231,6 +232,16 @@ public sealed class WebSyncTests
 
     // ---- 2. LanAddress.Select ----------------------------------------------
 
+    /// <summary>Builds a synthetic candidate so the ranking can be tested without real adapters.</summary>
+    private static LanCandidate Candidate(
+        string address,
+        NetworkInterfaceType type,
+        bool sameSubnetGateway = false,
+        bool anyGateway = false) =>
+        new(IPAddress.Parse(address), type, sameSubnetGateway, anyGateway);
+
+    // ---- 2a. The flat-address overload keeps the old range guarantees ---------
+
     [Fact]
     public void TenRangeWinsOverTheOtherPrivateRanges()
     {
@@ -269,8 +280,11 @@ public sealed class WebSyncTests
     [Fact]
     public void NoCandidatesGivesNull()
     {
-        Assert.Null(LanAddress.Select(null));
+        // The two overloads make a bare null ambiguous, so each is named explicitly.
+        Assert.Null(LanAddress.Select((IEnumerable<IPAddress>?)null));
+        Assert.Null(LanAddress.Select((IEnumerable<LanCandidate>?)null));
         Assert.Null(LanAddress.Select(Array.Empty<IPAddress>()));
+        Assert.Null(LanAddress.Select(Array.Empty<LanCandidate>()));
     }
 
     [Fact]
@@ -294,6 +308,117 @@ public sealed class WebSyncTests
             Assert.Equal(expected, LanAddress.Select(shuffled));
             Assert.Equal(expected, LanAddress.Select(reversed));
         }
+    }
+
+    // ---- 2b. The gateway-tier ranking ---------------------------------------
+
+    /// <summary>
+    /// The exact layout that produced the bug. On the developer's machine WSL's virtual switch
+    /// offers 172.25.80.1 (range rank 1) with no gateway, while the real Wi-Fi is 192.168.3.5
+    /// (range rank 2) with a gateway on the same subnet. Ranking by private range alone picked the
+    /// unreachable virtual segment; the same-subnet gateway must win instead.
+    /// </summary>
+    [Fact]
+    public void SameSubnetGatewayBeatsAnIsolatedVirtualAdapterInAMorePreferredRange()
+    {
+        LanCandidate[] candidates =
+        [
+            Candidate("172.25.80.1", NetworkInterfaceType.Ethernet),
+            Candidate("192.168.3.5", NetworkInterfaceType.Wireless80211, sameSubnetGateway: true, anyGateway: true),
+        ];
+
+        Assert.Equal(IPAddress.Parse("192.168.3.5"), LanAddress.Select(candidates));
+
+        // Enumeration order must not change the answer.
+        Assert.Equal(IPAddress.Parse("192.168.3.5"), LanAddress.Select(candidates.Reverse()));
+    }
+
+    [Fact]
+    public void SameSubnetGatewayBeatsDifferentSubnetGatewayWhichBeatsNoGateway()
+    {
+        var sameSubnet = Candidate("192.168.1.5", NetworkInterfaceType.Ethernet, sameSubnetGateway: true, anyGateway: true);
+        var differentSubnet = Candidate("10.0.0.9", NetworkInterfaceType.Ethernet, sameSubnetGateway: false, anyGateway: true);
+        var noGateway = Candidate("10.0.0.1", NetworkInterfaceType.Ethernet);
+
+        // A route in the candidate's own subnet outranks a VPN-like route in another subnet,
+        // and both outrank an isolated segment with no route at all.
+        Assert.Equal(sameSubnet.Address, LanAddress.Select([differentSubnet, noGateway, sameSubnet]));
+        Assert.Equal(sameSubnet.Address, LanAddress.Select([noGateway, sameSubnet, differentSubnet]));
+
+        // With no same-subnet candidate the merely-routed one wins...
+        Assert.Equal(differentSubnet.Address, LanAddress.Select([noGateway, differentSubnet]));
+
+        // ...and the no-gateway candidate is chosen only when nothing better exists.
+        Assert.Equal(noGateway.Address, LanAddress.Select([noGateway]));
+    }
+
+    [Fact]
+    public void WirelessInterfaceBeatsEthernetWithinATierEvenWhenTheEthernetRangeIsMorePreferred()
+    {
+        var wired = Candidate("10.0.4.7", NetworkInterfaceType.Ethernet, sameSubnetGateway: true, anyGateway: true);
+        var wifi = Candidate("192.168.4.7", NetworkInterfaceType.Wireless80211, sameSubnetGateway: true, anyGateway: true);
+
+        // The tablet is essentially always on Wi-Fi, so the adapter kind outranks range order.
+        Assert.Equal(wifi.Address, LanAddress.Select([wired, wifi]));
+        Assert.Equal(wifi.Address, LanAddress.Select([wifi, wired]));
+    }
+
+    [Fact]
+    public void WithinTheSameTierAndInterfaceTypeThePrivateRangeStillDecides()
+    {
+        var ten = Candidate("10.0.0.7", NetworkInterfaceType.Ethernet);
+        var oneSeventyTwo = Candidate("172.16.0.1", NetworkInterfaceType.Ethernet);
+        var oneNinetyTwo = Candidate("192.168.1.5", NetworkInterfaceType.Ethernet);
+
+        Assert.Equal(ten.Address, LanAddress.Select([oneNinetyTwo, ten]));
+        Assert.Equal(oneSeventyTwo.Address, LanAddress.Select([oneNinetyTwo, oneSeventyTwo]));
+        Assert.Equal(ten.Address, LanAddress.Select([oneSeventyTwo, ten]));
+    }
+
+    [Fact]
+    public void UnusableAddressesAreNeverSelectedAsCandidates()
+    {
+        Assert.Null(LanAddress.Select([Candidate("127.0.0.1", NetworkInterfaceType.Ethernet)]));
+        Assert.Null(LanAddress.Select([Candidate("169.254.10.20", NetworkInterfaceType.Ethernet)]));
+        Assert.Null(LanAddress.Select([Candidate("::1", NetworkInterfaceType.Ethernet)]));
+
+        Assert.Equal(
+            IPAddress.Parse("192.168.1.5"),
+            LanAddress.Select(
+            [
+                Candidate("127.0.0.1", NetworkInterfaceType.Ethernet),
+                Candidate("169.254.10.20", NetworkInterfaceType.Ethernet),
+                Candidate("::1", NetworkInterfaceType.Ethernet),
+                Candidate("192.168.1.5", NetworkInterfaceType.Wireless80211),
+            ]));
+    }
+
+    [Fact]
+    public void CandidateInputOrderDoesNotChangeTheResult()
+    {
+        LanCandidate[] shuffled =
+        [
+            Candidate("10.0.4.1", NetworkInterfaceType.Ethernet),
+            Candidate("10.0.0.9", NetworkInterfaceType.Ethernet),
+            Candidate("10.0.0.3", NetworkInterfaceType.Ethernet),
+            Candidate("10.0.1.200", NetworkInterfaceType.Ethernet),
+        ];
+
+        var expected = IPAddress.Parse("10.0.0.3");
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(expected, LanAddress.Select(shuffled));
+            Assert.Equal(expected, LanAddress.Select(shuffled.Reverse()));
+        }
+    }
+
+    [Fact]
+    public void NoGatewayIsALastResortNotARejection()
+    {
+        // An isolated virtual segment is still something to show rather than null.
+        var isolated = Candidate("172.25.80.1", NetworkInterfaceType.Ethernet);
+
+        Assert.Equal(isolated.Address, LanAddress.Select([isolated]));
     }
 
     // ---- 3. SnapshotBuilder field mapping -----------------------------------
