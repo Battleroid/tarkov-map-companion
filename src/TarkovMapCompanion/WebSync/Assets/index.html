@@ -47,11 +47,11 @@
     text-overflow:ellipsis;flex:1;min-width:0}
   #mapname small{display:block;font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.06em}
   #status{display:flex;align-items:center;gap:8px;min-width:96px;justify-content:flex-end;flex:none}
-  #dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none;
-    box-shadow:0 0 0 3px rgba(255,255,255,.05);transition:background .3s,box-shadow .3s}
-  #status.open #dot{background:var(--green);box-shadow:0 0 0 3px rgba(127,209,166,.18),0 0 12px rgba(127,209,166,.55)}
-  #status.connecting #dot{background:var(--amber);box-shadow:0 0 0 3px rgba(242,193,91,.18)}
-  #status.closed #dot{background:var(--red);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
+  #dot{width:10px;height:10px;border-radius:50%;background:var(--dim);flex:none;
+    box-shadow:0 0 0 2px rgba(255,255,255,.22);transition:background .3s,box-shadow .3s}
+  #status.open #dot{background:var(--green);box-shadow:0 0 0 2px rgba(255,255,255,.6),0 0 0 4px rgba(127,209,166,.32),0 0 12px rgba(127,209,166,.75)}
+  #status.connecting #dot{background:var(--amber);box-shadow:0 0 0 2px rgba(255,255,255,.5),0 0 0 4px rgba(242,193,91,.3)}
+  #status.closed #dot{background:var(--red);box-shadow:0 0 0 2px rgba(255,255,255,.5),0 0 0 4px rgba(255,107,107,.3)}
   #stext{font-size:12.5px;font-weight:600;color:var(--dim);min-width:62px;text-align:right}
   #status.open #stext{color:#cfe9db}
   #banner{position:absolute;left:50%;transform:translateX(-50%) translateY(-8px);
@@ -75,9 +75,8 @@
   #art.error .ad{background:var(--red);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
   @keyframes artpulse{0%,100%{opacity:.3}50%{opacity:1}}
   #floors{position:absolute;left:0;right:0;bottom:calc(12px + var(--safeB));z-index:5;
-    display:flex;gap:9px;padding:0 calc(14px + var(--safeL)) 0 calc(14px + var(--safeR));
-    overflow-x:auto;scrollbar-width:none;justify-content:center;flex-wrap:nowrap}
-  #floors::-webkit-scrollbar{display:none}
+    display:flex;flex-wrap:wrap;gap:9px;padding:0 calc(14px + var(--safeL)) 0 calc(14px + var(--safeR));
+    justify-content:center}
   .pill{flex:none;min-height:44px;padding:0 18px;border-radius:999px;display:inline-flex;
     align-items:center;font-size:14px;font-weight:600;color:var(--dim);background:var(--panel);
     border:1px solid var(--edge);box-shadow:var(--shadow);cursor:pointer;
@@ -259,8 +258,19 @@
   }
 
   // ---- view: fit / clamp --------------------------------------------------------------------
+  // Markers are placed from baseRect, but the SVG artwork is stretched onto svgBaseRect and the two
+  // can differ (on Reserve the SVG runs lower and taller than baseRect). Fit and clamp against the
+  // union so the pixels that are actually drawn -- not just the nominal rect -- stay framed on screen.
+  function viewRect(){
+    var b=S.baseRect, s=S.svgRect;
+    if(!b) return s||null;
+    if(!s) return b;
+    var x=Math.min(b.x,s.x), y=Math.min(b.y,s.y);
+    var x2=Math.max(b.x+b.w,s.x+s.w), y2=Math.max(b.y+b.h,s.y+s.h);
+    return { x:x, y:y, w:x2-x, h:y2-y };
+  }
   function ensureFit(){
-    var r=S.baseRect; if(!r||!r.w||!r.h||view.done) return;
+    var r=viewRect(); if(!r||!r.w||!r.h||view.done) return;
     measure();
     var sc=Math.min(vw/r.w, vh/r.h)*0.9;
     view.scale=sc; view.fit=sc; view.min=sc*0.35; view.max=Math.max(sc*70, 8);
@@ -274,7 +284,7 @@
   }
   function clamp(v,a,b){ return v<a?a:v>b?b:v; }
   function constrain(){
-    var r=S.baseRect; if(!r) return;
+    var r=viewRect(); if(!r) return;
     var sc=view.scale, l=view.tx+r.x*sc, t=view.ty+r.y*sc, rr=l+r.w*sc, bb=t+r.h*sc;
     var pad=Math.min(vw,vh)*0.35;
     if(rr<pad) view.tx+=pad-rr; else if(l>vw-pad) view.tx-=l-(vw-pad);
