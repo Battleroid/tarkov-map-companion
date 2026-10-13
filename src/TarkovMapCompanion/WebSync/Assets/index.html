@@ -130,6 +130,16 @@
   #missing{background:radial-gradient(80% 80% at 50% 30%,#1b2026,#0e1012);display:none}
   #missing h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.02em}
   .hidden{display:none!important}
+  /* ---- on-device diagnostic overlay (opt-in: ?debug=1): photo-legible, opaque, cornered ---- */
+  #dbg{position:fixed;left:calc(8px + var(--safeL));top:calc(66px + var(--safeT));z-index:9;
+    max-width:min(96vw,600px);max-height:62vh;overflow:hidden;padding:7px 10px;border-radius:10px;
+    background:rgba(3,5,7,.9);color:#e9eff3;border:1px solid rgba(255,255,255,.3);
+    box-shadow:0 10px 32px rgba(0,0,0,.6);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:13px;line-height:1.34;white-space:pre;letter-spacing:-.2px;pointer-events:none;
+    text-shadow:0 1px 2px #000}
+  #dbg .v{font-size:21px;font-weight:800;letter-spacing:.05em;margin-bottom:3px}
+  #dbg .v.ok{color:#59ff9c} #dbg .v.bad{color:#ff5d6c}
 </style>
 </head>
 <body>
@@ -591,6 +601,7 @@
     world.style.transform="translate("+view.tx+"px,"+view.ty+"px) scale("+view.scale+")";
     draw(now); updateTiles(false);
     if(SELF_CHECK) selfCheck();
+    if(DEBUG){ try{ dbgFrame(); }catch(e){ if(!dbgLogged){ dbgLogged=true; console.error("[websync] debug overlay failed", e); } } }
     if(hasPings(now)) requestRender(); else if(needs) requestRender();
   }
 
@@ -614,6 +625,110 @@
     console[same?"info":"error"]("[websync] transform self-check "+(same?"PASSED":"FAILED")
       +" (a="+after.a+",d="+after.d+",e="+after.e+",f="+after.f+")");
     requestRender();
+  }
+
+  // ---- on-device diagnostic overlay (opt-in: ?debug=1) --------------------------------------
+  // The device disagrees with the paper model, and headless reproduction here is unfaithful, so the
+  // measurement is built into the page and made readable from one photograph. Nothing below runs
+  // unless the URL carries ?debug=1: the flag is a single boolean, the panel DOM is created lazily
+  // on the first debug frame, and every draw is behind that flag, so the normal path is untouched.
+  var DEBUG=/[?&]debug=1/.test(location.search), dbgEl=null, dbgLogged=false;
+  var DBG_MEASURED="#00e5ff", DBG_PREDICT="#ff2fd6", DBG_MARK="#ffd400", DBG_BACK="#ffffff";
+  function dbgF(n,d){                          // fixed-decimals, tolerant of null/NaN (missing DOM)
+    if(n==null) return "null";
+    if(!isFinite(n)) return String(n);
+    var p=Math.pow(10,d); return (Math.round(n*p)/p).toFixed(d);
+  }
+  function dbgBox(o,p,d){ return (p||"")+"L="+dbgF(o.left,d)+" T="+dbgF(o.top,d)+" W="+dbgF(o.w,d)+" H="+dbgF(o.h,d); }
+  function dbgFrame(){
+    if(!dbgEl){ dbgEl=document.createElement("div"); dbgEl.id="dbg"; document.body.appendChild(dbgEl); }
+    var dpr=window.devicePixelRatio||1;
+    var r=viewRect()||{x:0,y:0,w:0,h:0};                 // the rect ensureFit() fitted
+    var fit=Math.min(vw/r.w, vh/r.h)*0.9;                // what the formula predicts for that rect
+
+    // (3) MEASURED artwork: real DOM geometry, read from the page, not from the model
+    var svg=world.querySelector("svg");
+    var mr=svg?svg.getBoundingClientRect():null;
+    var wr=world.getBoundingClientRect();
+    var tf=window.getComputedStyle(world).transform;
+    var ctm=(svg&&svg.getScreenCTM)?svg.getScreenCTM():null;
+    var m=mr?{left:mr.left,top:mr.top,w:mr.width,h:mr.height,right:mr.right,bottom:mr.bottom}:null;
+    var wb={left:wr.left,top:wr.top,w:wr.width,h:wr.height};
+
+    // (4) PREDICTED artwork rect: the view transform applied to the rect the <svg> is placed on
+    var rect=S.svgRect||S.baseRect||{x:0,y:0,w:0,h:0};   // the rect loadSvg() stretches onto
+    var pr={left:view.tx+rect.x*view.scale, top:view.ty+rect.y*view.scale,
+            w:rect.w*view.scale, h:rect.h*view.scale};
+    pr.right=pr.left+pr.w; pr.bottom=pr.top+pr.h;
+
+    // (5) one real POI, worked through both paths
+    var pois=(S.snap&&S.snap.pois)||[], p0=pois[0], marker=null, frac=null, back=null;
+    if(p0&&S.proj){
+      var b=gameToBase(p0.x,p0.z,S.proj);
+      marker={ x:view.tx+b.x*view.scale, y:view.ty+b.y*view.scale };   // what the canvas would use
+      frac={ x:(rect.w?(b.x-rect.x)/rect.w:NaN), y:(rect.h?(b.y-rect.y)/rect.h:NaN) };
+      if(m) back={ x:m.left+frac.x*m.w, y:m.top+frac.y*m.h };          // same fraction through MEASURED box
+    }
+
+    // (6) verdict inputs
+    var posDiff=m?Math.max(Math.abs(m.left-pr.left),Math.abs(m.top-pr.top)):NaN;
+    var sizeDiff=(m&&pr.w>0&&pr.h>0)?Math.max(Math.abs(m.w-pr.w)/pr.w,Math.abs(m.h-pr.h)/pr.h):NaN;
+    var inBox=!!(m&&marker&&marker.x>=m.left&&marker.x<=m.right&&marker.y>=m.top&&marker.y<=m.bottom);
+    var aligned=!!m&&isFinite(posDiff)&&posDiff<=2&&isFinite(sizeDiff)&&sizeDiff<=0.01&&inBox;
+    var backDiff=(back&&marker)?Math.hypot(back.x-marker.x,back.y-marker.y):NaN;
+
+    var L=[];
+    L.push("VIEWPORT iw="+vw+" ih="+vh+" dpr="+dbgF(dpr,2));
+    L.push("CANVAS   cv.w="+cv.width+" cv.h="+cv.height);       // (1)
+    L.push("VIEW     sc="+dbgF(view.scale,4)+" tx="+dbgF(view.tx,1)+" ty="+dbgF(view.ty,1));  // (2)
+    L.push("VIEWRECT "+dbgBox({left:r.x,top:r.y,w:r.w,h:r.h}));
+    L.push("FIT      min(vw/rw,vh/rh)*.9="+dbgF(fit,4)+" scale-fit="+dbgF(view.scale-fit,4));
+    L.push("MEASURED "+(m?dbgBox(m):"(no <svg>)"));
+    L.push("  style  "+dbgBox({left:parseFloat(svg&&svg.style.left),top:parseFloat(svg&&svg.style.top),
+                               w:parseFloat(svg&&svg.style.width),h:parseFloat(svg&&svg.style.height)}));
+    L.push("  viewBox=\""+(svg?svg.getAttribute("viewBox"):"")+"\"");
+    L.push("  wAttr="+(svg?(svg.getAttribute("width")||"(none)"):"(none)")
+           +" hAttr="+(svg?(svg.getAttribute("height")||"(none)"):"(none)"));
+    L.push("  ctm="+(ctm?("["+dbgF(ctm.a,3)+" "+dbgF(ctm.b,3)+" "+dbgF(ctm.c,3)+" "
+           +dbgF(ctm.d,3)+" "+dbgF(ctm.e,1)+" "+dbgF(ctm.f,1)+"]"):"(none)"));
+    L.push("  #world "+dbgBox(wb)+" tf="+String(tf).slice(0,30));
+    L.push("PREDICT  "+dbgBox(pr));
+    L.push("POI[0]   "+((p0&&S.proj)?("kind="+String(p0.kind)+" x="+dbgF(p0.x,1)+" z="+dbgF(p0.z,1)):"(none)"));
+    if(marker){
+      var base0=gameToBase(p0.x,p0.z,S.proj);
+      L.push("  base   x="+dbgF(base0.x,1)+" y="+dbgF(base0.y,1)
+             +"  canvas x="+dbgF(marker.x,1)+" y="+dbgF(marker.y,1));
+      L.push("  frac   fx="+dbgF(frac.x,4)+" fy="+dbgF(frac.y,4));
+      L.push("  thruM  x="+(back?dbgF(back.x,1):"-")+" y="+(back?dbgF(back.y,1):"-")
+             +"  diffpx dx="+(back?dbgF(back.x-marker.x,1):"-")+" dy="+(back?dbgF(back.y-marker.y,1):"-")
+             +" |d|="+dbgF(backDiff,1));
+    }
+    L.push("VERDICT  posDiff="+dbgF(posDiff,1)+"px<=2 sizeDiff="+dbgF(sizeDiff*100,2)+"%<=1");
+    L.push("  inBox="+(inBox?"yes":"no")+" thruDiff="+dbgF(backDiff,1)+"px");
+
+    dbgEl.innerHTML='<div class="v '+(aligned?"ok":"bad")+'">'+(aligned?"ALIGNED":"MISALIGNED")+'</div>'
+      +'<div>'+esc(L.join("\n"))+'</div>';
+
+    // the two artwork boxes and the marker, drawn over the map so the mismatch is visible directly
+    if(pr.w>0&&pr.h>0&&isFinite(pr.left)){
+      ctx.save();
+      ctx.setLineDash([7,5]); ctx.lineWidth=1.5;
+      if(m){ ctx.strokeStyle=DBG_MEASURED; ctx.strokeRect(m.left,m.top,m.w,m.h); }   // cyan = measured
+      ctx.strokeStyle=DBG_PREDICT; ctx.strokeRect(pr.left,pr.top,pr.w,pr.h);           // magenta = predicted
+      ctx.restore();
+    }
+    if(marker){
+      ctx.save();
+      ctx.strokeStyle=DBG_MARK; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(marker.x-9,marker.y); ctx.lineTo(marker.x+9,marker.y);
+      ctx.moveTo(marker.x,marker.y-9); ctx.lineTo(marker.x,marker.y+9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(marker.x,marker.y,4,0,TAU); ctx.stroke();
+      ctx.restore();
+    }
+    if(back){
+      ctx.save(); ctx.strokeStyle=DBG_BACK; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.arc(back.x,back.y,6,0,TAU); ctx.stroke(); ctx.restore();
+    }
   }
 
   // ---- draw primitives ----------------------------------------------------------------------
