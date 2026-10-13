@@ -475,6 +475,38 @@ public sealed class AppSettings
 
     public WindowPlacement? Window { get; set; }
 
+    // ---- WebSync -----------------------------------------------------------
+
+    /// <summary>The port WebSync listens on unless the user picks another one.</summary>
+    public const int DefaultWebSyncPort = 8765;
+
+    /// <summary>
+    /// Serve a read-only mirror of the current map to a browser on the local network. Off by
+    /// default: nothing is served until the user turns it on.
+    /// </summary>
+    public bool WebSyncEnabled { get; set; }
+
+    /// <summary>The port the embedded server listens on. Must be between 1024 and 65535.</summary>
+    public int WebSyncPort { get; set; } = DefaultWebSyncPort;
+
+    /// <summary>
+    /// The token the browser client must present. Empty means none has been generated yet; a
+    /// Crockford base32 token is generated on first enable and persisted.
+    /// </summary>
+    public string WebSyncAccessToken { get; set; } = "";
+
+    /// <summary>Whether the tablet client follows the player's floor automatically.</summary>
+    public bool WebSyncFollowPlayerFloor { get; set; } = true;
+
+    /// <summary>Whether POIs are included in the broadcast.</summary>
+    public bool WebSyncShowPois { get; set; } = true;
+
+    /// <summary>Whether quest marks are included in the broadcast.</summary>
+    public bool WebSyncShowQuests { get; set; } = true;
+
+    /// <summary>Whether annotations are included in the broadcast.</summary>
+    public bool WebSyncShowAnnotations { get; set; } = true;
+
     // ---- Minimap -----------------------------------------------------------
 
     /// <summary>
@@ -541,6 +573,12 @@ public sealed class AppSettings
 
         // Above the well-known range, below the ephemeral range Windows hands out on its own.
         PartyPort = Math.Clamp(PartyPort, 1024, 49151);
+
+        // Outside the usable range a hand-edited port falls back to the default, so the embedded
+        // server still has somewhere to bind instead of failing on load.
+        if (WebSyncPort < 1024 || WebSyncPort > 65535)
+            WebSyncPort = DefaultWebSyncPort;
+
         HeatmapRadiusMeters = Math.Clamp(HeatmapRadiusMeters, 1.0, 500.0);
         HeatmapOpacity = Math.Clamp(HeatmapOpacity, 0.0, 1.0);
         HistoryTrailLength = Math.Clamp(HistoryTrailLength, 0, 500);

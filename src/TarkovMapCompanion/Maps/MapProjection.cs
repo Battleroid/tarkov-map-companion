@@ -71,6 +71,12 @@ public sealed class MapProjection
     public double CoordinateRotationDegrees { get; }
 
     /// <summary>
+    /// Read-only view of the affine used by <see cref="ToBase(double,double)"/>: rotate the game
+    /// coordinate by (Cos,Sin), then scale/offset each axis. Not a general 2x3 matrix.
+    /// </summary>
+    public MapProjectionAffine Affine => new(_cos, _sin, _a, _b, _c, _d, CoordinateRotationDegrees);
+
+    /// <summary>
     /// Base pixels per game meter along each axis. Separate values because Icebreaker's transform
     /// is genuinely anisotropic (2.0 vs 3.5); every other map has a == c.
     /// </summary>
@@ -166,3 +172,18 @@ public sealed class MapProjection
         return Normalize360(Math.Atan2(dx, dz) * 180.0 / Math.PI);
     }
 }
+
+/// <summary>
+/// The coefficients of <see cref="MapProjection.ToBase(double,double)"/>, exposed read-only so the
+/// WebSync browser client can reproduce the exact same reprojection in JavaScript.
+/// </summary>
+/// <param name="Cos">Rotation cosine applied to the incoming game x before scaling.</param>
+/// <param name="Sin">Rotation sine applied to the incoming game x before scaling.</param>
+/// <param name="A">Scale on the rotated x axis.</param>
+/// <param name="B">Offset on the rotated x axis.</param>
+/// <param name="C">Scale on the rotated z axis (negated when applied).</param>
+/// <param name="D">Offset on the rotated z axis.</param>
+/// <param name="CoordinateRotationDegrees">The map's coordinate rotation, mirrored from <see cref="MapProjection.CoordinateRotationDegrees"/>.</param>
+public sealed record MapProjectionAffine(
+    double Cos, double Sin, double A, double B, double C, double D, double CoordinateRotationDegrees);
+
