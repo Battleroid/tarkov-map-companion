@@ -78,15 +78,46 @@
   #art.error{color:#ffd9d9;background:rgba(46,20,22,.82);border-color:rgba(255,107,107,.28)}
   #art.error .ad{background:var(--red);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
   @keyframes artpulse{0%,100%{opacity:.3}50%{opacity:1}}
-  #floors{position:absolute;left:0;right:0;bottom:calc(12px + var(--safeB));z-index:5;
-    display:flex;flex-wrap:wrap;gap:9px;padding:0 calc(14px + var(--safeL)) 0 calc(14px + var(--safeR));
-    justify-content:center}
-  .pill{flex:none;min-height:44px;padding:0 18px;border-radius:999px;display:inline-flex;
-    align-items:center;font-size:14px;font-weight:600;color:var(--dim);background:var(--panel);
-    border:1px solid var(--edge);box-shadow:var(--shadow);cursor:pointer;
-    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);transition:color .18s,border-color .18s,background .18s}
-  .pill.on{color:#20160a;background:linear-gradient(180deg,#f2c15b,#e0a458);border-color:rgba(242,193,91,.7)}
-  .pill:active{transform:translateY(1px)}
+  /* ---- floors / levels: a collapsible list, mirroring the desktop's Levels overlay --------- */
+  /* Collapsed it is one pill in the bottom-left corner, under the thumb; pointer-events are off on
+     the container so the invisible collapsed body never swallows a pan. Only the pill and an open
+     body take taps. */
+  #floors{position:absolute;left:calc(12px + var(--safeL));bottom:calc(12px + var(--safeB));z-index:5;
+    display:flex;flex-direction:column;align-items:flex-start;gap:8px;pointer-events:none;
+    max-width:calc(100vw - 24px - var(--safeL) - var(--safeR))}
+  .fpill{min-height:44px;padding:0 15px;border-radius:14px;display:inline-flex;align-items:center;gap:9px;
+    font-family:inherit;font-size:14px;font-weight:650;color:var(--ink);background:var(--panel);
+    border:1px solid var(--edge);box-shadow:var(--shadow);cursor:pointer;pointer-events:auto;white-space:nowrap;
+    -webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);
+    transition:color .18s,border-color .18s,background .18s}
+  .fpill.warn{border-color:rgba(242,193,91,.55)}
+  .fpill .chev{font-size:11px;color:var(--dim);transition:transform .2s ease}
+  #floors.open .fpill .chev{transform:rotate(180deg)}
+  .fbody{width:min(266px,calc(100vw - 24px - var(--safeL) - var(--safeR)));max-height:min(46vh,380px);
+    overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:6px;padding:9px;
+    border-radius:14px;background:var(--panel);border:1px solid var(--edge);box-shadow:var(--shadow);
+    -webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);
+    opacity:0;transform:translateY(6px) scale(.98);pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+  #floors.open .fbody{opacity:1;transform:none;pointer-events:auto}
+  .frow{display:flex;align-items:center;gap:11px;width:100%;min-height:44px;padding:0 12px;border-radius:11px;
+    -webkit-appearance:none;appearance:none;font-family:inherit;font-size:14px;font-weight:600;text-align:left;
+    color:var(--ink);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);cursor:pointer;
+    transition:background .16s,border-color .16s,color .16s}
+  .frow:active{transform:translateY(1px)}
+  .frow .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .frow .ck{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid rgba(255,255,255,.3);position:relative}
+  .frow .ck::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:800;color:#20160a;opacity:0;transform:scale(.6);transition:opacity .15s,transform .15s}
+  .frow.on{border-color:rgba(242,193,91,.62);background:rgba(242,193,91,.14)}
+  .frow.on .ck{background:linear-gradient(180deg,#f2c15b,#e0a458);border-color:rgba(242,193,91,.75)}
+  .frow.on .ck::after{opacity:1;transform:none}
+  /* The ground layer is terrain, not a numbered floor: a green edge and a sub-label set it apart. */
+  .frow.ground{border-left:3px solid var(--green)}
+  .frow.ground .lb small{display:block;font-size:11px;font-weight:600;color:var(--dim);letter-spacing:.02em}
+  .frow.ground.on{border-color:rgba(127,209,166,.6);border-left-color:var(--green);background:rgba(127,209,166,.14)}
+  .frow.ground.on .ck{background:linear-gradient(180deg,#9fe0c0,#7fd1a6)}
+  .frow.ground.on .lb small{color:#bfe9d6}
+  .fhint{font-size:12px;line-height:1.5;color:#ffd9a8;padding:3px 4px 2px}
   /* ---- waiting / missing ---- */
   #wait,#missing{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:14px;text-align:center;padding:32px;z-index:6;pointer-events:none}
@@ -161,10 +192,11 @@
 
   // ---- state --------------------------------------------------------------------------------
   var S={ snap:null, mapKey:"", imagery:null, proj:null, baseRect:null, svgRect:null,
-          active:new Set(), follow:true, inRaid:true, artSig:"", artReq:0 };
+          active:new Set(), base:true, follow:true, inRaid:true, artSig:"", artReq:0 };
   var view={ scale:1, tx:0, ty:0, fit:1, min:.02, max:64, done:false };
   var vw=0, vh=0, cw=0, ch=0;
   var pauseUntil=0;                 // manual floor tap pauses auto-follow for 30s
+  var floorsOpen=false;             // the levels list starts collapsed, like the desktop overlay
   var tileImgs=new Map(), tileSig="";
   var pingSeen=new Map();           // "at" -> t0
 
@@ -240,25 +272,78 @@
     }
   }
 
-  // ---- floors -------------------------------------------------------------------------------
+  // ---- floors / levels (mirrors the desktop's collapsible Levels overlay) --------------------
+  // map.floors carries the floor NAME, which is also the layer lookup key the renderer and the
+  // desktop toggles switch on. It arrives already readable ("2nd Floor", "Tunnels"), so only
+  // underscores are softened -- the raw SvgLayerId is never shown. The ground/terrain layer is the
+  // map's own base artwork: it is deliberately absent from map.floors and is switched by the `base`
+  // query parameter instead (SvgLayerFilter / TileMapSource.ResolveTemplate), so it gets its own row.
   function floorLabel(n){ return (n||"").replace(/_/g," "); }
+  function floorSummary(){
+    var shown=S.active.size+(S.base?1:0);
+    if(shown===0) return "楼层 · 无";
+    if(shown===1 && S.base) return "楼层";
+    if(shown===1) return "楼层 · "+floorLabel(S.active.values().next().value);
+    return "楼层 · "+shown;
+  }
   function buildFloors(){
     var fl=(S.snap&&S.snap.map&&S.snap.map.floors)||[];
     floorsEl.innerHTML="";
     if(!fl.length){ floorsEl.classList.add("hidden"); return; }
     floorsEl.classList.remove("hidden");
+
+    var body=document.createElement("div"); body.className="fbody";
+
+    // Ground level first, and visually set apart: it is the terrain everything else sits on, not
+    // another numbered floor. Independent of the floor selection, so it never touches follow state.
+    var ground=document.createElement("button");
+    ground.type="button"; ground.className="frow ground"+(S.base?" on":"");
+    ground.setAttribute("role","checkbox"); ground.setAttribute("aria-checked",S.base?"true":"false");
+    ground.innerHTML='<span class="ck"></span><span class="lb">地面层<small>地形底图</small></span>';
+    ground.addEventListener("click",function(){ S.base=!S.base; buildFloors(); buildArt(); });
+    body.appendChild(ground);
+
+    // Floors combine, like the desktop's checkbox list rather than the old single-choice pills.
     fl.forEach(function(f){
+      var on=S.active.has(f.name);
       var b=document.createElement("button");
-      b.className="pill"+(S.active.has(f.name)?" on":"");
-      b.type="button"; b.textContent=floorLabel(f.name);
+      b.type="button"; b.className="frow"+(on?" on":"");
+      b.setAttribute("role","checkbox"); b.setAttribute("aria-checked",on?"true":"false");
+      var ck=document.createElement("span"); ck.className="ck";
+      var lb=document.createElement("span"); lb.className="lb"; lb.textContent=floorLabel(f.name);
+      b.appendChild(ck); b.appendChild(lb);
       b.addEventListener("click",function(){
         pauseUntil=Date.now()+30000;            // manual tap pauses auto-follow for 30s
-        if(S.active.size===1 && S.active.has(f.name)) S.active=new Set();
-        else S.active=new Set([f.name]);
+        if(S.active.has(f.name)) S.active.delete(f.name); else S.active.add(f.name);
         buildFloors(); buildArt();
       });
-      floorsEl.appendChild(b);
+      body.appendChild(b);
     });
+
+    // Blank map is a legitimate state to pass through, so say so rather than looking broken.
+    var nothing=!S.base&&S.active.size===0;
+    if(nothing){
+      var hint=document.createElement("div"); hint.className="fhint";
+      hint.textContent="所有楼层均已关闭，地图为空。";
+      body.appendChild(hint);
+    }
+
+    var head=document.createElement("button");
+    head.type="button"; head.className="fpill"+(nothing?" warn":"");
+    head.setAttribute("aria-expanded",floorsOpen?"true":"false");
+    var hl=document.createElement("span"); hl.textContent=floorSummary();
+    var chev=document.createElement("span"); chev.className="chev"; chev.textContent="▾";
+    head.appendChild(hl); head.appendChild(chev);
+    head.addEventListener("click",function(){
+      floorsOpen=!floorsOpen;
+      floorsEl.classList.toggle("open",floorsOpen);
+      head.setAttribute("aria-expanded",floorsOpen?"true":"false");
+    });
+
+    // Body above the pill so the toggle stays at the very bottom, under the thumb.
+    floorsEl.appendChild(body);
+    floorsEl.appendChild(head);
+    floorsEl.classList.toggle("open",floorsOpen);
   }
 
   // ---- view: fit / clamp --------------------------------------------------------------------
@@ -344,7 +429,7 @@
   // ---- artwork: inline SVG ------------------------------------------------------------------
   function buildArt(){
     var m=S.snap&&S.snap.map, im=S.imagery;
-    var sig=S.mapKey+"|"+(im&&im.type)+"|"+Array.from(S.active).sort().join(",");
+    var sig=S.mapKey+"|"+(im&&im.type)+"|"+(S.base?"base":"nobase")+"|"+Array.from(S.active).sort().join(",");
     if(sig===S.artSig) return;
     S.artSig=sig;
     tileImgs.forEach(function(oldImg){ clearTimeout(oldImg._t); });   // drop pending tile timeouts of the old build
@@ -382,7 +467,7 @@
 
   function loadSvg(m){
     var floors=encodeURIComponent(Array.from(S.active).join(","));
-    var url=withKey("/map/"+encodeURIComponent(m.key)+".svg?floors="+floors+"&base=true");
+    var url=withKey("/map/"+encodeURIComponent(m.key)+".svg?floors="+floors+"&base="+(S.base?"true":"false"));
     var req=++S.artReq;
     artStatus("loading","加载地图…");
     var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
@@ -451,7 +536,7 @@
       y0=Math.floor(Math.max(t,r.y)/cell); y1=Math.floor(Math.min(bb,r.y+r.h-1e-6)/cell);
     }
     if(x1<x0||y1<y0||(x1-x0+1)*(y1-y0+1)>900) return;
-    var sig=level+":"+x0+","+x1+","+y0+","+y1+":"+S.mapKey, floor=Array.from(S.active)[0]||"";
+    var sig=level+":"+x0+","+x1+","+y0+","+y1+":"+S.mapKey+":"+(S.base?"base":"nobase"), floor=Array.from(S.active)[0]||"";
     if(sig===tileSig && !force) return;
     tileSig=sig;
     var need=new Set();
@@ -464,7 +549,7 @@
       img.onerror=function(){ clearTimeout(this._t); tileFail(this.src); };
       img.onload=function(){ clearTimeout(this._t); tileLoaded(); };
       var u=im.urlTemplate.replace("{z}",level).replace("{x}",x).replace("{y}",y);
-      img.src=withKey(u)+"&base=true"+(floor?"&floor="+encodeURIComponent(floor):"");
+      img.src=withKey(u)+"&base="+(S.base?"true":"false")+(floor?"&floor="+encodeURIComponent(floor):"");
       img.style.left=(x*cell)+"px"; img.style.top=(y*cell)+"px";
       img.style.width=cell+"px"; img.style.height=cell+"px";
       tileImgs.set(key,img); world.appendChild(img);
@@ -527,7 +612,10 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,cw,ch);
     var dpr=window.devicePixelRatio||1; ctx.setTransform(dpr,0,0,dpr,0,0);
-    var s=S.snap; if(!s||!s.proj||!s.map) return;
+    // s.proj does not exist: the projection lives at S.proj (from s.map.projection). Checking the
+    // snapshot property instead of the global silently returned on every frame, so the canvas never
+    // received a single marker. Guard the projection we actually draw with.
+    var s=S.snap; if(!s||!s.map||!S.proj) return;
     var zoomed=view.scale>view.fit*1.5;
 
     // player pulse (DOM, CSS-animated)
