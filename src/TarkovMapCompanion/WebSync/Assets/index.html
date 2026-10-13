@@ -608,6 +608,81 @@
   var P=function(x,z){ var b=gameToBase(x,z,S.proj); return { x:view.tx+b.x*view.scale, y:view.ty+b.y*view.scale }; };
   var Bp=function(bx,by){ return { x:view.tx+bx*view.scale, y:view.ty+by*view.scale }; };
 
+  // ---- POI styling (mirrors the desktop PoiOverlay.cs + MarkerPalette.cs) --------------------
+  // Sizes and colours are lifted from the desktop renderer rather than reinvented. Desktop markers
+  // are a fixed screen size -- they do not scale with zoom -- so the same numbers are the right ones
+  // here, and no phone-density rescale is applied: the desktop has already chosen the size at which
+  // the marker reads without dominating, and keeping the dense layers at MarkerRadius while the
+  // exits sit at ExtractRadius is precisely what lets the exits win on a small screen.
+  var POI_R = 5.5, EXTRACT_R = 7.5;              // PoiOverlay.MarkerRadius / ExtractRadius
+  var RING_GAP = 3.5, RING_W = 1.6;              // PoiOverlay conditional-ring offset / stroke
+  var MUTED_ALPHA = 70 / 255;                    // PoiOverlay.MutedAlpha
+  var POI_OUTLINE = "rgba(0,0,0,.745)";          // MarkerPalette.Outline (0,0,0,190)
+  var POI_MUTED_OUTLINE = "rgba(0,0,0,.235)";    // MarkerPalette.MutedOutline (0,0,0,60)
+  var RING_COLOR = "rgba(255,213,79,.878)";      // MarkerPalette.ConditionalRing
+  var POI_LABEL = "600 12px " + FONT;            // PoiOverlay LabelBody
+  var HALO_COLOR = "rgba(0,0,0,.753)", HALO_W = 3;   // MarkerPalette.Halo / LabelHalo stroke
+  var LEADER_COLOR = "rgba(255,255,255,.47)";    // MarkerPalette.LabelText at alpha 120
+  // PoiOverlay.ExtractKinds: drawn last so exits always sit above the dense layers.
+  var EXTRACT_KINDS = { ExtractPmc:1, ExtractScav:1, ExtractShared:1, Transit:1 };
+  // MarkerPalette.ColorFor: one hue per kind, the exit factions separated in lightness as well.
+  var POI_COLOR = {
+    ExtractPmc:"#5cd65c", ExtractScav:"#ff8a3d", ExtractShared:"#4fc3f7", Transit:"#c98aff",
+    Spawn:"#e06c75", BossZone:"#ff4d4d", LootContainer:"#d8a657", Hazard:"#ff5c33",
+    Lock:"#b0bec5", Switch:"#9ccc65", StationaryWeapon:"#90a4ae", BtrStop:"#80cbc4"
+  };
+  function poiColor(kind){ return POI_COLOR[kind] || "#ffffff"; }
+  function hexRgb(h){ h=String(h).replace("#","");
+    if(h.length===3) h=h.charAt(0)+h.charAt(0)+h.charAt(1)+h.charAt(1)+h.charAt(2)+h.charAt(2);
+    return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)]; }
+  function withAlpha(hex,a){ var c=hexRgb(hex); return "rgba("+c[0]+","+c[1]+","+c[2]+","+a+")"; }
+
+  // ---- label placement (mirrors the desktop LabelPlacer.cs) ----------------------------------
+  // Right of the marker first, then left, each tried down a ladder of vertical offsets; the first
+  // spot that collides with nothing already placed wins. A label with nowhere free is skipped
+  // rather than printed through three others. A leader line appears when the label lands far enough
+  // from its marker to be ambiguous, and every placed label keeps its own marker square clear so a
+  // name never covers the dot it belongs to.
+  var LBL_LADDER = [0,-13,13,-26,26,-39,39,-52,52,-65,65];
+  var LBL_SIDES = [1,-1];
+  var LBL_HALF = 7, LBL_BREATHE = 2, LBL_LEADER_AFTER = 15;
+  function Placer(){ this.taken=[]; }
+  Placer.prototype.fits=function(x0,y0,x1,y1){
+    if(x1<0 || x0>vw || y1<0 || y0>vh) return false;
+    for(var i=0;i<this.taken.length;i++){ var t=this.taken[i];
+      if(x0<t[2] && x1>t[0] && y0<t[3] && y1>t[1]) return false; }
+    return true;
+  };
+  Placer.prototype.take=function(x0,y0,x1,y1){
+    this.taken.push([x0-LBL_BREATHE,y0-LBL_BREATHE,x1+LBL_BREATHE,y1+LBL_BREATHE]); };
+  Placer.prototype.place=function(ax,ay,gap,w){
+    var h=12, m=LBL_HALF;
+    for(var s=0;s<LBL_SIDES.length;s++){
+      for(var l=0;l<LBL_LADDER.length;l++){
+        var drop=LBL_LADDER[l], base=ay+h*0.35+drop;
+        var left=LBL_SIDES[s]>0 ? ax+gap : ax-gap-w;
+        var x0=left, y0=base-h, x1=left+w, y1=base+h*0.25;
+        if(!this.fits(x0,y0,x1,y1)) continue;
+        this.take(x0,y0,x1,y1);
+        this.take(ax-m,ay-m,ax+m,ay+m);
+        return { x:left, y:base, w:w, leader:(Math.abs(drop)>=LBL_LEADER_AFTER)||LBL_SIDES[s]<0 };
+      }
+    }
+    return null;
+  };
+  function poiLeader(ax,ay,sx,sy,w){
+    var fx=(sx<ax)?sx+w:sx, fy=sy-12*0.3, dx=ax-fx, dy=ay-fy, len=Math.hypot(dx,dy);
+    if(len<=6) return;                          // stopping short points at the marker, not through it
+    var k=(len-6)/len;
+    ctx.save(); ctx.lineWidth=1; ctx.strokeStyle=LEADER_COLOR;
+    ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+dx*k,fy+dy*k); ctx.stroke(); ctx.restore();
+  }
+  function poiLabel(text,x,baseline){
+    ctx.font=POI_LABEL; ctx.textAlign="left"; ctx.textBaseline="alphabetic"; ctx.lineJoin="round";
+    ctx.lineWidth=HALO_W; ctx.strokeStyle=HALO_COLOR; ctx.strokeText(text,x,baseline);
+    ctx.fillStyle="#ffffff"; ctx.fillText(text,x,baseline);
+  }
+
   function draw(now){
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,cw,ch);
@@ -624,19 +699,46 @@
       pulse.style.opacity="1";
     } else pulse.style.opacity="0";
 
-    // 1 POIs
-    (s.pois||[]).forEach(function(p){
-      var o=P(p.x,p.z), ex=/extract/i.test(p.kind||"");
-      ctx.globalAlpha=(p.available===false)?0.4:1;
-      if(ex){ dot(o.x,o.y,7.6,"rgba(12,16,18,.85)"); dot(o.x,o.y,4.6,"#7fd1a6"); }
-      else diamond(o.x,o.y,5.4,"#8fb8d6","rgba(10,12,14,.7)");
-      if(p.conditional||p.singleUse){
-        var bx=o.x+(ex?9:7), by=o.y-(ex?9:7);
-        if(p.conditional) diamond(bx,by,3.6,"#f2c15b"); else dot(bx,by,3.2,"#f2c15b");
+    // 1 POIs -- same hierarchy as the desktop PoiOverlay: background layers first, exits last,
+    // fixed screen sizes, per-kind colours, muted unavailable exits, a conditional ring, and names
+    // only on exits. Out-of-map POIs are skipped, as the desktop draws nothing beyond the map.
+    var pois=s.pois||[], placer=new Placer(), br=S.baseRect, i, p;
+    for(var pass=0; pass<2; pass++){
+      for(i=0;i<pois.length;i++){
+        p=pois[i];
+        var isEx=EXTRACT_KINDS[p.kind]===1;
+        if((pass===1)!==isEx) continue;             // pass 0: everything but exits; pass 1: exits
+        var b=gameToBase(p.x,p.z,S.proj);
+        if(br && (b.x<br.x || b.y<br.y || b.x>br.x+br.w || b.y>br.y+br.h)) continue;   // off the map
+        var x=view.tx+b.x*view.scale, y=view.ty+b.y*view.scale;
+        if(x<-48 || y<-48 || x>vw+48 || y>vh+48) continue;                             // off screen
+
+        var r=isEx?EXTRACT_R:POI_R, col=poiColor(p.kind);
+        var muted=isEx && p.available===false;      // only exits fade; an unknown raid stays solid
+        var fill=muted?withAlpha(col,MUTED_ALPHA):col;
+        var edge=muted?POI_MUTED_OUTLINE:POI_OUTLINE;
+        if(isEx) diamond(x,y,r,fill,edge); else dot(x,y,r,fill,edge);
+
+        // "not simply open": the same dashed cue the desktop draws around a conditional exit.
+        // Single-use exits share it -- the desktop has no separate map mark for them.
+        if(isEx && !muted && (p.conditional||p.singleUse)){
+          ctx.save(); ctx.beginPath(); ctx.arc(x,y,r+RING_GAP,0,TAU);
+          ctx.lineWidth=RING_W; ctx.strokeStyle=RING_COLOR; ctx.setLineDash([3,2.5]);
+          ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        }
+
+        // Names only on exits, never on a muted one -- the desktop's default (ShowExtractNames
+        // && !muted). The placer drops any name that would collide with one already placed.
+        if(isEx && !muted){
+          var text=String(p.name||"");
+          if(text){
+            ctx.font=POI_LABEL;
+            var tw=ctx.measureText(text).width, spot=placer.place(x,y,r+4,tw);
+            if(spot){ if(spot.leader) poiLeader(x,y,spot.x,spot.y,tw); poiLabel(text,spot.x,spot.y); }
+          }
+        }
       }
-      if(ex||zoomed) label(p.name,o.x,o.y,"#e8ecef");
-      ctx.globalAlpha=1;
-    });
+    }
 
     // 2 annotations
     (s.annotations||[]).forEach(function(a){

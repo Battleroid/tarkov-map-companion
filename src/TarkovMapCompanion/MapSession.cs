@@ -190,8 +190,10 @@ public sealed class MapSession : IDisposable
                 Heatmap.Groups[group] = on;
         }
 
+        // Seeded before the broadcaster below is built, so this initial layer setup has no listeners
+        // to announce itself to.
         foreach (var kind in Enum.GetValues<PoiKind>())
-            Pois.Visible[kind] = settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on;
+            SetPoiLayer(kind, settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on);
 
         CurrentMap = catalog.Resolve(settings.CurrentMap);
 
@@ -211,6 +213,37 @@ public sealed class MapSession : IDisposable
     public PlayerOverlay Player { get; }
 
     public PoiOverlay Pois { get; }
+
+    /// <summary>
+    /// Turns one POI layer on or off and tells listeners, so a read-only mirror of this session
+    /// cannot fall out of step with what the map is actually drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This raises the existing <see cref="PoisChanged"/>. That event already carries "the POI
+    /// drawing changed", its only producers are the map rebuild and this method, and every
+    /// subscriber reads the overlays without writing back through here, so raising it cannot
+    /// cycle. A dedicated event was considered and rejected: the broadcaster and the two windows
+    /// already listen for <see cref="PoisChanged"/> and would each need a second subscription for
+    /// no behavioural gain.
+    /// </para>
+    /// <para>
+    /// Setting a layer to the value it already has raises nothing.
+    /// </para>
+    /// </remarks>
+    internal void SetPoiLayer(PoiKind kind, bool visible)
+    {
+        // Missing counts as hidden, matching PoiOverlay.IsKindVisible. The entry is still written so
+        // the dictionary keeps a full set of keys, but a value that matches what was already
+        // effective is not a change and must not announce itself.
+        var wasVisible = Pois.Visible.TryGetValue(kind, out var current) && current;
+        Pois.Visible[kind] = visible;
+
+        if (wasVisible == visible)
+            return;
+
+        PoisChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public ExtractLineOverlay ExtractLine { get; }
 
@@ -436,7 +469,10 @@ public sealed class MapSession : IDisposable
     /// </summary>
     public event EventHandler<GameMap>? MapSuggested;
 
-    /// <summary>Raised when the POI set for the current map has been rebuilt.</summary>
+    /// <summary>
+    /// Raised when the POI drawing for the current map has changed: the set was rebuilt, or a
+    /// layer's visibility was toggled through <see cref="SetPoiLayer"/>.
+    /// </summary>
     public event EventHandler? PoisChanged;
 
     /// <summary>

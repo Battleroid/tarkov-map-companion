@@ -262,9 +262,21 @@ internal static class SnapshotBuilder
         return result;
     }
 
-    /// <summary>Builds every point of interest on the current map, already localized.</summary>
+    /// <summary>
+    /// Builds the points of interest the overlay would actually draw, already localized.
+    /// </summary>
+    /// <remarks>
+    /// The mirror shows what the desktop shows, so this honours the overlay's own visibility
+    /// state rather than sending the whole catalog: the master <see cref="PoiOverlay.IsVisible"/>
+    /// toggle, and per-POI <see cref="PoiOverlay.IsKindVisible"/>. The "missing layer entry means
+    /// hidden" rule lives in that predicate; re-deriving it here would let the two drift.
+    /// </remarks>
     internal static List<WebSyncPoi> BuildPois(PoiOverlay pois)
     {
+        // The whole overlay can be toggled off; then the desktop draws nothing and neither do we.
+        if (!pois.IsVisible)
+            return new List<WebSyncPoi>();
+
         // The overlay replaces its list wholesale rather than mutating it, so holding the
         // reference for the duration of this loop is safe and needs no copy.
         var source = pois.Pois;
@@ -272,6 +284,10 @@ internal static class SnapshotBuilder
 
         foreach (var poi in source)
         {
+            // Only the layers the overlay would draw. IsKindVisible owns the visibility rule.
+            if (!pois.IsKindVisible(poi.Kind))
+                continue;
+
             result.Add(new WebSyncPoi
             {
                 Id = poi.Id,

@@ -490,6 +490,7 @@ public sealed class WebSyncTests
         };
 
         var pois = new PoiOverlay { Map = map };
+        pois.Visible[PoiKind.LootContainer] = true;
         pois.SetPois(
         [
             new MapPoi
@@ -575,6 +576,7 @@ public sealed class WebSyncTests
         var extract = new ExtractLineOverlay { Map = map };
 
         var pois = new PoiOverlay { Map = map };
+        pois.Visible[PoiKind.LootContainer] = true;
         pois.SetPois(
         [
             new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
@@ -603,6 +605,162 @@ public sealed class WebSyncTests
         // The route is not part of the content filter and must survive the toggle untouched.
         Assert.Single(shown.Waypoints);
         Assert.Single(hidden.Waypoints);
+    }
+
+    // ---- 3a. BuildPois mirrors the overlay's layer visibility ---------------
+
+    /// <summary>
+    /// A layer switched on is drawn on the desktop, so its POIs reach the mirror.
+    /// </summary>
+    [Fact]
+    public void PoisInAVisibleLayerAreIncluded()
+    {
+        var map = Catalog.Find("customs")!;
+        var game = new GamePosition(100, 0, 200);
+        var basePoint = map.ToBase(game);
+
+        var pois = new PoiOverlay { Map = map };
+        pois.Visible[PoiKind.LootContainer] = true;
+        pois.SetPois(
+        [
+            new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
+        ]);
+
+        var built = SnapshotBuilder.BuildPois(pois);
+
+        var poi = Assert.Single(built);
+        Assert.Equal("LootContainer", poi.Kind);
+        Assert.Equal("Loot", poi.Name);
+    }
+
+    /// <summary>
+    /// A layer switched off is not drawn on the desktop, so it must not reach the mirror.
+    /// </summary>
+    [Fact]
+    public void PoisInAHiddenLayerAreExcluded()
+    {
+        var map = Catalog.Find("customs")!;
+        var game = new GamePosition(100, 0, 200);
+        var basePoint = map.ToBase(game);
+
+        var pois = new PoiOverlay { Map = map };
+        pois.Visible[PoiKind.LootContainer] = false;
+        pois.SetPois(
+        [
+            new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
+        ]);
+
+        Assert.Empty(SnapshotBuilder.BuildPois(pois));
+    }
+
+    /// <summary>
+    /// A kind with no entry in <see cref="PoiOverlay.Visible"/> is hidden by definition, so the
+    /// overlay would not draw it and the mirror must not send it.
+    /// </summary>
+    [Fact]
+    public void PoisInALayerAbsentFromVisibleAreExcluded()
+    {
+        var map = Catalog.Find("customs")!;
+        var game = new GamePosition(100, 0, 200);
+        var basePoint = map.ToBase(game);
+
+        var pois = new PoiOverlay { Map = map };
+        pois.SetPois(
+        [
+            new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
+        ]);
+
+        Assert.DoesNotContain(PoiKind.LootContainer, pois.Visible.Keys);
+        Assert.Empty(SnapshotBuilder.BuildPois(pois));
+    }
+
+    /// <summary>
+    /// With the whole overlay switched off the desktop draws nothing, so the mirror sends none
+    /// even for a layer whose own entry is on.
+    /// </summary>
+    [Fact]
+    public void HidingTheWholeOverlayEmptiesThePoiList()
+    {
+        var map = Catalog.Find("customs")!;
+        var game = new GamePosition(100, 0, 200);
+        var basePoint = map.ToBase(game);
+
+        var pois = new PoiOverlay { Map = map };
+        pois.Visible[PoiKind.LootContainer] = true;
+        pois.SetPois(
+        [
+            new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
+        ]);
+        pois.IsVisible = false;
+
+        Assert.Empty(SnapshotBuilder.BuildPois(pois));
+    }
+
+    // ---- 3b. SetPoiLayer notifies and reaches the snapshot ------------------
+
+    /// <summary>A session with the same headless settings the throttle test uses.</summary>
+    private static AppSettings SessionSettings() => new()
+    {
+        AllowNetwork = false,
+        ReadGameLog = false,
+        SuggestMapFromPosition = false,
+        CullMode = CullMode.Off,
+        CurrentMap = "customs",
+        ScreenshotFolder = Path.Combine(Path.GetTempPath(), "tmc-websync-layers", Guid.NewGuid().ToString("N")),
+    };
+
+    /// <summary>
+    /// Toggling a layer through <see cref="MapSession.SetPoiLayer"/> changes what the mirror would
+    /// send. This is the desktop-to-phone path that used to stall until some unrelated broadcast.
+    /// </summary>
+    [Fact]
+    public void SetPoiLayerTogglesTheLayerInTheSnapshot()
+    {
+        using var session = new MapSession(SessionSettings(), Catalog);
+
+        var game = new GamePosition(100, 0, 200);
+        var basePoint = session.CurrentMap.ToBase(game);
+        session.Pois.SetPois(
+        [
+            new MapPoi { Kind = PoiKind.LootContainer, Name = "Loot", Position = game, Base = basePoint },
+        ]);
+
+        Assert.False(session.Pois.IsKindVisible(PoiKind.LootContainer));
+
+        session.SetPoiLayer(PoiKind.LootContainer, true);
+
+        var poi = Assert.Single(SnapshotBuilder.BuildPois(session.Pois));
+        Assert.Equal("LootContainer", poi.Kind);
+
+        session.SetPoiLayer(PoiKind.LootContainer, false);
+
+        Assert.Empty(SnapshotBuilder.BuildPois(session.Pois));
+    }
+
+    /// <summary>
+    /// The notification fires exactly once per real change, and not at all for a no-op set.
+    /// </summary>
+    /// <remarks>
+    /// Exactly-once is the property that rules out a notification loop: a raise that re-entered the
+    /// setter would land here as a count above one for a single call.
+    /// </remarks>
+    [Fact]
+    public void SetPoiLayerRaisesPoisChangedExactlyOncePerChange()
+    {
+        using var session = new MapSession(SessionSettings(), Catalog);
+
+        var raised = 0;
+        session.PoisChanged += (_, _) => raised++;
+
+        session.SetPoiLayer(PoiKind.LootContainer, true);
+        Assert.Equal(1, raised);
+
+        // Setting a layer to the value it already has is not a change, so nothing is announced.
+        session.SetPoiLayer(PoiKind.LootContainer, true);
+        Assert.Equal(1, raised);
+
+        session.SetPoiLayer(PoiKind.LootContainer, false);
+        Assert.Equal(2, raised);
     }
 
     // ---- 4. StateBroadcaster throttle ---------------------------------------
