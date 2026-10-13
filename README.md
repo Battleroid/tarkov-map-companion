@@ -48,6 +48,12 @@ clock, and how long the raid has been running.
 from the next by whether the two clocks stay in step. Yesterday's route is never stitched onto
 today's, and nothing older than the map's raid length is drawn.
 
+**Interface language.** English or Simplified Chinese, chosen in **Settings** and applied on
+restart. Every control, panel and preference is translated, along with floor names, layer labels
+and the exit conditions themselves. Proper nouns stay in Latin — PMC, Scav, AI, boss names, traders
+and `ZB-####` codes — because that is how the game shows them. Each exit condition is drawn as a
+single line in the active language, not as Chinese over an English echo.
+
 **Exits, with their conditions.** Every exit is shown, colored by faction. Conditional exits are
 ringed on the map and flagged in the list, and selecting one tells you what it needs:
 
@@ -331,6 +337,17 @@ The same color is what your squad sees you as, and while a session is running th
 colors somebody else is already using — nobody is stopped from picking one, and nobody is ever
 silently reassigned, but the moment to mention a clash is while you are choosing.
 
+**On a tablet, over the LAN.** Turn on **WebSync** in Settings and the app serves a read-only copy
+of the map to any browser on the same network. The tablet sees what the desktop sees — the artwork,
+your marker and its trail, the route, the guide line, exits, quest marks, notes, squad and pings —
+within a second, and pans and zooms by touch. It is a mirror and nothing else: every request only
+reads what the desktop already has, the browser cannot change a single thing, and none of it runs
+until you switch it on. Settings shows the address and a QR code to scan; an access token is
+generated for you and required on every request, so the link is the only way in and regenerating the
+token cuts off anyone who had the old one. It listens on port 8765 by default, only across your own
+network — it never announces itself to the internet — and the first time you turn it on, Windows may
+ask whether to let it through your private network.
+
 ## First run
 
 The app looks for `Escape from Tarkov\Screenshots` under Documents, and under OneDrive if OneDrive
@@ -347,7 +364,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 413 tests
+dotnet test              # 703 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 
@@ -391,6 +408,23 @@ Exit conditions are community-maintained and can lag a patch. You can correct th
 rebuilding by creating `%APPDATA%\TarkovMapCompanion\extract-notes.json`; entries there override
 the bundled ones per exit.
 
+Chinese text for exit *names* comes from tarkov.dev's own `maps_zh`. Chinese for exit *conditions*
+comes from the bundled `extract-notes.zh.json`, which sits beside the English file in
+`Data/Snapshots/`.
+
+That upstream payload has shipped defects that make the list unreadable, so three of them are
+corrected when the list is built:
+
+- a switch id attached to **every** extract on a map is ignored, instead of being turned into a
+  condition on all of them and an "activated by" line on every row;
+- one physical exit that upstream now sends as **two coincident `pmc` and `scav` records** is folded
+  back into a single shared exit, in the **Exits: shared** layer;
+- an extract whose name is a plain code (`ZB-1011`, `D-2`) keeps that code in **every** language, even
+  where the Chinese table offers a translation for one of the two records.
+
+Each is covered by a test in `PoiTests.cs` and `UpstreamDataFixesTests.cs`, so a data refresh that
+changes the shape will fail the build rather than quietly reintroduce one of them.
+
 ## Where it stores things
 
 | Path | Contents |
@@ -400,6 +434,9 @@ the bundled ones per exit.
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\` | Downloaded maps and tiles. Safe to delete. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\icons\` | Item pictures, one per item id. Safe to delete; they come back as needed. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\app.log` | What the app was doing, including why it stopped. Worth attaching to a bug report. |
+
+The WebSync access token is kept in `settings.json` with the rest of your preferences, and WebSync
+serves the same downloaded maps and tiles the desktop already cached rather than fetching its own.
 
 Party activity is logged on both sides with a shared tag derived from the session secret, like
 `[party ecb8932e host]`. Both ends compute the same tag without either sending it, so two people's
