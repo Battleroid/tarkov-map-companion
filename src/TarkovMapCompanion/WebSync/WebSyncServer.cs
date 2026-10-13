@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.WebSockets;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -47,6 +49,29 @@ internal sealed class WebSyncServer : IDisposable
 {
     /// <summary>How long a stop may take before the server gives up and lets the OS reclaim the socket.</summary>
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>Logical name of the embedded single-page browser client under <c>WebSync/Assets/</c>.</summary>
+    private const string ClientPageResourceName = "TarkovMapCompanion.WebSync.Assets.index.html";
+
+    /// <summary>
+    /// The largest client frame this endpoint will read. A message that does not fit the fixed buffer
+    /// closes the connection with 1009 (message too big): the mirror is read-only, so nothing a
+    /// client sends is worth buffering.
+    /// </summary>
+    private const int ClientFrameCapBytes = 4 * 1024;
+
+    /// <summary>
+    /// How often Kestrel pings each WebSocket. The ping is emitted by Kestrel's transport (via
+    /// <c>WebSocketOptions.KeepAliveInterval</c>), not by this endpoint, so it never competes with the
+    /// broadcaster's application sends for the socket's single writer slot.
+    /// </summary>
+    private static readonly TimeSpan ServerPingInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// No client frame within this window (roughly two missed server pings' worth of silence) means
+    /// the browser is gone; the socket is unregistered and disposed rather than pinned forever.
+    /// </summary>
+    private static readonly TimeSpan ClientLivenessTimeout = TimeSpan.FromSeconds(60);
 
     private readonly StateBroadcaster _broadcaster;
     private readonly AppSettings _settings;
@@ -391,12 +416,19 @@ internal sealed class WebSyncServer : IDisposable
         var app = builder.Build();
 
         // Token middleware first, so it fronts every endpoint mapped below and any added later.
+        // The WS upgrade carries the token as ?key= because a browser cannot set headers on it.
         app.Use(TokenGate);
+
+        // WebSockets must be enabled for HttpContext.WebSockets to accept an upgrade. The keep-alive
+        // interval is the server heartbeat (section 7.1): Kestrel pings every 30s in the transport,
+        // so a dead peer is eventually noticed without this endpoint writing on the socket.
+        app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = ServerPingInterval });
 
         app.MapGet("/", HandleRoot);
         app.MapGet("/api/state", HandleState);
         app.MapGet("/map/{mapId}.svg", HandleMapSvg);
         app.MapGet("/tiles/{mapId}/{z:int}/{x:int}/{y:int}.png", HandleTile);
+        app.Map("/ws", (RequestDelegate)HandleWebSocket);
 
         return app;
     }
@@ -455,20 +487,199 @@ internal sealed class WebSyncServer : IDisposable
 
     /// <summary>
     /// The entry point a tablet opens. Token-exempt so a wrong link gets a readable hint instead of
-    /// a bare 404; the real client arrives in M3.
+    /// a bare 404. With a matching key it serves the embedded single-page client when that asset is
+    /// present, falling back to a minimal "running" placeholder while the asset lane has not landed
+    /// it yet, so the endpoint is correct with or without the file.
     /// </summary>
     private IResult HandleRoot(HttpContext context)
     {
-        var body = TokenMatches(context.Request.Query["key"].ToString())
-            ? "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-              + "<title>WebSync</title></head>"
-              + "<body><p>WebSync is running.</p></body></html>"
-            : "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-              + "<title>WebSync</title></head><body><p>"
-              + WebUtility.HtmlEncode(Localizer.Loc("WebSync.ClientHintNeedKey"))
-              + "</p></body></html>";
+        if (TokenMatches(context.Request.Query["key"].ToString()))
+        {
+            if (TryReadClientPage(out var clientPage))
+                return Results.Content(clientPage, "text/html; charset=utf-8");
 
-        return Results.Content(body, "text/html; charset=utf-8");
+            return Results.Content(
+                "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                + "<title>WebSync</title></head>"
+                + "<body><p>WebSync is running.</p></body></html>",
+                "text/html; charset=utf-8");
+        }
+
+        var hint = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            + "<title>WebSync</title></head><body><p>"
+            + WebUtility.HtmlEncode(Localizer.Loc("WebSync.ClientHintNeedKey"))
+            + "</p></body></html>";
+
+        return Results.Content(hint, "text/html; charset=utf-8");
+    }
+
+    /// <summary>
+    /// Reads the embedded browser client, or reports false when it is absent or unreadable.
+    /// </summary>
+    /// <remarks>
+    /// Uses the same <see cref="Assembly.GetManifestResourceStream(string)"/> idiom as
+    /// <see cref="MapCatalog"/> and <c>ExtractNotesStore</c>. The resource is owned by the parallel
+    /// client lane, so a missing file is a normal state here, not an error: the caller falls back to
+    /// the placeholder page and the endpoint keeps working.
+    /// </remarks>
+    private static bool TryReadClientPage(out string html)
+    {
+        html = "";
+
+        try
+        {
+            using var stream = Assembly
+                .GetExecutingAssembly()
+                .GetManifestResourceStream(ClientPageResourceName);
+
+            if (stream is null)
+                return false;
+
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            html = reader.ReadToEnd();
+            return html.Length > 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"websync could not read the embedded client page: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ---- WebSocket (section 7.1) ------------------------------------------------------------------
+
+    /// <summary>
+    /// The read-only event stream: registers the socket with the broadcaster (which sends the full
+    /// snapshot as the first frame) and then runs the receive loop for liveness only.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Runs entirely on the Kestrel request thread; nothing here touches the UI thread or the worker
+    /// reconciler. The endpoint never writes on the socket itself -- all outbound traffic is the
+    /// broadcaster's, serialized through its per-client gate -- so the only writer contention to
+    /// reason about is the broadcaster's own fan-out.
+    /// </para>
+    /// <para>
+    /// The token gate has already run: a bad or missing <c>?key=</c> was answered with 404 before this
+    /// method, so <see cref="AcceptWebSocketAsync"/> is only reached for an authorised upgrade.
+    /// </para>
+    /// </remarks>
+    private async Task HandleWebSocket(HttpContext context)
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        using var socket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+
+        // Register sends the full snapshot first (the first-frame contract lives in the broadcaster,
+        // not here) and publishes the client for subsequent incremental broadcasts.
+        _broadcaster.Register(socket);
+
+        try
+        {
+            await ReceiveLoopAsync(socket).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // A receive/send failure must never escape onto the Kestrel request thread.
+            Log.Warn($"websync websocket ended: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            // The only unregistration path, so it happens exactly once however the loop ended.
+            _broadcaster.Unregister(socket);
+        }
+    }
+
+    /// <summary>
+    /// Consumes the receive direction for liveness until the client closes, over-sends or goes silent.
+    /// </summary>
+    /// <remarks>
+    /// The payload is discarded: the mirror is read-only, so a client frame means nothing beyond
+    /// "still here". A message larger than the fixed buffer makes <c>EndOfMessage</c> false, which is
+    /// the 4 KB cap the spec calls for, and closes with 1009. A 60s silence (two missed 30s pings)
+    /// is treated as a dead peer.
+    /// </remarks>
+    private static async Task ReceiveLoopAsync(WebSocket socket)
+    {
+        var buffer = new byte[ClientFrameCapBytes];
+
+        while (socket.State == WebSocketState.Open)
+        {
+            WebSocketReceiveResult result;
+
+            try
+            {
+                // A fresh window per read: any complete frame resets the liveness clock.
+                using var timeout = new CancellationTokenSource(ClientLivenessTimeout);
+                result = await socket
+                    .ReceiveAsync(new ArraySegment<byte>(buffer), timeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Info("websync dropping a websocket client that went silent");
+                break;
+            }
+
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                await CloseOutputAsync(socket).ConfigureAwait(false);
+                break;
+            }
+
+            // EndOfMessage is false exactly when the message did not fit the 4 KB buffer: too big.
+            if (!result.EndOfMessage)
+            {
+                await CloseWithStatusAsync(socket, WebSocketCloseStatus.MessageTooBig).ConfigureAwait(false);
+                break;
+            }
+
+            // A complete text/binary frame (a heartbeat) is all this direction needs.
+        }
+    }
+
+    /// <summary>Completes a client-initiated close handshake, swallowing a peer that already left.</summary>
+    private static async Task CloseOutputAsync(WebSocket socket)
+    {
+        try
+        {
+            if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+            {
+                await socket
+                    .CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is WebSocketException
+                                      or ObjectDisposedException
+                                      or OperationCanceledException)
+        {
+            // The peer is gone; disposal in Unregister is the fallback.
+        }
+    }
+
+    /// <summary>Sends a close frame with the given status, swallowing an already-broken socket.</summary>
+    private static async Task CloseWithStatusAsync(WebSocket socket, WebSocketCloseStatus status)
+    {
+        try
+        {
+            if (socket.State == WebSocketState.Open)
+            {
+                await socket
+                    .CloseOutputAsync(status, null, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is WebSocketException
+                                      or ObjectDisposedException
+                                      or OperationCanceledException)
+        {
+            // The close frame could not be delivered; Unregister still disposes the socket.
+        }
     }
 
     /// <summary>Serves the current full snapshot as JSON. Gated by the token middleware.</summary>
