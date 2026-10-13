@@ -59,6 +59,21 @@
     color:#ffd9d9;background:rgba(46,20,22,.82);border:1px solid rgba(255,107,107,.28);
     opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;white-space:nowrap}
   #banner.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* ---- artwork status (observability) ---- */
+  #art{position:absolute;left:50%;transform:translateX(-50%) translateY(-6px);
+    top:calc(110px + var(--safeT));z-index:4;display:flex;align-items:center;gap:7px;
+    padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;color:var(--dim);
+    background:var(--panel);border:1px solid var(--edge);box-shadow:var(--shadow);
+    -webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);
+    opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;white-space:nowrap;
+    max-width:calc(100vw - 28px);overflow:hidden}
+  #art.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #art .ad{width:9px;height:9px;border-radius:50%;flex:none;background:var(--amber);
+    box-shadow:0 0 0 3px rgba(242,193,91,.16)}
+  #art.loading .ad{animation:artpulse 1.1s ease-in-out infinite}
+  #art.error{color:#ffd9d9;background:rgba(46,20,22,.82);border-color:rgba(255,107,107,.28)}
+  #art.error .ad{background:var(--red);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
+  @keyframes artpulse{0%,100%{opacity:.3}50%{opacity:1}}
   #floors{position:absolute;left:0;right:0;bottom:calc(12px + var(--safeB));z-index:5;
     display:flex;gap:9px;padding:0 calc(14px + var(--safeL)) 0 calc(14px + var(--safeR));
     overflow-x:auto;scrollbar-width:none;justify-content:center;flex-wrap:nowrap}
@@ -96,6 +111,7 @@
     <div id="status" class="connecting"><span id="dot"></span><span id="stext">连接中</span></div>
   </div>
   <div id="banner">与桌面端连接中断，正在重连…</div>
+  <div id="art" aria-live="polite"><span class="ad"></span><span id="arttext"></span></div>
   <div id="floors"></div>
 
   <div id="wait">
@@ -135,7 +151,8 @@
       pulse=document.getElementById("pulse"),
       nameEl=document.getElementById("mapname"), statusEl=document.getElementById("status"),
       stext=document.getElementById("stext"), banner=document.getElementById("banner"),
-      floorsEl=document.getElementById("floors"), waitEl=document.getElementById("wait");
+      floorsEl=document.getElementById("floors"), waitEl=document.getElementById("wait"),
+      artEl=document.getElementById("art"), artText=document.getElementById("arttext");
   var FONT='system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif';
   var NS="http://www.w3.org/2000/svg", TAU=Math.PI*2;
 
@@ -316,20 +333,48 @@
     var sig=S.mapKey+"|"+(im&&im.type)+"|"+Array.from(S.active).sort().join(",");
     if(sig===S.artSig) return;
     S.artSig=sig;
-    world.innerHTML=""; tileImgs=new Map(); tileSig="";
-    if(!m||!im) return;
+    world.innerHTML=""; tileImgs=new Map(); tileSig=""; tileLogged=false;
+    if(!m||!im){ artStatus("ok"); return; }
     if(im.type==="svg") loadSvg(m);
-    else updateTiles(true);
+    else { artStatus("loading","加载地图…"); updateTiles(true); if(!tileImgs.size) artStatus("ok"); }
   }
+  // ---- artwork reporting (observability) ----------------------------------------------------
+  var tileLogged=false;
+  function artStatus(state, msg){
+    if(!artEl) return;
+    if(state==="ok"){ artEl.className=""; return; }                       // no class => hidden (opacity:0)
+    artEl.className="on "+(state==="error"?"error":"loading");
+    artText.textContent=msg||"";
+  }
+  function artFail(msg, url, detail, warn){
+    artStatus("error", msg);
+    var line="[websync] "+msg+" — "+url;
+    if(detail!=null && detail!=="") line+=" | "+String(detail);
+    (warn?console.warn:console.error)(line);
+  }
+  function tileLoaded(){
+    if(artEl&&artEl.classList.contains("loading")) artStatus("ok");      // only clears a pending load
+    if(!tileLogged){ tileLogged=true; console.info("[websync] 底图瓦片已渲染", S.mapKey, tileSig); }
+  }
+
   function loadSvg(m){
     var floors=encodeURIComponent(Array.from(S.active).join(","));
     var url=withKey("/map/"+encodeURIComponent(m.key)+".svg?floors="+floors+"&base=true");
     var req=++S.artReq;
-    fetch(url).then(function(r){ if(!r.ok) throw 0; return r.text(); }).then(function(text){
-      if(req!==S.artReq) return;
-      var doc=new DOMParser().parseFromString(text,"image/svg+xml");
-      var root=doc.documentElement;
-      if(!root||root.nodeName==="parsererror") return;
+    artStatus("loading","加载地图…");
+    fetch(url).then(function(r){
+      if(!r.ok){ var e=new Error("HTTP "+r.status); e.status=r.status; throw e; }
+      return r.text();
+    }).then(function(text){
+      if(req!==S.artReq) return;                       // benign: a newer request superseded this one
+      var doc, root, perr="";
+      try{ doc=new DOMParser().parseFromString(text,"image/svg+xml"); root=doc.documentElement; }
+      catch(e){ root=null; perr=(e&&e.message)||String(e); }
+      if(!root||root.nodeName==="parsererror"){
+        if(!perr&&root) perr=(root.textContent||"").trim().slice(0,160);
+        artFail("底图解析失败", url, perr||"服务器返回的 SVG 无法解析", true);
+        return;
+      }
       root.querySelectorAll("script").forEach(function(n){ n.remove(); });   // never run embedded scripts
       var vb=root.getAttribute("viewBox");
       if(!vb){
@@ -345,7 +390,14 @@
       while(root.firstChild) f.appendChild(document.importNode(root.firstChild,true));
       svg.appendChild(f);
       world.appendChild(svg);
-    }).catch(function(){});
+      artStatus("ok");
+      console.info("[websync] 底图已渲染", url);
+    }).catch(function(err){
+      if(req!==S.artReq) return;                       // benign: superseded before it settled, do not alarm
+      var status=err&&err.status;
+      if(status!=null) artFail("底图获取失败 · HTTP "+status, url, null);
+      else artFail("底图获取失败 · 网络错误", url, (err&&err.message)||String(err));
+    });
   }
 
   // ---- artwork: tiles -----------------------------------------------------------------------
@@ -374,6 +426,8 @@
       if(tileImgs.has(key)) continue;
       var img=document.createElement("img"); img.className="tile";
       img.decoding="async";
+      img.onerror=function(){ artFail("底图瓦片加载失败", this.src, null); };
+      img.onload=function(){ tileLoaded(); };
       var u=im.urlTemplate.replace("{z}",level).replace("{x}",x).replace("{y}",y);
       img.src=withKey(u)+"&base=true"+(floor?"&floor="+encodeURIComponent(floor):"");
       img.style.left=(x*cell)+"px"; img.style.top=(y*cell)+"px";
@@ -566,8 +620,15 @@
   measure();
   setStatus("connecting");
   requestRender();
-  fetch(withKey("/api/state")).then(function(r){ return r.ok?r.json():null; })
-    .then(function(j){ if(j) applySnapshot(j); }).catch(function(){});
+  fetch(withKey("/api/state")).then(function(r){
+    if(!r.ok){ var e=new Error("HTTP "+r.status); e.status=r.status; throw e; }
+    return r.json();
+  }).then(function(j){ if(j) applySnapshot(j); })
+    .catch(function(err){
+      var url=withKey("/api/state"), status=err&&err.status;
+      if(status!=null) artFail("地图数据加载失败 · HTTP "+status, url, null);
+      else artFail("地图数据加载失败 · 网络错误", url, (err&&err.message)||String(err));
+    });
   connect();
 })();
 </script>
