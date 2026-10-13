@@ -198,7 +198,12 @@ public sealed class MapSession : IDisposable
         // WebSync wiring, touchpoint 1 of 3 (docs/websync-implementation-spec.md section 5.4.1 D):
         // build the broadcaster and server, but do not start anything. ApplyWebSyncSettings decides.
         _broadcaster = new StateBroadcaster(this, settings);
-        _webSync = new WebSyncServer(_broadcaster, settings, message => Status?.Invoke(this, message));
+        _webSync = new WebSyncServer(
+            _broadcaster,
+            settings,
+            _assets,
+            _catalog,
+            message => Status?.Invoke(this, message));
     }
 
     public GameMap CurrentMap { get; private set; }

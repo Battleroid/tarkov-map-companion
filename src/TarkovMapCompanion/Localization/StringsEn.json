@@ -520,5 +520,6 @@
   "WebSync.StatusRunning": "Sharing on the local network",
   "WebSync.StatusStopped": "Not sharing",
   "WebSync.StatusPortInUse": "Port {0} is already in use.",
-  "WebSync.ClientHintNeedKey": "This link is missing its access key."
+  "WebSync.ClientHintNeedKey": "This link is missing its access key.",
+  "WebSync.ImageryUnavailable": "Map imagery is not available right now. Try again shortly, or turn downloads back on in Settings."
 }

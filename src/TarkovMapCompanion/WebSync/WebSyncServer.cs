@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,8 +11,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.Localization;
+using TarkovMapCompanion.Maps;
+using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Settings;
 
 namespace TarkovMapCompanion.WebSync;
@@ -46,9 +50,18 @@ internal sealed class WebSyncServer : IDisposable
 
     private readonly StateBroadcaster _broadcaster;
     private readonly AppSettings _settings;
+    private readonly AssetCache _assets;
+    private readonly MapCatalog _catalog;
 
     /// <summary>Reports a start failure to the UI (maps to <see cref="MapSession.Status"/>).</summary>
     private readonly Action<string> _reportStatus;
+
+    /// <summary>
+    /// Filtered SVG text, keyed by map id, base flag and the sorted layer ids (section 6.1 of the
+    /// spec). Bounded by map count times the handful of floor combinations a session asks for, so no
+    /// eviction is needed: entries live for the process and are recomputed on the next request anyway.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, string> _svgCache = new(StringComparer.Ordinal);
 
     /// <summary>Guards the desired state, the worker handle and the disposal flag.</summary>
     private readonly object _gate = new();
@@ -81,11 +94,20 @@ internal sealed class WebSyncServer : IDisposable
     /// </summary>
     /// <param name="broadcaster">Builds the snapshot served by <c>GET /api/state</c>.</param>
     /// <param name="settings">Read live, so a regenerated token takes effect without a restart.</param>
+    /// <param name="assets">Backs the cached SVG maps and tile pyramids the imagery routes serve.</param>
+    /// <param name="catalog">Whitelists <c>{mapId}</c> and supplies each map's floors and templates.</param>
     /// <param name="reportStatus">Surfaces a bind failure; never receives the token.</param>
-    internal WebSyncServer(StateBroadcaster broadcaster, AppSettings settings, Action<string> reportStatus)
+    internal WebSyncServer(
+        StateBroadcaster broadcaster,
+        AppSettings settings,
+        AssetCache assets,
+        MapCatalog catalog,
+        Action<string> reportStatus)
     {
         _broadcaster = broadcaster ?? throw new ArgumentNullException(nameof(broadcaster));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        _assets = assets ?? throw new ArgumentNullException(nameof(assets));
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _reportStatus = reportStatus ?? throw new ArgumentNullException(nameof(reportStatus));
     }
 
@@ -373,6 +395,8 @@ internal sealed class WebSyncServer : IDisposable
 
         app.MapGet("/", HandleRoot);
         app.MapGet("/api/state", HandleState);
+        app.MapGet("/map/{mapId}.svg", HandleMapSvg);
+        app.MapGet("/tiles/{mapId}/{z:int}/{x:int}/{y:int}.png", HandleTile);
 
         return app;
     }
@@ -458,6 +482,213 @@ internal sealed class WebSyncServer : IDisposable
 
         return Results.Content(json, "application/json; charset=utf-8");
     }
+
+    // ---- Map imagery (section 6 of the spec) ------------------------------------------------------
+
+    /// <summary>
+    /// Serves one map's SVG with only the requested floors present.
+    /// </summary>
+    /// <remarks>
+    /// The <c>floors</c> query carries <see cref="MapFloor.Name"/> values, but the filter matches
+    /// <see cref="MapFloor.SvgLayerId"/> -- two different namespaces. A name with no layer id (a
+    /// tile-only floor, e.g. Customs' 4th) simply contributes nothing, and the base flag still applies.
+    /// </remarks>
+    private async Task<IResult> HandleMapSvg(HttpContext context, string mapId, CancellationToken ct)
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        var map = FindMap(mapId);
+
+        // An unknown key or a map with no vector artwork: there is nothing here to serve.
+        if (map is null || !map.HasSvg)
+            return Results.NotFound();
+
+        var floorNames = ParseFloorNames(context.Request.Query["floors"].ToString());
+        var includeBase = ParseIncludeBase(context.Request.Query["base"].ToString());
+
+        var layerIds = map.Floors
+            .Where(f => floorNames.Contains(f.Name) && f.SvgLayerId is not null)
+            .Select(f => f.SvgLayerId!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+
+        // Stable key: the same floors in a different order, or with duplicates, share one entry.
+        var cacheKey = $"{mapId}|{includeBase}|{string.Join('|', layerIds)}";
+        if (_svgCache.TryGetValue(cacheKey, out var cached))
+            return SvgResponse(cached, context);
+
+        var text = await _assets.GetStringAsync(map.SvgUrl!, "svg", ct).ConfigureAwait(false);
+
+        if (text is null)
+        {
+            // Offline with nothing cached, or a transient upstream failure. Both mean "the imagery is
+            // not available right now", which is a 503: a 404 would claim the map does not exist.
+            return Results.Text(
+                Localizer.Loc("WebSync.ImageryUnavailable"),
+                "text/plain; charset=utf-8",
+                Encoding.UTF8,
+                StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var filtered = SvgLayerFilter.Filter(text, map.BaseSvgLayerId, layerIds, includeBase);
+        _svgCache[cacheKey] = filtered;
+
+        return SvgResponse(filtered, context);
+    }
+
+    /// <summary>
+    /// Serves one raster tile, proxied from the same cache the desktop renderer uses.
+    /// </summary>
+    /// <remarks>
+    /// The template is chosen by the shared <see cref="TileMapSource.ResolveTemplate"/> so the browser
+    /// and the desktop are guaranteed to look at the same pyramid for the same floor.
+    /// </remarks>
+    private async Task<IResult> HandleTile(
+        HttpContext context,
+        string mapId,
+        int z,
+        int x,
+        int y,
+        CancellationToken ct)
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        var map = FindMap(mapId);
+
+        // An unknown key or a map with no pyramid: 404. A tile missing from a valid pyramid is not.
+        if (map is null || !map.HasTiles)
+            return Results.NotFound();
+
+        // Outside the declared pyramid, or a coordinate that cannot exist at this zoom. The zoom
+        // checks short-circuit before the shift, so an out-of-range z never reaches it.
+        if (z < map.MinZoomLevel || z > map.MaxZoomLevel || x < 0 || y < 0 || x >= 1L << z || y >= 1L << z)
+            return Results.NotFound();
+
+        var floorName = context.Request.Query["floor"].ToString().Trim();
+        var includeBase = ParseIncludeBase(context.Request.Query["base"].ToString());
+
+        IReadOnlyCollection<string> floors = string.IsNullOrEmpty(floorName) ? [] : [floorName];
+        var template = TileMapSource.ResolveTemplate(map, floors, includeBase);
+
+        // No template (base hidden and no floor selected) counts as a missing tile: a quiet 1x1
+        // rather than an error the browser would spray into the console for every empty cell.
+        if (template is null)
+            return TransparentPixel(context);
+
+        var url = template
+            .Replace("{z}", z.ToString())
+            .Replace("{x}", x.ToString())
+            .Replace("{y}", y.ToString());
+
+        // The category carries the map name to match TileMapSource, so the desktop renderer and this
+        // proxy share one on-disk tile cache -- which is what lets already-cached tiles resolve offline.
+        var bytes = await _assets
+            .GetAsync(url, Path.Combine("tiles", map.NormalizedName), ct)
+            .ConfigureAwait(false);
+
+        if (bytes is not { Length: > 0 })
+            return TransparentPixel(context);
+
+        context.Response.Headers["Cache-Control"] = ImageryCacheControl;
+        return Results.Bytes(bytes, ContentTypeForTile(bytes));
+    }
+
+    /// <summary>
+    /// Whitelists a <c>{mapId}</c> against the catalog's map keys, rejecting anything that is not a
+    /// plain known key.
+    /// </summary>
+    /// <remarks>
+    /// Route parameters never match a slash, so a traversal attempt cannot arrive as a real path; the
+    /// dotted and encoded forms are rejected anyway, and an exact key compare means a case or spelling
+    /// variant misses rather than silently resolving to some other map.
+    /// </remarks>
+    private GameMap? FindMap(string mapId)
+    {
+        if (string.IsNullOrEmpty(mapId)
+            || mapId.Contains('/')
+            || mapId.Contains('\\')
+            || mapId.Contains("..", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        foreach (var map in _catalog.Maps)
+        {
+            if (string.Equals(map.Key, mapId, StringComparison.Ordinal))
+                return map;
+        }
+
+        return null;
+    }
+
+    /// <summary>Comma-separated floor names, trimmed and deduplicated. Absent or empty yields none.</summary>
+    private static HashSet<string> ParseFloorNames(string? raw)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return names;
+
+        foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            names.Add(part);
+
+        return names;
+    }
+
+    /// <summary>The <c>base</c> flag: absent means on, and only an explicit "false" turns it off.</summary>
+    private static bool ParseIncludeBase(string? raw) =>
+        !string.Equals(raw?.Trim(), "false", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The SVG response, with a short private cache.
+    /// </summary>
+    /// <remarks>
+    /// The URL carries every parameter that changes the body, so a short private cache is safe and
+    /// saves a re-request when the client toggles back to a floor combination it just used. The spec
+    /// allows this or <c>no-store</c>; a few minutes is the more useful of the two and a shared cache
+    /// is excluded by <c>private</c>.
+    /// </remarks>
+    private static IResult SvgResponse(string svg, HttpContext context)
+    {
+        context.Response.Headers["Cache-Control"] = ImageryCacheControl;
+        return Results.Content(svg, "image/svg+xml; charset=utf-8");
+    }
+
+    /// <summary>
+    /// A 1x1 transparent PNG, served in place of a missing tile so the browser console stays quiet.
+    /// </summary>
+    private static IResult TransparentPixel(HttpContext context)
+    {
+        context.Response.Headers["Cache-Control"] = ImageryCacheControl;
+        return Results.Bytes(TransparentPixelPng, "image/png");
+    }
+
+    /// <summary>
+    /// The content type for tile bytes: most pyramids are PNG but a few are WebP, so the magic bytes
+    /// decide. Anything unrecognized is served as PNG, the common case.
+    /// </summary>
+    private static string ContentTypeForTile(byte[] bytes)
+    {
+        if (bytes.Length >= 12
+            && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46
+            && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50)
+        {
+            return "image/webp";
+        }
+
+        return "image/png";
+    }
+
+    /// <summary>
+    /// A short private cache for imagery: the URL fully describes the body, and these files only
+    /// change when tarkov.dev reworks a map. Private keeps it out of any shared or proxy cache.
+    /// </summary>
+    private const string ImageryCacheControl = "private, max-age=300";
+
+    /// <summary>A 1x1 transparent PNG (70 bytes), the stand-in for a tile that cannot be served.</summary>
+    private static readonly byte[] TransparentPixelPng = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
 
     /// <summary>
     /// Works out the port the host actually bound, since a requested 0 means the OS picked one.

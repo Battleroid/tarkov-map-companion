@@ -520,5 +520,6 @@
   "WebSync.StatusRunning": "正在局域网内共享",
   "WebSync.StatusStopped": "未共享",
   "WebSync.StatusPortInUse": "端口 {0} 已被占用。",
-  "WebSync.ClientHintNeedKey": "该链接缺少访问密钥。"
+  "WebSync.ClientHintNeedKey": "该链接缺少访问密钥。",
+  "WebSync.ImageryUnavailable": "地图图像暂时不可用。请稍后重试，或在设置中重新开启下载。"
 }

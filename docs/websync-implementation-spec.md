@@ -82,7 +82,7 @@ WebSync/WebSyncServer（新增，Kestrel）
 | 当前地图/事件总线 | `MapSession.CurrentMap`、`MapSession.Overlays`、`MapSession.QuestProgressFromLog`，事件见 §3 架构图 | `MapSession.cs` |
 | 地图元数据 | `GameMap`：`Key/NormalizedName/DisplayName/Projection/BaseRect/SvgBaseRect/SvgUrl/**BaseSvgLayerId**/BaseTilePathTemplate/TileSize/MinZoomLevel/MaxZoomLevel/Floors/HasSvg/HasTiles`（`BaseSvgLayerId` 是 `string?`，public）；`MapFloor` 是 positional record：`Name/**SvgLayerId**/TilePathTemplate/ShownByDefault/Extents`，外加 `Covers(GamePosition)`。**注意 `MapFloor.Name` 与 `MapFloor.SvgLayerId` 是两个命名空间**（见 §6.1） | `Maps/GameMap.cs` |
 | 坐标投影 | `MapProjection.ToBase(GamePosition)` / `ToBase(double, double)`；仿射系数是 6 个**私有标量** `_cos/_sin/_a/_b/_c/_d`（**没有** `transform` 矩阵字段，`transform` 只是构造参数），**需在 §5.2 扩展只读访问器**；`MapProjection.CoordinateRotationDegrees`；`MapProjection.ScreenAngleDegrees(yaw)` | `Maps/MapProjection.cs` |
-| 资产缓存 | `AssetCache.GetStringAsync(url, category, ct)` / `GetAsync(...)` / `IsCached` / `PathFor`；`AllowNetwork`；`Root` 是 `init`-only 可注入（测试用 `new AssetCache { Root = tmp }`）。**AssetCache 不实现 `IDisposable`**，内部自建的 `HttpClient` 永不释放——不要试图 dispose 它 | `Data/AssetCache.cs` |
+| 资产缓存 | `AssetCache.GetStringAsync(url, category, ct)` / `GetAsync(...)` / `IsCached` / `PathFor`；`AllowNetwork`；`Root` 是 `init`-only 可注入（测试用 `new AssetCache { Root = tmp }`）。**⚠️ tile 的 category 不是裸 `"tiles"`，而是 `Path.Combine("tiles", map.NormalizedName)`**（SVG 才是裸 `"svg"`）——必须与 `TileMapSource.QueueFetch` 一致，否则平板端不复用桌面端已缓存的瓦片，离线时取不到。**AssetCache 不实现 `IDisposable`**，内部自建的 `HttpClient` 永不释放——不要试图 dispose 它 | `Data/AssetCache.cs` |
 | SVG 楼层过滤 | `SvgLayerFilter.Filter(string svgText, string? baseLayerId, IReadOnlyCollection<string> extraLayerIds, bool includeBase = true)`——**第 3 参是"额外图层 id"集合，不是 activeFloorNames；第 4 参才是 includeBase** | `Rendering/SvgLayerFilter.cs` |
 | 玩家状态 | `PlayerOverlay.Current`（`PlayerFix`）、`PlayerOverlay.History`（轨迹，最多 TrailLength=12）、`ActiveFloors` | `Rendering/PlayerOverlay.cs` |
 | 路线 | `WaypointOverlay.Waypoints`（`Waypoint{Position,Base,Number,Visited}`）、`WaypointOverlay.Next`、`SetSharedRoutes` 的 `SharedRoute{Owner,Map,Color,Points}` | `Rendering/WaypointOverlay.cs` |
@@ -370,7 +370,7 @@ src/TarkovMapCompanion/WebSync/
    - 备选：在 `WebSyncServer` 里照 `ResolveTemplate` 逻辑重写，并在测试里锁住一致性。
 
    既有逻辑（`TileMapSource.cs:197`）：返回**第一个**满足 `TilePathTemplate is not null && activeFloors.Contains(floor.Name)` 的 `MapFloor.TilePathTemplate`；否则 `includeBase` 为真时返回 `GameMap.BaseTilePathTemplate`，否则 null。注意这里匹配的是 `floor.Name`（**不是** `SvgLayerId`——SVG 与瓦片两套命名空间的区别见 §6.1）。
-4. `template.Replace("{z}",...).Replace("{x}",...).Replace("{y}",...)` 得 URL → `AssetCache.GetAsync(url, "tiles", ct)` → 字节转发，`Content-Type: image/png`（瓦片实为 png/webp 时以 AssetCache 实存为准，探测首字节魔数或在注释说明既有做法）。
+4. `template.Replace("{z}",...).Replace("{x}",...).Replace("{y}",...)` 得 URL → `AssetCache.GetAsync(url, Path.Combine("tiles", map.NormalizedName), ct)` → 字节转发（**category 必须带 map 名**，与 `TileMapSource.QueueFetch` 一致，否则不复用桌面端缓存、离线取不到；见 §4 资产缓存行）。`Content-Type` 探测首字节魔数（RIFF…WEBP → `image/webp`，否则 `image/png`）。
 5. 404/加载失败返回 1×1 透明 PNG，避免浏览器控制台噪声。
 
 ### 6.3 M2 测试

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Settings;
@@ -188,13 +189,18 @@ public sealed class WebSyncServerTests
 
             Session = new MapSession(Settings, MapCatalog.LoadEmbedded());
             Broadcaster = new StateBroadcaster(Session, Settings);
-            Server = new WebSyncServer(Broadcaster, Settings, message =>
-            {
-                lock (Statuses)
-                    Statuses.Add(message);
+            Server = new WebSyncServer(
+                Broadcaster,
+                Settings,
+                new AssetCache { AllowNetwork = false },
+                MapCatalog.LoadEmbedded(),
+                message =>
+                {
+                    lock (Statuses)
+                        Statuses.Add(message);
 
-                StatusReported?.Invoke(this, message);
-            });
+                    StatusReported?.Invoke(this, message);
+                });
         }
 
         public AppSettings Settings { get; }
