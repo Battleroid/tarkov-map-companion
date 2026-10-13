@@ -27,7 +27,11 @@
   #stage{position:fixed;inset:0;overflow:hidden;touch-action:none;background:
     radial-gradient(120% 120% at 50% 0%,#1b2026 0%,#121518 60%,#0e1012 100%)}
   #world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
-  #world svg{position:absolute;display:block;overflow:visible}
+  /* hidden, not visible: the desktop renderer clips the artwork to svgBaseRect (Skia's viewport is
+     that rect), and on some maps artwork spills outside the viewBox. Letting it paint outside the
+     box makes the drawn pixels larger than the rect ensureFit() fits, so the map runs off the
+     screen edge. Matching the desktop here is what keeps the two views aligned. */
+  #world svg{position:absolute;display:block;overflow:hidden}
   #world img.tile{position:absolute;image-rendering:auto;-webkit-user-drag:none;pointer-events:none}
   #cv{position:absolute;inset:0;pointer-events:none}
   /* ---- player pulse (CSS-animated so canvas only redraws on real change) ---- */
