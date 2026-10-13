@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Settings;
@@ -102,6 +103,18 @@ public partial class PreferencesWindow : Window
 
         PartyPortBox.Value = _settings.PartyPort;
         UpdatePartyPortHint();
+
+        WebSyncEnableBox.IsChecked = _settings.WebSyncEnabled;
+        WebSyncPortBox.Value = _settings.WebSyncPort;
+        WebSyncFollowFloorBox.IsChecked = _settings.WebSyncFollowPlayerFloor;
+        WebSyncShowPoisBox.IsChecked = _settings.WebSyncShowPois;
+        WebSyncShowQuestsBox.IsChecked = _settings.WebSyncShowQuests;
+        WebSyncShowAnnotationsBox.IsChecked = _settings.WebSyncShowAnnotations;
+        UpdateWebSyncPortHint();
+
+        // Reads the saved state into the URL, QR and status. No session call: the session already
+        // applied WebSync on startup, and re-applying here is not needed to draw the controls.
+        RefreshWebSync();
 
         PingSoundBox.IsChecked = _settings.PingSound;
 
@@ -294,6 +307,71 @@ public partial class PreferencesWindow : Window
             _settings.PartyPort = (int)(PartyPortBox.Value ?? _settings.PartyPort);
             UpdatePartyPortHint();
         });
+
+        WebSyncEnableBox.IsCheckedChanged += (_, _) => Apply(() =>
+        {
+            _settings.WebSyncEnabled = WebSyncEnableBox.IsChecked ?? false;
+
+            // Starts or stops the embedded server without a restart; mints the first token when
+            // this is the moment sharing was switched on.
+            _session?.ApplyWebSyncSettings();
+            RefreshWebSync();
+        });
+
+        WebSyncPortBox.ValueChanged += (_, _) => Apply(() =>
+        {
+            var value = WebSyncPortBox.Value;
+            var port = value is { } number ? (int)number : _settings.WebSyncPort;
+
+            // Out of range is not persisted: a bad port would leave the server unable to bind. The
+            // hint says which port the control refuses rather than silently snapping the value.
+            if (port < 1024 || port > 65535)
+            {
+                UpdateWebSyncPortHint();
+                return;
+            }
+
+            _settings.WebSyncPort = port;
+            UpdateWebSyncPortHint();
+
+            // Rebinds: the reconciler restarts the host on a port change.
+            _session?.ApplyWebSyncSettings();
+            RefreshWebSync();
+        });
+
+        WebSyncCopyButton.Click += async (_, _) =>
+        {
+            var url = WebSyncUrlBox.Text;
+            if (string.IsNullOrEmpty(url) || Clipboard is not { } clipboard)
+                return;
+
+            await clipboard.SetTextAsync(url);
+            ShowBriefly(WebSyncCopyNote, Localizer.Loc("WebSync.Copied"));
+        };
+
+        WebSyncRegenerateButton.Click += (_, _) => Apply(() =>
+        {
+            // Clearing the token is what makes ApplyWebSyncSettings mint a fresh one: it generates
+            // only when sharing is on and the token is empty. Anything already opened with the old
+            // key stops working, which is the point of the button.
+            _settings.WebSyncAccessToken = "";
+            _session?.ApplyWebSyncSettings();
+
+            RefreshWebSync();
+            ShowBriefly(WebSyncRegenerateNote, Localizer.Loc("WebSync.TokenRegenerated"));
+        });
+
+        WebSyncFollowFloorBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.WebSyncFollowPlayerFloor = WebSyncFollowFloorBox.IsChecked ?? true);
+
+        WebSyncShowPoisBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.WebSyncShowPois = WebSyncShowPoisBox.IsChecked ?? true);
+
+        WebSyncShowQuestsBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.WebSyncShowQuests = WebSyncShowQuestsBox.IsChecked ?? true);
+
+        WebSyncShowAnnotationsBox.IsCheckedChanged += (_, _) => Apply(() =>
+            _settings.WebSyncShowAnnotations = WebSyncShowAnnotationsBox.IsChecked ?? true);
 
         ArrivalMarkThenRemove.IsCheckedChanged += (_, _) => ApplyArrivalMode();
         ArrivalRemoveOnArrival.IsCheckedChanged += (_, _) => ApplyArrivalMode();
@@ -707,6 +785,100 @@ public partial class PreferencesWindow : Window
         PartyPortHint.Text = lan is null
             ? Localizer.Loc("Prefs.PortHintPc", _settings.PartyPort)
             : Localizer.Loc("Prefs.PortHintAddress", _settings.PartyPort, lan);
+    }
+
+    // ---- WebSync ------------------------------------------------------------
+
+    /// <summary>
+    /// Redraws the URL, the QR code and the status line together, and dims the controls that only
+    /// make sense while sharing. One entry point, called from every change that can affect them
+    /// (enable, port, token), so they can never disagree about what is being served.
+    /// </summary>
+    private void RefreshWebSync()
+    {
+        var enabled = _settings.WebSyncEnabled;
+
+        WebSyncStatus.Text = enabled
+            ? Localizer.Loc("WebSync.StatusRunning")
+            : Localizer.Loc("WebSync.StatusStopped");
+
+        // A link and a QR code that lead nowhere are worse than none, so they are dimmed rather than
+        // left showing a stale URL. Regenerate also needs a live session to mint a token; without
+        // one (the design-preview path) it is disabled instead of throwing on click.
+        WebSyncUrlBox.IsEnabled = enabled;
+        WebSyncCopyButton.IsEnabled = enabled;
+        WebSyncQrImage.IsEnabled = enabled;
+        WebSyncRegenerateButton.IsEnabled = enabled && _session is not null;
+
+        // The broadcast toggles describe what a client sees, which only exists while sharing. Dimmed
+        // to match how the Party section greys out its dependent controls.
+        WebSyncFollowFloorBox.IsEnabled = enabled;
+        WebSyncShowPoisBox.IsEnabled = enabled;
+        WebSyncShowQuestsBox.IsEnabled = enabled;
+        WebSyncShowAnnotationsBox.IsEnabled = enabled;
+
+        var url = BuildWebSyncUrl();
+
+        WebSyncUrlBox.Text = url ?? "";
+        WebSyncQrImage.Source = url is null ? null : RenderQr(url);
+    }
+
+    /// <summary>
+    /// The URL a tablet opens, or null while sharing is off -- there is nothing to reach then.
+    /// </summary>
+    /// <remarks>
+    /// The host is the machine's best LAN address, because a tablet on the same Wi-Fi cannot reach
+    /// loopback, and <see cref="WebSync.LanAddress.Best"/> already excludes loopback and link-local
+    /// ranges. When no usable address is found the URL falls back to <c>127.0.0.1</c>, which only
+    /// works on this machine; the loopback literal is shown as-is so the fallback is visible for what
+    /// it is rather than passed off as a shareable link.
+    /// </remarks>
+    private string? BuildWebSyncUrl()
+    {
+        if (!_settings.WebSyncEnabled || string.IsNullOrEmpty(_settings.WebSyncAccessToken))
+            return null;
+
+        var host = WebSync.LanAddress.Best()?.ToString() ?? "127.0.0.1";
+        return $"http://{host}:{_settings.WebSyncPort}/?key={_settings.WebSyncAccessToken}";
+    }
+
+    /// <summary>Renders the QR PNG into a bitmap, or null when there is nothing to encode.</summary>
+    private static Avalonia.Media.Imaging.Bitmap? RenderQr(string url)
+    {
+        try
+        {
+            var bytes = WebSync.QrCode.RenderPng(url);
+            if (bytes is null)
+                return null;
+
+            using var stream = new MemoryStream(bytes);
+            return new Avalonia.Media.Imaging.Bitmap(stream);
+        }
+        catch (Exception)
+        {
+            // A QR code that will not render is a display problem, not a fatal one: the URL beside
+            // it still works, so the section degrades to the plain link.
+            return null;
+        }
+    }
+
+    /// <summary>Says which port the control will accept, rather than snapping it silently.</summary>
+    private void UpdateWebSyncPortHint()
+    {
+        var value = WebSyncPortBox.Value;
+        var invalid = value is null || value < 1024 || value > 65535;
+
+        WebSyncPortHint.Text = invalid ? Localizer.Loc("WebSync.PortInvalid") : "";
+        WebSyncPortHint.IsVisible = invalid;
+    }
+
+    /// <summary>Shows a short confirmation next to the control that raised it, then clears it.</summary>
+    private static void ShowBriefly(TextBlock note, string text)
+    {
+        note.Text = text;
+        note.IsVisible = true;
+
+        DispatcherTimer.RunOnce(() => note.IsVisible = false, TimeSpan.FromSeconds(2));
     }
 
     private void UpdateRaidLengthText()

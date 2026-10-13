@@ -34,6 +34,12 @@ gathered from the [Escape from Tarkov Wiki](https://escapefromtarkov.fandom.com)
 requirement fields are used; the wiki's free-text notes are not reproduced. Regenerate with
 `--fetch-wiki`.
 
+## QR code rendering — QRCoder
+
+`src/TarkovMapCompanion/WebSync/QrCode.cs` renders the WebSync access URL as a QR code with
+[QRCoder](https://github.com/Shane32/QRCoder) 1.8.0, MIT licensed, Copyright (c) 2013-2025 Raffael
+Herrmann and Copyright (c) 2024-2025 Shane Krueger.
+
 ## Trademarks
 
 Escape from Tarkov is a trademark of Battlestate Games. This project is unofficial and is not

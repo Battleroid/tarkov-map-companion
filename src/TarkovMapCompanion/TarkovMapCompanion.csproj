@@ -34,6 +34,12 @@
     <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Svg.Skia" Version="$(SvgSkiaVersion)" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!--
+      Pure managed QR encoder (MIT). Only its PngByteQRCode renderer is used, and that writer is
+      pure managed, so it brings no SkiaSharp of its own to collide with the pin in
+      Directory.Build.props.
+    -->
+    <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>
 
   <ItemGroup>

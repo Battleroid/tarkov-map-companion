@@ -254,6 +254,58 @@
         </StackPanel>
         </Border>
 
+        <!--
+          WebSync: serves a read-only mirror of the current map to a tablet on the same Wi-Fi.
+          Sits next to Party because both are about reaching another device over the local network,
+          and it copies that section's shape: heading, hint, then label + control rows.
+        -->
+        <Border Classes="panel" Padding="12">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="heading" Text="{loc:Tr WebSync.Section}" />
+          <CheckBox Name="WebSyncEnableBox" Content="{loc:Tr WebSync.Enable}" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="{loc:Tr WebSync.EnableHint}" />
+          <TextBlock Name="WebSyncStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="{loc:Tr WebSync.Port}" VerticalAlignment="Center" Width="70" FontSize="12" />
+            <NumericUpDown Name="WebSyncPortBox" Minimum="1024" Maximum="65535" Increment="1"
+                           Width="140" FormatString="0" />
+          </StackPanel>
+          <TextBlock Name="WebSyncPortHint" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
+
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0">
+            <TextBlock Grid.Column="0" Text="{loc:Tr WebSync.Url}" VerticalAlignment="Center"
+                       Width="70" FontSize="12" />
+            <TextBox Grid.Column="1" Name="WebSyncUrlBox" IsReadOnly="True" FontSize="12" />
+            <Button Grid.Column="2" Name="WebSyncCopyButton" Content="{loc:Tr WebSync.Copy}" />
+          </Grid>
+          <TextBlock Name="WebSyncCopyNote" Classes="secondary" FontSize="11" IsVisible="False" />
+
+          <!--
+            8 pixels per module comes out a few hundred pixels wide, so this is a downscale; the
+            high-quality filter keeps the modules from aliasing away at the display size.
+          -->
+          <Image Name="WebSyncQrImage" Width="160" Height="160" HorizontalAlignment="Left"
+                 Stretch="Uniform" Margin="0,4,0,0"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
+          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                     Text="{loc:Tr WebSync.QrHint}" />
+
+          <Button Name="WebSyncRegenerateButton" Content="{loc:Tr WebSync.RegenerateToken}"
+                  HorizontalAlignment="Left" Margin="0,6,0,0" />
+          <TextBlock Name="WebSyncRegenerateNote" Classes="secondary" FontSize="11"
+                     TextWrapping="Wrap" IsVisible="False" />
+
+          <CheckBox Name="WebSyncFollowFloorBox" Content="{loc:Tr WebSync.FollowPlayerFloor}"
+                    Margin="0,6,0,0" />
+          <CheckBox Name="WebSyncShowPoisBox" Content="{loc:Tr WebSync.ShowPois}" />
+          <CheckBox Name="WebSyncShowQuestsBox" Content="{loc:Tr WebSync.ShowQuests}" />
+          <CheckBox Name="WebSyncShowAnnotationsBox" Content="{loc:Tr WebSync.ShowAnnotations}" />
+        </StackPanel>
+        </Border>
+
         <!-- Route markers -->
         <Border Classes="panel" Padding="12">
         <StackPanel Spacing="6">
