@@ -130,16 +130,6 @@
   #missing{background:radial-gradient(80% 80% at 50% 30%,#1b2026,#0e1012);display:none}
   #missing h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.02em}
   .hidden{display:none!important}
-  /* ---- on-device diagnostic overlay (opt-in: ?debug=1): photo-legible, opaque, cornered ---- */
-  #dbg{position:fixed;left:calc(8px + var(--safeL));top:calc(66px + var(--safeT));z-index:9;
-    max-width:min(96vw,600px);max-height:62vh;overflow:hidden;padding:7px 10px;border-radius:10px;
-    background:rgba(3,5,7,.9);color:#e9eff3;border:1px solid rgba(255,255,255,.3);
-    box-shadow:0 10px 32px rgba(0,0,0,.6);
-    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-    font-size:13px;line-height:1.34;white-space:pre;letter-spacing:-.2px;pointer-events:none;
-    text-shadow:0 1px 2px #000}
-  #dbg .v{font-size:21px;font-weight:800;letter-spacing:.05em;margin-bottom:3px}
-  #dbg .v.ok{color:#59ff9c} #dbg .v.bad{color:#ff5d6c}
 </style>
 </head>
 <body>
@@ -380,6 +370,7 @@
     vw=window.innerWidth; vh=window.innerHeight;
     var d=window.devicePixelRatio||1, w=Math.round(vw*d), h=Math.round(vh*d);
     if(w!==cw||h!==ch){ cv.width=w; cv.height=h; cw=w; ch=h; }
+    if(vw!==uiVw){ uiVw=vw; rescale(); }               // marker geometry follows the viewport width
   }
   function clamp(v,a,b){ return v<a?a:v>b?b:v; }
   function constrain(){
@@ -601,7 +592,6 @@
     world.style.transform="translate("+view.tx+"px,"+view.ty+"px) scale("+view.scale+")";
     draw(now); updateTiles(false);
     if(SELF_CHECK) selfCheck();
-    if(DEBUG){ try{ dbgFrame(); }catch(e){ if(!dbgLogged){ dbgLogged=true; console.error("[websync] debug overlay failed", e); } } }
     if(hasPings(now)) requestRender(); else if(needs) requestRender();
   }
 
@@ -627,110 +617,6 @@
     requestRender();
   }
 
-  // ---- on-device diagnostic overlay (opt-in: ?debug=1) --------------------------------------
-  // The device disagrees with the paper model, and headless reproduction here is unfaithful, so the
-  // measurement is built into the page and made readable from one photograph. Nothing below runs
-  // unless the URL carries ?debug=1: the flag is a single boolean, the panel DOM is created lazily
-  // on the first debug frame, and every draw is behind that flag, so the normal path is untouched.
-  var DEBUG=/[?&]debug=1/.test(location.search), dbgEl=null, dbgLogged=false;
-  var DBG_MEASURED="#00e5ff", DBG_PREDICT="#ff2fd6", DBG_MARK="#ffd400", DBG_BACK="#ffffff";
-  function dbgF(n,d){                          // fixed-decimals, tolerant of null/NaN (missing DOM)
-    if(n==null) return "null";
-    if(!isFinite(n)) return String(n);
-    var p=Math.pow(10,d); return (Math.round(n*p)/p).toFixed(d);
-  }
-  function dbgBox(o,p,d){ return (p||"")+"L="+dbgF(o.left,d)+" T="+dbgF(o.top,d)+" W="+dbgF(o.w,d)+" H="+dbgF(o.h,d); }
-  function dbgFrame(){
-    if(!dbgEl){ dbgEl=document.createElement("div"); dbgEl.id="dbg"; document.body.appendChild(dbgEl); }
-    var dpr=window.devicePixelRatio||1;
-    var r=viewRect()||{x:0,y:0,w:0,h:0};                 // the rect ensureFit() fitted
-    var fit=Math.min(vw/r.w, vh/r.h)*0.9;                // what the formula predicts for that rect
-
-    // (3) MEASURED artwork: real DOM geometry, read from the page, not from the model
-    var svg=world.querySelector("svg");
-    var mr=svg?svg.getBoundingClientRect():null;
-    var wr=world.getBoundingClientRect();
-    var tf=window.getComputedStyle(world).transform;
-    var ctm=(svg&&svg.getScreenCTM)?svg.getScreenCTM():null;
-    var m=mr?{left:mr.left,top:mr.top,w:mr.width,h:mr.height,right:mr.right,bottom:mr.bottom}:null;
-    var wb={left:wr.left,top:wr.top,w:wr.width,h:wr.height};
-
-    // (4) PREDICTED artwork rect: the view transform applied to the rect the <svg> is placed on
-    var rect=S.svgRect||S.baseRect||{x:0,y:0,w:0,h:0};   // the rect loadSvg() stretches onto
-    var pr={left:view.tx+rect.x*view.scale, top:view.ty+rect.y*view.scale,
-            w:rect.w*view.scale, h:rect.h*view.scale};
-    pr.right=pr.left+pr.w; pr.bottom=pr.top+pr.h;
-
-    // (5) one real POI, worked through both paths
-    var pois=(S.snap&&S.snap.pois)||[], p0=pois[0], marker=null, frac=null, back=null;
-    if(p0&&S.proj){
-      var b=gameToBase(p0.x,p0.z,S.proj);
-      marker={ x:view.tx+b.x*view.scale, y:view.ty+b.y*view.scale };   // what the canvas would use
-      frac={ x:(rect.w?(b.x-rect.x)/rect.w:NaN), y:(rect.h?(b.y-rect.y)/rect.h:NaN) };
-      if(m) back={ x:m.left+frac.x*m.w, y:m.top+frac.y*m.h };          // same fraction through MEASURED box
-    }
-
-    // (6) verdict inputs
-    var posDiff=m?Math.max(Math.abs(m.left-pr.left),Math.abs(m.top-pr.top)):NaN;
-    var sizeDiff=(m&&pr.w>0&&pr.h>0)?Math.max(Math.abs(m.w-pr.w)/pr.w,Math.abs(m.h-pr.h)/pr.h):NaN;
-    var inBox=!!(m&&marker&&marker.x>=m.left&&marker.x<=m.right&&marker.y>=m.top&&marker.y<=m.bottom);
-    var aligned=!!m&&isFinite(posDiff)&&posDiff<=2&&isFinite(sizeDiff)&&sizeDiff<=0.01&&inBox;
-    var backDiff=(back&&marker)?Math.hypot(back.x-marker.x,back.y-marker.y):NaN;
-
-    var L=[];
-    L.push("VIEWPORT iw="+vw+" ih="+vh+" dpr="+dbgF(dpr,2));
-    L.push("CANVAS   cv.w="+cv.width+" cv.h="+cv.height);       // (1)
-    L.push("VIEW     sc="+dbgF(view.scale,4)+" tx="+dbgF(view.tx,1)+" ty="+dbgF(view.ty,1));  // (2)
-    L.push("VIEWRECT "+dbgBox({left:r.x,top:r.y,w:r.w,h:r.h}));
-    L.push("FIT      min(vw/rw,vh/rh)*.9="+dbgF(fit,4)+" scale-fit="+dbgF(view.scale-fit,4));
-    L.push("MEASURED "+(m?dbgBox(m):"(no <svg>)"));
-    L.push("  style  "+dbgBox({left:parseFloat(svg&&svg.style.left),top:parseFloat(svg&&svg.style.top),
-                               w:parseFloat(svg&&svg.style.width),h:parseFloat(svg&&svg.style.height)}));
-    L.push("  viewBox=\""+(svg?svg.getAttribute("viewBox"):"")+"\"");
-    L.push("  wAttr="+(svg?(svg.getAttribute("width")||"(none)"):"(none)")
-           +" hAttr="+(svg?(svg.getAttribute("height")||"(none)"):"(none)"));
-    L.push("  ctm="+(ctm?("["+dbgF(ctm.a,3)+" "+dbgF(ctm.b,3)+" "+dbgF(ctm.c,3)+" "
-           +dbgF(ctm.d,3)+" "+dbgF(ctm.e,1)+" "+dbgF(ctm.f,1)+"]"):"(none)"));
-    L.push("  #world "+dbgBox(wb)+" tf="+String(tf).slice(0,30));
-    L.push("PREDICT  "+dbgBox(pr));
-    L.push("POI[0]   "+((p0&&S.proj)?("kind="+String(p0.kind)+" x="+dbgF(p0.x,1)+" z="+dbgF(p0.z,1)):"(none)"));
-    if(marker){
-      var base0=gameToBase(p0.x,p0.z,S.proj);
-      L.push("  base   x="+dbgF(base0.x,1)+" y="+dbgF(base0.y,1)
-             +"  canvas x="+dbgF(marker.x,1)+" y="+dbgF(marker.y,1));
-      L.push("  frac   fx="+dbgF(frac.x,4)+" fy="+dbgF(frac.y,4));
-      L.push("  thruM  x="+(back?dbgF(back.x,1):"-")+" y="+(back?dbgF(back.y,1):"-")
-             +"  diffpx dx="+(back?dbgF(back.x-marker.x,1):"-")+" dy="+(back?dbgF(back.y-marker.y,1):"-")
-             +" |d|="+dbgF(backDiff,1));
-    }
-    L.push("VERDICT  posDiff="+dbgF(posDiff,1)+"px<=2 sizeDiff="+dbgF(sizeDiff*100,2)+"%<=1");
-    L.push("  inBox="+(inBox?"yes":"no")+" thruDiff="+dbgF(backDiff,1)+"px");
-
-    dbgEl.innerHTML='<div class="v '+(aligned?"ok":"bad")+'">'+(aligned?"ALIGNED":"MISALIGNED")+'</div>'
-      +'<div>'+esc(L.join("\n"))+'</div>';
-
-    // the two artwork boxes and the marker, drawn over the map so the mismatch is visible directly
-    if(pr.w>0&&pr.h>0&&isFinite(pr.left)){
-      ctx.save();
-      ctx.setLineDash([7,5]); ctx.lineWidth=1.5;
-      if(m){ ctx.strokeStyle=DBG_MEASURED; ctx.strokeRect(m.left,m.top,m.w,m.h); }   // cyan = measured
-      ctx.strokeStyle=DBG_PREDICT; ctx.strokeRect(pr.left,pr.top,pr.w,pr.h);           // magenta = predicted
-      ctx.restore();
-    }
-    if(marker){
-      ctx.save();
-      ctx.strokeStyle=DBG_MARK; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.moveTo(marker.x-9,marker.y); ctx.lineTo(marker.x+9,marker.y);
-      ctx.moveTo(marker.x,marker.y-9); ctx.lineTo(marker.x,marker.y+9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(marker.x,marker.y,4,0,TAU); ctx.stroke();
-      ctx.restore();
-    }
-    if(back){
-      ctx.save(); ctx.strokeStyle=DBG_BACK; ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.arc(back.x,back.y,6,0,TAU); ctx.stroke(); ctx.restore();
-    }
-  }
-
   // ---- draw primitives ----------------------------------------------------------------------
   // Canvas 2D state is cumulative across draws and frames, while the artwork is DOM and therefore
   // immune: a primitive that leaves lineWidth/font/globalAlpha/lineDash/dash set alters every marker
@@ -743,20 +629,21 @@
     ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
     ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
   function dot(x,y,r,fill,stroke){ scoped(function(){ ctx.beginPath(); ctx.arc(x,y,r,0,TAU);
-    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }); }
+    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6*ui;ctx.strokeStyle=stroke;ctx.stroke();} }); }
   function diamond(x,y,r,fill,stroke){ scoped(function(){ ctx.beginPath(); ctx.moveTo(x,y-r); ctx.lineTo(x+r,y);
     ctx.lineTo(x,y+r); ctx.lineTo(x-r,y); ctx.closePath();
-    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6;ctx.strokeStyle=stroke;ctx.stroke();} }); }
+    if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.lineWidth=1.6*ui;ctx.strokeStyle=stroke;ctx.stroke();} }); }
   function tri(x,y,r,angle,fill,stroke){ scoped(function(){ ctx.translate(x,y); ctx.rotate(angle*Math.PI/180);
     ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.72,r*.86); ctx.lineTo(0,r*.42); ctx.lineTo(-r*.72,r*.86);
     ctx.closePath(); if(fill){ctx.fillStyle=fill;ctx.fill();}
-    if(stroke){ctx.lineWidth=2;ctx.lineJoin="round";ctx.strokeStyle=stroke;ctx.stroke();} }); }
+    if(stroke){ctx.lineWidth=2*ui;ctx.lineJoin="round";ctx.strokeStyle=stroke;ctx.stroke();} }); }
   function label(text,x,y,color){
     text=String(text||""); if(!text) return;
     scoped(function(){
-      ctx.font="600 12px "+FONT; var w=ctx.measureText(text).width, px=6, h=18;
-      var bx=clamp(x-w/2-px, 4, Math.max(4,vw-w-px*2-4)), by=y+9;
-      ctx.fillStyle="rgba(9,11,13,.68)"; rr(bx,by,w+px*2,h,6); ctx.fill();
+      var lf=LBL_PX, px=lf*0.5, h=lf*1.5;
+      ctx.font="600 "+lf+"px "+FONT; var w=ctx.measureText(text).width;
+      var bx=clamp(x-w/2-px, 4, Math.max(4,vw-w-px*2-4)), by=y+lf*0.75;
+      ctx.fillStyle="rgba(9,11,13,.68)"; rr(bx,by,w+px*2,h,lf*0.5); ctx.fill();
       ctx.fillStyle=color||"#e8ecef"; ctx.textAlign="center"; ctx.textBaseline="middle";
       ctx.fillText(text, bx+w/2+px, by+h/2+.5);
     });
@@ -773,21 +660,42 @@
   var P=function(x,z){ var b=gameToBase(x,z,S.proj); return { x:view.tx+b.x*view.scale, y:view.ty+b.y*view.scale }; };
   var Bp=function(bx,by){ return { x:view.tx+bx*view.scale, y:view.ty+by*view.scale }; };
 
+  // ---- viewport-relative marker scale -------------------------------------------------------
+  // The desktop PoiOverlay draws at fixed CSS pixels on a ~1920 px window: 7.5 px there is a speck,
+  // but the same 7.5 px on a 366 CSS px phone is ~5x larger relative to the screen, which is why the
+  // marker layer swamped the map on the tablet. So every marker/overlay size below is the desktop
+  // number times ONE unit factor derived from the viewport width, recomputed only when the viewport
+  // changes (measure() -> rescale()), never per marker per frame. The 5.5:7.5 dense:extract ratio
+  // survives because both ride the same factor.
+  var UIREF = 1000;               // a 1000 px-wide reference reproduces the desktop's own proportions
+  var UI_MIN = 0.6, UI_MAX = 1.0; // clamp: never below 0.6x (a speck) nor above the desktop's own size
+  var LABEL_MIN = 11;             // a label under ~11 CSS px is unreadable in a screenshot
+  var ui = 1, uiVw = -1;          // current unit factor + the viewport width it was derived from
+
   // ---- POI styling (mirrors the desktop PoiOverlay.cs + MarkerPalette.cs) --------------------
-  // Sizes and colours are lifted from the desktop renderer rather than reinvented. Desktop markers
-  // are a fixed screen size -- they do not scale with zoom -- so the same numbers are the right ones
-  // here, and no phone-density rescale is applied: the desktop has already chosen the size at which
-  // the marker reads without dominating, and keeping the dense layers at MarkerRadius while the
-  // exits sit at ExtractRadius is precisely what lets the exits win on a small screen.
-  var POI_R = 5.5, EXTRACT_R = 7.5;              // PoiOverlay.MarkerRadius / ExtractRadius
-  var RING_GAP = 3.5, RING_W = 1.6;              // PoiOverlay conditional-ring offset / stroke
+  // Colours are lifted from the desktop renderer; the base *_0 sizes are its numbers, which rescale()
+  // multiplies by ui to fit the viewport. Keeping the dense layers at MarkerRadius while the exits sit
+  // at ExtractRadius is what lets the exits win on a small screen.
+  var POI_R0 = 5.5, EXTRACT_R0 = 7.5;            // PoiOverlay.MarkerRadius / ExtractRadius
+  var RING_GAP0 = 3.5, RING_W0 = 1.6;            // PoiOverlay conditional-ring offset / stroke
+  var HALO_W0 = 3, LBL_PX0 = 12;                 // MarkerPalette.Halo stroke / PoiOverlay LabelBody
+  var POI_R = POI_R0, EXTRACT_R = EXTRACT_R0, RING_GAP = RING_GAP0, RING_W = RING_W0;
+  var HALO_W = HALO_W0, LBL_PX = LBL_PX0, POI_LABEL = "600 12px " + FONT;
   var MUTED_ALPHA = 70 / 255;                    // PoiOverlay.MutedAlpha
   var POI_OUTLINE = "rgba(0,0,0,.745)";          // MarkerPalette.Outline (0,0,0,190)
   var POI_MUTED_OUTLINE = "rgba(0,0,0,.235)";    // MarkerPalette.MutedOutline (0,0,0,60)
   var RING_COLOR = "rgba(255,213,79,.878)";      // MarkerPalette.ConditionalRing
-  var POI_LABEL = "600 12px " + FONT;            // PoiOverlay LabelBody
-  var HALO_COLOR = "rgba(0,0,0,.753)", HALO_W = 3;   // MarkerPalette.Halo / LabelHalo stroke
+  var HALO_COLOR = "rgba(0,0,0,.753)";           // MarkerPalette.Halo
   var LEADER_COLOR = "rgba(255,255,255,.47)";    // MarkerPalette.LabelText at alpha 120
+  // The one place the factor and everything derived from it is computed.
+  function rescale(){
+    ui = clamp(vw/UIREF, UI_MIN, UI_MAX);
+    POI_R = POI_R0*ui; EXTRACT_R = EXTRACT_R0*ui;
+    RING_GAP = RING_GAP0*ui; RING_W = RING_W0*ui;
+    HALO_W = HALO_W0*ui;
+    LBL_PX = Math.max(LABEL_MIN, LBL_PX0*ui);           // floor keeps the text legible on a phone
+    POI_LABEL = "600 "+LBL_PX+"px "+FONT;
+  }
   // PoiOverlay.ExtractKinds: drawn last so exits always sit above the dense layers.
   var EXTRACT_KINDS = { ExtractPmc:1, ExtractScav:1, ExtractShared:1, Transit:1 };
   // MarkerPalette.ColorFor: one hue per kind, the exit factions separated in lightness as well.
@@ -808,6 +716,9 @@
   // rather than printed through three others. A leader line appears when the label lands far enough
   // from its marker to be ambiguous, and every placed label keeps its own marker square clear so a
   // name never covers the dot it belongs to.
+  // Declutter spacing/collision constants stay in desktop pixels: they are LabelPlacer logic, not a
+  // drawn size, and because the label font is floored (not scaled all the way down) the desktop
+  // spacing is the spacing that still fits a legible label on a phone.
   var LBL_LADDER = [0,-13,13,-26,26,-39,39,-52,52,-65,65];
   var LBL_SIDES = [1,-1];
   var LBL_HALF = 7, LBL_BREATHE = 2, LBL_LEADER_AFTER = 15;
@@ -836,10 +747,11 @@
     return null;
   };
   function poiLeader(ax,ay,sx,sy,w){
-    var fx=(sx<ax)?sx+w:sx, fy=sy-12*0.3, dx=ax-fx, dy=ay-fy, len=Math.hypot(dx,dy);
-    if(len<=6) return;                          // stopping short points at the marker, not through it
-    var k=(len-6)/len;
-    scoped(function(){ ctx.lineWidth=1; ctx.strokeStyle=LEADER_COLOR;
+    var fx=(sx<ax)?sx+w:sx, fy=sy-LBL_PX*0.3, dx=ax-fx, dy=ay-fy, len=Math.hypot(dx,dy);
+    var stop=6*ui;
+    if(len<=stop) return;                       // stopping short points at the marker, not through it
+    var k=(len-stop)/len;
+    scoped(function(){ ctx.lineWidth=1; ctx.strokeStyle=LEADER_COLOR;   // a hairline: stays 1 px, unscaled
       ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+dx*k,fy+dy*k); ctx.stroke(); });
   }
   function poiLabel(text,x,baseline){
@@ -870,9 +782,9 @@
     var s=S.snap; if(!s||!s.map||!S.proj) return;
     var zoomed=view.scale>view.fit*1.5;
 
-    // player pulse (DOM, CSS-animated)
+    // player pulse (DOM, CSS-animated); scaled by the same factor so the ring tracks the marker
     if(s.player){ var pb=gameToBase(s.player.x,s.player.z,S.proj);
-      pulse.style.transform="translate("+(view.tx+pb.x*view.scale)+"px,"+(view.ty+pb.y*view.scale)+"px)";
+      pulse.style.transform="translate("+(view.tx+pb.x*view.scale)+"px,"+(view.ty+pb.y*view.scale)+"px) scale("+ui+")";
       pulse.style.opacity="1";
     } else pulse.style.opacity="0";
 
@@ -915,7 +827,7 @@
             var text=String(p.name||"");
             if(text){
               ctx.font=POI_LABEL;
-              var tw=ctx.measureText(text).width, spot=placer.place(x,y,r+4,tw);
+              var tw=ctx.measureText(text).width, spot=placer.place(x,y,r+4*ui,tw);
               if(spot){ if(spot.leader) poiLeader(x,y,spot.x,spot.y,tw); poiLabel(text,spot.x,spot.y); }
             }
           }
@@ -927,29 +839,29 @@
     (s.annotations||[]).forEach(function(a){
       var o=P(a.x,a.z);
       scoped(function(){
-        ctx.beginPath(); ctx.moveTo(o.x-3,o.y+1); ctx.lineTo(o.x,o.y+9); ctx.lineTo(o.x+3,o.y+1); ctx.closePath();
+        ctx.beginPath(); ctx.moveTo(o.x-3*ui,o.y+1*ui); ctx.lineTo(o.x,o.y+9*ui); ctx.lineTo(o.x+3*ui,o.y+1*ui); ctx.closePath();
         ctx.fillStyle="#e8d9a0"; ctx.fill();
       });
-      dot(o.x,o.y-3,6,"#e8d9a0","rgba(10,12,14,.7)");
-      if(zoomed) label(a.text||"标注",o.x,o.y+10,"#f2e9c8");
+      dot(o.x,o.y-3*ui,6*ui,"#e8d9a0","rgba(10,12,14,.7)");
+      if(zoomed) label(a.text||"标注",o.x,o.y+10*ui,"#f2e9c8");
     });
 
     // 3 quests
     (s.quests||[]).forEach(function(q){
-      var o=P(q.x,q.z); diamond(o.x,o.y,6.4,"#c89be0","rgba(10,12,14,.7)");
+      var o=P(q.x,q.z); diamond(o.x,o.y,6.4*ui,"#c89be0","rgba(10,12,14,.7)");
       if(zoomed) label(q.label||"任务",o.x,o.y,"#e6d3f4");
     });
 
     // 4 shared / peer routes
-    (s.sharedRoutes||[]).forEach(function(r){ route(r.points, r.color||"#9aa4ad", 3); });
-    (s.peerRoutes||[]).forEach(function(r){ route(r.points, peerColor(r.name)||"#9aa4ad", 2.4, [7,5]); });
+    (s.sharedRoutes||[]).forEach(function(r){ route(r.points, r.color||"#9aa4ad", 3*ui); });
+    (s.peerRoutes||[]).forEach(function(r){ route(r.points, peerColor(r.name)||"#9aa4ad", 2.4*ui, [7*ui,5*ui]); });
 
     // 5 waypoints
     (s.waypoints||[]).forEach(function(w){
       var o=P(w.x,w.z), dim=w.visited;
-      dot(o.x,o.y,11,"rgba(10,12,14,.72)", dim?"rgba(224,164,88,.35)":"#e0a458");
+      dot(o.x,o.y,11*ui,"rgba(10,12,14,.72)", dim?"rgba(224,164,88,.35)":"#e0a458");
       scoped(function(){
-        ctx.fillStyle=dim?"rgba(224,164,88,.6)":"#f2c15b"; ctx.font="700 11px "+FONT;
+        ctx.fillStyle=dim?"rgba(224,164,88,.6)":"#f2c15b"; ctx.font="700 "+(11*ui)+"px "+FONT;
         ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(String(w.n),o.x,o.y+.5);
       });
     });
@@ -958,9 +870,9 @@
     var ex=s.extract;
     if(ex&&ex.guideBase&&s.player){
       var a=P(s.player.x,s.player.z), b=Bp(ex.guideBase.x,ex.guideBase.y);
-      scoped(function(){ ctx.setLineDash([9,7]); ctx.lineWidth=2.6; ctx.strokeStyle="rgba(127,209,166,.9)";
+      scoped(function(){ ctx.setLineDash([9*ui,7*ui]); ctx.lineWidth=2.6*ui; ctx.strokeStyle="rgba(127,209,166,.9)";
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
-      dot(b.x,b.y,5,"#7fd1a6","rgba(10,12,14,.7)");
+      dot(b.x,b.y,5*ui,"#7fd1a6","rgba(10,12,14,.7)");
       var t=""; if(ex.distanceMeters!=null) t=Math.round(ex.distanceMeters)+"米";
       if(ex.relativeBearingDegrees!=null){ var dd=Math.round(ex.relativeBearingDegrees);
         t+=(t?" · ":"")+(dd<0?Math.abs(dd)+"°左":dd+"°右"); }
@@ -971,7 +883,7 @@
     // 7 peers
     (s.peers||[]).forEach(function(pe){
       var o=P(pe.x,pe.z), c=pe.color||"#6fb7ff";
-      tri(o.x,o.y,9,screenAngle(pe.yawDegrees||0),c,"rgba(0,0,0,.55)");
+      tri(o.x,o.y,9*ui,screenAngle(pe.yawDegrees||0),c,"rgba(0,0,0,.55)");
       label(pe.name,o.x,o.y,c);
     });
 
@@ -979,8 +891,8 @@
     (s.pings||[]).forEach(function(p){
       var age=now-pingStamp(p); if(age<0||age>3000) return;
       var k=age/3000, o=P(p.x,p.z);
-      scoped(function(){ ctx.globalAlpha=1-k; ctx.beginPath(); ctx.arc(o.x,o.y,8+k*28,0,TAU);
-        ctx.lineWidth=3; ctx.strokeStyle="#ff6b6b"; ctx.stroke(); });
+      scoped(function(){ ctx.globalAlpha=1-k; ctx.beginPath(); ctx.arc(o.x,o.y,(8+k*28)*ui,0,TAU);
+        ctx.lineWidth=3*ui; ctx.strokeStyle="#ff6b6b"; ctx.stroke(); });
     });
 
     // 9 trail
@@ -989,14 +901,14 @@
       scoped(function(){
         ctx.beginPath();
         for(var i=0;i<tr.length;i++){ var o=P(tr[i].x,tr[i].z); if(i)ctx.lineTo(o.x,o.y); else ctx.moveTo(o.x,o.y); }
-        ctx.lineWidth=2.6; ctx.lineCap="round"; ctx.lineJoin="round";
+        ctx.lineWidth=2.6*ui; ctx.lineCap="round"; ctx.lineJoin="round";
         ctx.strokeStyle="rgba(224,164,88,.55)"; ctx.stroke();
       });
     }
 
     // 10 player
     if(s.player){ var p10=P(s.player.x,s.player.z);
-      tri(p10.x,p10.y,12,s.player.screenAngleDegrees||0,"#f2c15b","rgba(0,0,0,.7)"); }
+      tri(p10.x,p10.y,12*ui,s.player.screenAngleDegrees||0,"#f2c15b","rgba(0,0,0,.7)"); }
   }
 
   // ---- connection ---------------------------------------------------------------------------
