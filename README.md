@@ -49,10 +49,11 @@ from the next by whether the two clocks stay in step. Yesterday's route is never
 today's, and nothing older than the map's raid length is drawn.
 
 **Interface language.** English or Simplified Chinese, chosen in **Settings** and applied on
-restart. Every control, panel and preference is translated, along with floor names, layer labels
-and the exit conditions themselves. Proper nouns stay in Latin — PMC, Scav, AI, boss names, traders
-and `ZB-####` codes — because that is how the game shows them. Each exit condition is drawn as a
-single line in the active language, not as Chinese over an English echo.
+restart. A fresh install starts in Simplified Chinese; an existing `settings.json` keeps whichever
+language it already names. Every control, panel and preference is translated, along with floor
+names, layer labels and the exit conditions themselves. Proper nouns stay in Latin — PMC, Scav,
+AI, boss names, traders and `ZB-####` codes — because that is how the game shows them. Each exit
+condition is drawn as a single line in the active language, not as Chinese over an English echo.
 
 **Exits, with their conditions.** Every exit is shown, colored by faction. Conditional exits are
 ringed on the map and flagged in the list, and selecting one tells you what it needs:
@@ -364,7 +365,7 @@ Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 ```
 git clone https://github.com/Battleroid/tarkov-map-companion
 cd tarkov-map-companion
-dotnet test              # 716 tests
+dotnet test              # 718 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
 

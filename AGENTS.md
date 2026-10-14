@@ -13,7 +13,7 @@ The .NET 8 SDK here is user-local and **not on PATH** — every session needs:
 ```powershell
 $env:DOTNET_ROOT="$env:USERPROFILE\.dotnet"
 $env:PATH="$env:USERPROFILE\.dotnet;$env:PATH"
-dotnet test                                     # 703 tests
+dotnet test
 dotnet run --project src/TarkovMapCompanion     # or: Run.bat
 scripts\publish.ps1                             # single-file publish -> publish\
 ```
@@ -35,9 +35,16 @@ CI runs on `windows-latest` and includes a real `--render-test` smoke test.
 ## Conventions
 
 - `src/TarkovMapCompanion/{Data,Views,Localization,Tools,Settings}` + `tests/TarkovMapCompanion.Tests/`.
+- **Control `Name`s in `PreferencesWindow.axaml` are load-bearing.** The code-behind finds controls by
+  name, so renaming one breaks the binding silently — the setting still saves but the control never
+  updates. The 2026-10-14 rebuild into six category pages moved thirteen panels and changed no `Name`
+  for exactly this reason. The dialog also applies every edit live; there is no OK/Cancel.
 - **Localization keys are the contract.** `StringsEn.json` and `StringsZh.json` must have identical
   key sets. `Localizer.Pick(english, chinese)` is the one place a language decision is made; call
-  sites must not branch on language themselves.
+  sites must not branch on language themselves. Data that is *always* English (POI names, map keys,
+  wiki note keys) must be reached through the English accessor — comparing it against a display
+  string only works while the UI happens to be in English. The remaining contract debt and the
+  OCR-can't-read-Chinese gap are written up in `docs/localization-ocr-chinese-backlog.md`.
 - **Do not trust the vendored data.** `Data/Snapshots/` holds a json.tarkov.dev payload and a wiki
   scrape, and it has shipped real defects. `PoiBuilder` normalizes three (mis-assigned switch ids,
   coincident same-name extracts, code-named extracts), each pinned in `PoiTests.cs` /
@@ -48,14 +55,19 @@ CI runs on `windows-latest` and includes a real `--render-test` smoke test.
 
 ## Current state
 
-Fork of `Battleroid/tarkov-map-companion`; `master` at `d84e569`, pushed to
-`BlueMess/tarkov-map-companion-self-improv`. Build clean, 716/716 tests pass. The four local commits
-(Simplified Chinese + three data fixes) are **not yet an open PR** — a bilingual description is
-drafted at `%TEMP%\opencode\PR_DESCRIPTION.md`, base `Battleroid/tarkov-map-companion:master`.
+Fork of `Battleroid/tarkov-map-companion`, pushed to `BlueMess/tarkov-map-companion-self-improv`.
+**All work lands on `master`; there are no feature branches left.** It has delivered WebSync, the
+vendored-data fixes, Simplified Chinese (`40613e8`), the preferences dialog rebuilt as a
+six-category rail, and Simplified Chinese as the client default. Build clean, tests green.
 
-On branch **`websync`** (built on `d84e569`): an embedded, read-only LAN mirror of the
-map, built as M1-M4 (skeleton + snapshot + token, basemap endpoints, WebSocket + client page,
-settings pane + QR) and then hardened against a real phone. `src/TarkovMapCompanion/WebSync/` holds
+The client defaults to Simplified Chinese, set in three places that must move together —
+`AppSettings.Language`, the `Normalize()` fallback for a hand-edited file, and the `Localizer`
+static initializer. An existing `settings.json` that names a language keeps it, so only new installs
+move.
+
+WebSync is an embedded, read-only LAN mirror of the map, built as
+M1-M4 (skeleton + snapshot + token, basemap endpoints, WebSocket + client page, settings pane + QR)
+and then hardened against a real phone. `src/TarkovMapCompanion/WebSync/` holds
 a Kestrel server (`WebSyncServer`, all host work on a null-`SynchronizationContext` worker behind a
 serialized reconciler, 2 s bounded stop), a `StateBroadcaster` (snapshot builder + 2 Hz player
 throttle + WS client table), the DTOs (`WebSyncState`), `LanAddress`, `QrCode`, and the
@@ -92,7 +104,7 @@ wrong). Publish is now ~62 MB (the ASP.NET Core shared framework).
 - **Sizes copied from the desktop are not phone sizes.** `PoiOverlay`'s radii are CSS pixels on a
   ~1920 px window; on a 366 px phone they read ~5x too large. The client scales marker geometry by
   `clamp(vw/1000, 0.6, 1.0)`.
-- **The client has no JS test coverage at all.** The 716 tests exercise the server; a single line of
+- **The client has no JS test coverage at all.** The tests exercise the server; a single line of
   client JavaScript froze the page for several releases and nothing caught it. `?selfcheck=1` asserts
   the canvas transform survives a rotate and a dashed ring; that is the only automated guard, and it
   is thin.
