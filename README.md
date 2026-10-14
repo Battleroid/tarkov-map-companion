@@ -423,10 +423,13 @@ Chinese only, whatever the desktop is set to.
 
 **Known gaps.** Two, both written up rather than papered over:
 
-- **The exit-panel OCR only reads English.** With a Chinese game client the extraction list is
-  Chinese, but candidates come from the English exit names, so **Read exits from screenshot** finds
-  nothing. Fixing it means deciding how the Chinese names are matched at all, which is why it is
-  still open — see `docs/localization-ocr-chinese-backlog.md`.
+- **The exit-panel OCR is English-only, and it is not only the matching.** With a Chinese game
+  client four separate links break in sequence: the Windows engine is pinned to `en-US`, the panel
+  parser rejects any screenshot without an English id keyword, candidates come from the English
+  exit names, and the match thresholds are tuned for long English strings rather than short
+  Chinese ones. **Read exits from screenshot** therefore finds nothing at all. The gap has been
+  assessed and phased; only the threshold step is still waiting on real screenshots — see
+  `docs/localization-ocr-chinese-backlog.md`.
 - **Rendering is expensive.** Measured 15–43 ms per frame with a full overlay set, and the arrow
   animation runs a 20 fps clock for the whole raid whenever a route has two or more waypoints. It
   is a real cost on an old machine and the prioritized fix list is in
@@ -551,7 +554,7 @@ does not hand out anyone's IP.
 | --- | --- |
 | [`docs/websync-implementation-spec.md`](docs/websync-implementation-spec.md) | The LAN mirror's design and routes, marked delivered. |
 | [`docs/eval-security-and-lan-sync.md`](docs/eval-security-and-lan-sync.md) | Why the LAN mirror binds the way it does, and what an attacker on your network could and could not reach. |
-| [`docs/localization-ocr-chinese-backlog.md`](docs/localization-ocr-chinese-backlog.md) | What the Chinese option does not cover yet, and the open questions behind it. |
+| [`docs/localization-ocr-chinese-backlog.md`](docs/localization-ocr-chinese-backlog.md) | The Chinese OCR gap: assessed, phased, and blocked only on real screenshots for the thresholds. |
 | [`docs/render-performance-backlog.md`](docs/render-performance-backlog.md) | Measured frame costs and the prioritized optimization list. |
 | [`AGENTS.md`](AGENTS.md) | Notes for anyone — human or agent — changing this codebase. |
 

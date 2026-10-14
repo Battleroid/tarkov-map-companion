@@ -43,8 +43,17 @@ CI runs on `windows-latest` and includes a real `--render-test` smoke test.
   key sets. `Localizer.Pick(english, chinese)` is the one place a language decision is made; call
   sites must not branch on language themselves. Data that is *always* English (POI names, map keys,
   wiki note keys) must be reached through the English accessor — comparing it against a display
-  string only works while the UI happens to be in English. The remaining contract debt and the
-  OCR-can't-read-Chinese gap are written up in `docs/localization-ocr-chinese-backlog.md`.
+  string only works while the UI happens to be in English. The remaining contract debt is in
+  `docs/localization-ocr-chinese-backlog.md`.
+- **The Chinese OCR gap is a four-link chain, not a matching bug.** Assessed and phased in
+  `docs/localization-ocr-chinese-backlog.md` (C1–C5). Only the threshold step is still blocked, on
+  real Chinese-client screenshots. Two traps are written up there and are easy to re-invent:
+  fixing *only* the candidate set leaves the feature silently dead, because `ExitAvailability`
+  stores the matched **candidate string** while `Includes` looks up the **English** name — so
+  candidates have to become a surface→canonical map, and `dotnet test` can still pass. And the
+  2020 (0.12.2) screenshots in that doc are fine for string shapes but **must not** be used to
+  tune thresholds: the map data has moved on, so the unmatched rows are version drift wearing the
+  costume of a code bug.
 - **Do not trust the vendored data.** `Data/Snapshots/` holds a json.tarkov.dev payload and a wiki
   scrape, and it has shipped real defects. `PoiBuilder` normalizes three (mis-assigned switch ids,
   coincident same-name extracts, code-named extracts), each pinned in `PoiTests.cs` /

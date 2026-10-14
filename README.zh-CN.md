@@ -180,7 +180,7 @@
 
 **已知问题。** 两处，都写在文档里，而不是绕过去：
 
-- **撤离面板的 OCR 只认英文。** 中文游戏客户端里撤离列表是中文的，但候选名来自英文撤离点名称，所以**识别撤离点**什么也找不到。要修就得先决定中文名称该怎么匹配，所以它还悬着，见 `docs/localization-ocr-chinese-backlog.md`。
+- **撤离面板的 OCR 是全英文链路，不只是匹配那一环。** 中文游戏客户端下有**四处**依次断掉：Windows OCR 引擎被写死成 `en-US`；面板解析器认不出没有英文 id 关键词的截图，**直接判定「没找到面板」**；候选名来自英文撤离点名称；匹配阈值是按长英文串调的，对短中文名太严。所以**识别撤离点**在中文客户端下是完全不生效，而不是认错几个字。**该缺口已完成评估并排好阶段**，只有阈值那一步还在等真实中文客户端截图——见 `docs/localization-ocr-chinese-backlog.md`。
 - **渲染开销很大。** 整套叠加层都打开时实测每帧 15–43 毫秒；一条路线只要有两个以上路点，箭头动画就会整局跑一个 20 fps 的时钟。老机器上这是实打实的消耗，按优先级排的优化清单在 `docs/render-performance-backlog.md`。局域网同步不在其中。
 
 ## 首次运行
@@ -264,7 +264,7 @@ scripts\publish.ps1
 | --- | --- |
 | [`docs/websync-implementation-spec.md`](docs/websync-implementation-spec.md) | 局域网镜像的设计和路由，已标记为交付。 |
 | [`docs/eval-security-and-lan-sync.md`](docs/eval-security-and-lan-sync.md) | 局域网镜像为什么这样绑定，以及你网络里的攻击者够得着、够不着什么。 |
-| [`docs/localization-ocr-chinese-backlog.md`](docs/localization-ocr-chinese-backlog.md) | 中文化目前还没覆盖什么，以及背后的开放问题。 |
+| [`docs/localization-ocr-chinese-backlog.md`](docs/localization-ocr-chinese-backlog.md) | 中文 OCR 缺口：已完成评估与阶段拆分，只有阈值那一步卡在真实截图上。 |
 | [`docs/render-performance-backlog.md`](docs/render-performance-backlog.md) | 实测的每帧开销，以及按优先级排的优化清单。 |
 | [`AGENTS.md`](AGENTS.md) | 给要改动这份代码的任何人——人或 agent——的笔记。 |
 
