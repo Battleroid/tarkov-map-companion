@@ -135,8 +135,11 @@ public sealed class ExitLocalizationTests
             DetailsZh = ["需要：5000 卢布"],
         };
 
-        // The test process runs in English, so the Chinese rendering is not shown at all -- and
-        // there is no English echo to duplicate the one line.
+        // Pin English explicitly: the shipped default is Chinese now, but this test is about the
+        // English rendering. Under English the Chinese line is not shown at all, and there is no
+        // English echo to duplicate the one line.
+        using var english = new LanguageScope(AppLanguage.English);
+
         Assert.Single(poi.DetailLines);
         Assert.Equal("Needs: 5000 Roubles", poi.DetailLines[0].Text);
     }

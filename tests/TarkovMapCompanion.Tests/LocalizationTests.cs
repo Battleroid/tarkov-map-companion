@@ -19,11 +19,17 @@ namespace TarkovMapCompanion.Tests;
 public sealed class LocalizationTests
 {
     [Fact]
-    public void EnglishIsTheSourceOfTruthAndTheDefault()
+    public void ChineseIsTheDefaultWhileEnglishIsTheSourceOfTruth()
     {
-        Assert.Equal(AppLanguage.English, Localizer.Language);
-        Assert.Equal("ahead", Localizer.Loc("extract.ahead"));
-        Assert.Equal("Language", Localizer.Loc("prefs.language"));
+        // A new install with no settings.json draws in Simplified Chinese.
+        Assert.Equal(AppLanguage.ChineseSimplified, Localizer.Language);
+
+        // English stays the source of truth even when it is not the active language...
+        Assert.Equal("ahead", Localizer.LocEnglish("extract.ahead"));
+        Assert.Equal("Language", Localizer.LocEnglish("prefs.language"));
+
+        // ...and the active language resolves through the Chinese overlay.
+        Assert.Equal("语言", Localizer.Loc("prefs.language"));
     }
 
     [Fact]
@@ -87,9 +93,10 @@ public sealed class LocalizationTests
         Assert.NotNull(dorms);
 
         // The English name never goes away -- OCR still matches against it -- while the Chinese
-        // name rides alongside and is what the display helper would choose.
+        // name rides alongside. The display helper follows the active language, which defaults to
+        // Chinese now.
         Assert.False(string.IsNullOrEmpty(dorms!.NameZh));
         Assert.NotEqual(dorms.Name, dorms.NameZh);
-        Assert.Equal("Dorms V-Ex", dorms.DisplayName); // English while the active language is English
+        Assert.Equal(dorms.NameZh, dorms.DisplayName);
     }
 }

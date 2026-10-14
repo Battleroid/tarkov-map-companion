@@ -751,6 +751,16 @@ public sealed class MapSession : IDisposable
     /// </remarks>
     internal void SetMapForTesting(GameMap map) => CurrentMap = map;
 
+    /// <summary>
+    /// Rebuilds the POIs for the current map from whatever data is loaded, for tests.
+    /// </summary>
+    /// <remarks>
+    /// The uses of this are about restoring the saved extract, which only runs as part of a rebuild.
+    /// <see cref="SetMapAsync"/> would also rebuild, but it rasterizes an SVG and may reach for the
+    /// network, neither of which such a test is about.
+    /// </remarks>
+    internal void RebuildPoisForTesting() => RebuildPois();
+
     // ---- Annotations --------------------------------------------------------
 
     /// <summary>Adds a note where the map was clicked. Null when the text was unusable.</summary>
@@ -893,7 +903,10 @@ public sealed class MapSession : IDisposable
         if (string.IsNullOrEmpty(key))
             return null;
 
-        var name = _mapData.Translate(key);
+        // TranslateEn, not Translate: a built extract's Name is always the English half of its
+        // translation pair (see PoiBuilder), so the display-language translation would only ever
+        // match while the UI happened to be in English. The bridge has to be in the POI's language.
+        var name = _mapData.TranslateEn(key);
         return Pois.Extracts.FirstOrDefault(p =>
             string.Equals(p.Name, name, StringComparison.Ordinal));
     }

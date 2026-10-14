@@ -35,7 +35,7 @@ public static class Localizer
     private static Dictionary<string, string>? _chinese;
 
     /// <summary>The language the UI is drawn in. Set once at startup from the saved settings.</summary>
-    public static AppLanguage Language { get; private set; } = AppLanguage.English;
+    public static AppLanguage Language { get; private set; } = AppLanguage.ChineseSimplified;
 
     /// <summary>Applies the saved language. Takes effect for everything built afterwards.</summary>
     public static void SetLanguage(AppLanguage language) => Language = language;

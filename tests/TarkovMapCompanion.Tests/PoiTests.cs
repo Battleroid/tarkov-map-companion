@@ -11,9 +11,15 @@ namespace TarkovMapCompanion.Tests;
 /// Exercises the POI pipeline against the snapshot that actually ships, so a bad regeneration or
 /// an upstream shape change fails here rather than showing up as an empty map.
 /// </summary>
-public sealed class PoiTests
+public sealed class PoiTests : IDisposable
 {
     private static readonly MapCatalog Catalog = MapCatalog.LoadEmbedded();
+
+    // The app defaults to Simplified Chinese now; the detail strings asserted below are English, so
+    // this class pins the language it actually exercises.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
 
     private static MapDataStore LoadStore()
     {
