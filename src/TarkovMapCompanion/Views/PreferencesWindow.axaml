@@ -6,10 +6,104 @@
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.PreferencesWindow"
         Title="{loc:Tr Prefs.Title}"
-        Width="600" Height="620"
-        MinWidth="460" MinHeight="320"
+        Width="760" Height="660"
+        MinWidth="620" MinHeight="420"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource SurfaceBaseBrush}">
+
+  <!--
+    Thirteen sections in one scroller read as one undifferentiated wall: every heading looked like
+    it belonged to whatever happened to be above it, and there was no way to jump to "the screenshot
+    settings" without scrolling past everything else. The window is now a category rail on the left
+    and one page per category on the right.
+  -->
+  <Window.Styles>
+
+    <!--
+      Nav rail. Fluent's ListBoxItem template is replaced outright rather than restyled through
+      /template/ selectors: the theme's own template names its inner elements, and a selector that
+      guesses a wrong name silently does nothing. Owning the template means the selected state below
+      is the only thing painting the row.
+    -->
+    <Style Selector="ListBox.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,10" />
+    </Style>
+
+    <Style Selector="ListBox.nav ListBoxItem">
+      <Setter Property="MinHeight" Value="46" />
+      <Setter Property="Padding" Value="13,0" />
+      <Setter Property="Margin" Value="0,0,0,3" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="PART_NavItem"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{DynamicResource RadiusSmall}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Left" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="ListBox.nav ListBoxItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <!--
+      Selected is three signals at once: a solid neutral block (the active surface, no accent hue),
+      an accent bar down the left edge, and a heavier weight. The fill used to be the accent-derived
+      muted amber, which in the dark theme read as a tint rather than a selection; a plain step up
+      the neutral surface ladder reads as "this row is active" instead.
+    -->
+    <Style Selector="ListBox.nav ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource SurfaceActiveBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Holding selection while hovered keeps the selected neutral, so the two never swap. -->
+    <Style Selector="ListBox.nav ListBoxItem:selected:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SurfaceActiveBrush}" />
+    </Style>
+
+    <!--
+      The app-wide focus ring targets Border#FocusRing inside Fluent's own templates, which this
+      custom template does not have, so keyboard focus would otherwise be invisible on the rail.
+    -->
+    <Style Selector="ListBox.nav ListBoxItem:focus-visible /template/ Border#PART_NavItem">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <!--
+      The app-wide TextBlock style paints every run of text primary, which would flatten the
+      unselected/selected distinction the moment the item's own Foreground is ignored. Naming the
+      TextBlock directly is what lets the idle rows read as secondary.
+    -->
+    <Style Selector="ListBox.nav ListBoxItem TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="ListBox.nav ListBoxItem:selected TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+  </Window.Styles>
 
   <DockPanel>
 
@@ -26,347 +120,416 @@
       </Grid>
     </Border>
 
-    <!--
-      A ScrollViewer measures its content with unbounded width, so the TextBox below reports the
-      full pixel width of whatever folder path it holds, the star column sizes to that, and every
-      wrapping TextBlock in the panel then wraps to a width wider than the window. Pinning the
-      content to the viewport width is what actually stops that; HorizontalScrollBarVisibility
-      alone does not, because the Border is what has to be constrained.
-      Padding lives on the Border, inside MaxWidth, rather than on the ScrollViewer, so the
-      content plus its margins still fits.
-    -->
-    <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Disabled">
-      <Border Padding="16" MaxWidth="{Binding #Scroller.Viewport.Width}">
-      <StackPanel Spacing="18">
+    <Grid ColumnDefinitions="180,*">
+
+      <!-- Category rail. Categories are loc:Tr so a Chinese build reads in Chinese. -->
+      <Border Grid.Column="0"
+              Background="{DynamicResource SurfacePanelBrush}"
+              BorderBrush="{DynamicResource BorderSubtleBrush}"
+              BorderThickness="0,0,1,0">
+        <ListBox Name="CategoryList" Classes="nav" SelectedIndex="0">
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryGeneral}" />
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryCapture}" />
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryDisplay}" />
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryQuests}" />
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryNetwork}" />
+          <ListBoxItem Content="{loc:Tr Prefs.CategoryLanSync}" />
+        </ListBox>
+      </Border>
+
+      <!--
+        Six pages share the content cell; exactly one is visible at a time (toggled from
+        code-behind). Each page is its own ScrollViewer, so switching category does not drag the
+        previous page's scroll offset along with it.
+      -->
+      <Grid Grid.Column="1">
 
         <!--
-          Every section is boxed. With eight of them in one scroller, a heading alone did not say
-          where one topic stopped and the next started, so a setting read as belonging to whichever
-          heading happened to be above it on screen.
+          A ScrollViewer measures its content with unbounded width, so a TextBox holding a full
+          folder path reports the full pixel width of that path, the star column sizes to it, and
+          every wrapping TextBlock then wraps to a width wider than the window. Pinning the content
+          to the viewport width is what actually stops that; HorizontalScrollBarVisibility alone
+          does not, because the Border is what has to be constrained. Padding lives on the Border,
+          inside MaxWidth, rather than on the ScrollViewer, so the content plus its margins still
+          fits. Applied per page against that page's own viewport.
         -->
 
-        <!-- Screenshots -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.ScreenshotsHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.ScreenshotsIntro}" />
-          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
-            <TextBox Grid.Column="0" Name="FolderBox" FontSize="12" />
-            <Button Grid.Column="1" Name="BrowseButton" Content="{loc:Tr Common.Browse}" />
-            <Button Grid.Column="2" Name="DetectFolderButton" Content="{loc:Tr Common.Find}"
-                    ToolTip.Tip="{loc:Tr Prefs.FindFolderTip}" />
-            <Button Grid.Column="3" Name="DefaultFolderButton" Content="{loc:Tr Prefs.Default}" />
-          </Grid>
-          <TextBlock Name="FolderStatus" FontSize="11" TextWrapping="Wrap" />
-        </StackPanel>
-        </Border>
+        <!-- General: Appearance + Data -->
+        <ScrollViewer Name="GeneralPage" HorizontalScrollBarVisibility="Disabled">
+          <Border Padding="16" MaxWidth="{Binding #GeneralPage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-        <!-- Culling. Destructive, so it gets its own framing and an explicit warning. -->
-        <Border Classes="panel" Padding="12">
-          <StackPanel Spacing="8">
-            <TextBlock Classes="heading" Text="{loc:Tr Prefs.CullingHeading}" />
-            <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                       Text="{loc:Tr Prefs.CullingIntro}" />
+              <!-- Appearance -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.AppearanceHeading}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{loc:Tr Prefs.ThemeLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <ComboBox Name="ThemeBox" Width="160" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Name="LanguageLabel" Text="{loc:Tr prefs.language}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <ComboBox Name="LanguageBox" Width="160" />
+                  </StackPanel>
+                  <TextBlock Name="LanguageRestartText" Classes="secondary" FontSize="11"
+                             TextWrapping="Wrap" IsVisible="False" />
+                  <TextBlock Name="FontLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
+                  <Slider Name="FontSlider" Minimum="11" Maximum="22" TickFrequency="1" IsSnapToTickEnabled="True" />
+                  <CheckBox Name="AlwaysOnTopBox" Content="{loc:Tr Prefs.AlwaysOnTop}" />
+                </StackPanel>
+              </Border>
 
-            <RadioButton Name="CullOff" GroupName="Cull" Content="{loc:Tr Prefs.CullKeepEverything}" />
-            <RadioButton Name="CullKeepLatest" GroupName="Cull" Content="{loc:Tr Prefs.CullKeepNewest}" />
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
-              <NumericUpDown Name="CullCount" Minimum="1" Maximum="10000" Increment="5"
-                             Width="120" FormatString="0" />
-              <TextBlock Text="{loc:Tr Prefs.ScreenshotsUnit}" VerticalAlignment="Center" FontSize="12" />
+              <!-- Data -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.MapDataHeading}" />
+                  <CheckBox Name="AllowNetworkBox" Content="{loc:Tr Prefs.AllowNetwork}" />
+                  <TextBlock Name="DataStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Name="RefreshDataButton" Content="{loc:Tr Prefs.RefreshNow}" />
+                    <Button Name="OpenCacheButton" Content="{loc:Tr Prefs.OpenCache}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
             </StackPanel>
-            <RadioButton Name="CullAfterRead" GroupName="Cull" Content="{loc:Tr Prefs.CullAfterRead}" />
+          </Border>
+        </ScrollViewer>
 
-            <TextBlock Name="CullWarning" FontSize="11" TextWrapping="Wrap"
-                       Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
-          </StackPanel>
-        </Border>
+        <!-- Capture: Screenshots + Culling + GameLog -->
+        <ScrollViewer Name="CapturePage" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+          <Border Padding="16" MaxWidth="{Binding #CapturePage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-        <!--
-          The game's own log. Its own section rather than a line under SCREENSHOTS, because it is
-          a second and different input to the app and the difference is worth being explicit about.
-        -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.GameLogHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.GameLogIntro}" />
+              <!-- Screenshots -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.ScreenshotsHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.ScreenshotsIntro}" />
+                  <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
+                    <TextBox Grid.Column="0" Name="FolderBox" FontSize="12" />
+                    <Button Grid.Column="1" Name="BrowseButton" Content="{loc:Tr Common.Browse}" />
+                    <Button Grid.Column="2" Name="DetectFolderButton" Content="{loc:Tr Common.Find}"
+                            ToolTip.Tip="{loc:Tr Prefs.FindFolderTip}" />
+                    <Button Grid.Column="3" Name="DefaultFolderButton" Content="{loc:Tr Prefs.Default}" />
+                  </Grid>
+                  <TextBlock Name="FolderStatus" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
 
-          <CheckBox Name="ReadGameLogBox" Content="{loc:Tr Prefs.ReadGameLog}" />
-          <CheckBox Name="AutoSwitchFromLogBox" Content="{loc:Tr Prefs.AutoSwitchFromLog}"
-                    Margin="24,0,0,0" />
+              <!-- Culling. Destructive, so it gets its own framing and an explicit warning. -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.CullingHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.CullingIntro}" />
 
-          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,4,0,0">
-            <TextBox Grid.Column="0" Name="GameLogFolderBox" FontSize="12"
-                     Watermark="{loc:Tr Prefs.GameLogFolderWatermark}" />
-            <Button Grid.Column="1" Name="BrowseLogButton" Content="{loc:Tr Common.Browse}" />
-            <Button Grid.Column="2" Name="DetectLogButton" Content="{loc:Tr Common.Find}"
-                    ToolTip.Tip="{loc:Tr Prefs.FindLogTip}" />
-          </Grid>
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.GameLogFolderHint}" />
+                  <RadioButton Name="CullOff" GroupName="Cull" Content="{loc:Tr Prefs.CullKeepEverything}" />
+                  <RadioButton Name="CullKeepLatest" GroupName="Cull" Content="{loc:Tr Prefs.CullKeepNewest}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
+                    <NumericUpDown Name="CullCount" Minimum="1" Maximum="10000" Increment="5"
+                                   Width="120" FormatString="0" />
+                    <TextBlock Text="{loc:Tr Prefs.ScreenshotsUnit}" VerticalAlignment="Center" FontSize="12" />
+                  </StackPanel>
+                  <RadioButton Name="CullAfterRead" GroupName="Cull" Content="{loc:Tr Prefs.CullAfterRead}" />
 
-          <TextBlock Name="GameLogStatus" FontSize="11" TextWrapping="Wrap" />
-        </StackPanel>
-        </Border>
+                  <TextBlock Name="CullWarning" FontSize="11" TextWrapping="Wrap"
+                             Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
+                </StackPanel>
+              </Border>
 
-        <!-- View -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.ViewHeading}" />
-          <CheckBox Name="SmoothCameraBox" Content="{loc:Tr Prefs.SmoothCamera}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.FollowPlayerHint}" />
-          <CheckBox Name="SuggestMapBox" Content="{loc:Tr Prefs.SuggestMap}" />
-          <CheckBox Name="AutoSwitchBox" Content="{loc:Tr Prefs.AutoSwitchMap}" Margin="24,0,0,0" />
+              <!--
+                The game's own log. Its own section rather than a line under SCREENSHOTS, because it
+                is a second and different input to the app and the difference is worth being
+                explicit about.
+              -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.GameLogHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.GameLogIntro}" />
 
-          <TextBlock Name="PaddingLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
-          <Slider Name="PaddingSlider" Minimum="0" Maximum="0.75" />
+                  <CheckBox Name="ReadGameLogBox" Content="{loc:Tr Prefs.ReadGameLog}" />
+                  <CheckBox Name="AutoSwitchFromLogBox" Content="{loc:Tr Prefs.AutoSwitchFromLog}"
+                            Margin="24,0,0,0" />
 
-          <TextBlock Name="TrailLabel" Classes="secondary" FontSize="11" />
-          <Slider Name="TrailSlider" Minimum="0" Maximum="60" />
+                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,4,0,0">
+                    <TextBox Grid.Column="0" Name="GameLogFolderBox" FontSize="12"
+                             Watermark="{loc:Tr Prefs.GameLogFolderWatermark}" />
+                    <Button Grid.Column="1" Name="BrowseLogButton" Content="{loc:Tr Common.Browse}" />
+                    <Button Grid.Column="2" Name="DetectLogButton" Content="{loc:Tr Common.Find}"
+                            ToolTip.Tip="{loc:Tr Prefs.FindLogTip}" />
+                  </Grid>
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.GameLogFolderHint}" />
 
-          <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
-        </StackPanel>
-        </Border>
+                  <TextBlock Name="GameLogStatus" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
 
-        <!-- Your marker -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.MarkerHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.MarkerIntro}" />
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.Color}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <ColorPicker Name="PlayerColorPicker" Width="120" HorizontalAlignment="Left" />
-          </StackPanel>
+        <!-- Display: View + Marker + Exits + Minimap + Route markers -->
+        <ScrollViewer Name="DisplayPage" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+          <Border Padding="16" MaxWidth="{Binding #DisplayPage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{loc:Tr Prefs.Size}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="PlayerSizeBox" Minimum="10" Maximum="48" Increment="1"
-                           Width="120" FormatString="0" />
-            <TextBlock Text="{loc:Tr Common.Px}" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
-          </StackPanel>
-        </StackPanel>
-        </Border>
+              <!-- View -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.ViewHeading}" />
+                  <CheckBox Name="SmoothCameraBox" Content="{loc:Tr Prefs.SmoothCamera}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.FollowPlayerHint}" />
+                  <CheckBox Name="SuggestMapBox" Content="{loc:Tr Prefs.SuggestMap}" />
+                  <CheckBox Name="AutoSwitchBox" Content="{loc:Tr Prefs.AutoSwitchMap}" Margin="24,0,0,0" />
 
-        <!-- Exits -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.ExitsHeading}" />
+                  <TextBlock Name="PaddingLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
+                  <Slider Name="PaddingSlider" Minimum="0" Maximum="0.75" />
 
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{loc:Tr Prefs.ExitFilterLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <ComboBox Name="ExitFilterBox" Width="180"
-                      ToolTip.Tip="{loc:Tr Prefs.ExitFilterTip}" />
-          </StackPanel>
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.ExitFilterHint}" />
+                  <TextBlock Name="TrailLabel" Classes="secondary" FontSize="11" />
+                  <Slider Name="TrailSlider" Minimum="0" Maximum="60" />
 
-          <CheckBox Name="ShowConditionsBox" Content="{loc:Tr Prefs.ShowConditions}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.ShowConditionsHint}" />
+                  <TextBlock Name="RaidLengthText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.GuideLine}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <ColorPicker Name="GuideColorPicker" Width="120" HorizontalAlignment="Left" />
-          </StackPanel>
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.GuideLineHint}" />
-        </StackPanel>
-        </Border>
+              <!-- Your marker -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.MarkerHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.MarkerIntro}" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.Color}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <ColorPicker Name="PlayerColorPicker" Width="120" HorizontalAlignment="Left" />
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{loc:Tr Prefs.Size}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="PlayerSizeBox" Minimum="10" Maximum="48" Increment="1"
+                                   Width="120" FormatString="0" />
+                    <TextBlock Text="{loc:Tr Common.Px}" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Exits -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.ExitsHeading}" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{loc:Tr Prefs.ExitFilterLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <ComboBox Name="ExitFilterBox" Width="180"
+                              ToolTip.Tip="{loc:Tr Prefs.ExitFilterTip}" />
+                  </StackPanel>
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.ExitFilterHint}" />
+
+                  <CheckBox Name="ShowConditionsBox" Content="{loc:Tr Prefs.ShowConditions}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.ShowConditionsHint}" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.GuideLine}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <ColorPicker Name="GuideColorPicker" Width="120" HorizontalAlignment="Left" />
+                  </StackPanel>
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.GuideLineHint}" />
+                </StackPanel>
+              </Border>
+
+              <!-- Minimap -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.MinimapHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.MinimapIntro}" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.MinimapRangeLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="MinimapRangeBox" Minimum="25" Maximum="1000" Increment="25"
+                                   Width="120" FormatString="0" />
+                    <TextBlock Text="{loc:Tr Prefs.MinimapRangeUnit}" VerticalAlignment="Center" FontSize="12"
+                               Classes="secondary" />
+                  </StackPanel>
+
+                  <CheckBox Name="MinimapClickThroughBox" Content="{loc:Tr Prefs.MinimapClickThrough}"
+                            Margin="0,4,0,0" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.MinimapClickThroughHint}" />
+                </StackPanel>
+              </Border>
+
+              <!-- Route markers -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.RouteHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.RouteIntro}" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.ReachedAt}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="ArrivalRadiusBox" Minimum="5" Maximum="200" Increment="5"
+                                   Width="120" FormatString="0" />
+                    <TextBlock Text="{loc:Tr Common.Meters}" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
+                  </StackPanel>
+
+                  <RadioButton Name="ArrivalMarkThenRemove" GroupName="Arrival"
+                               Content="{loc:Tr Prefs.ArrivalMarkThenRemove}" />
+                  <RadioButton Name="ArrivalRemoveOnArrival" GroupName="Arrival"
+                               Content="{loc:Tr Prefs.ArrivalRemoveOnArrival}" />
+
+                  <CheckBox Name="AnimateArrowsBox" Content="{loc:Tr Prefs.AnimateArrows}" Margin="0,6,0,0" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.AnimateArrowsHint}" />
+                </StackPanel>
+              </Border>
+
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
 
         <!-- Quests -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.QuestsHeading}" />
-          <CheckBox Name="LevelFromLogBox" Content="{loc:Tr Prefs.LevelFromLog}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.LevelFromLogHint}" />
+        <ScrollViewer Name="QuestsPage" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+          <Border Padding="16" MaxWidth="{Binding #QuestsPage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.LevelLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="PlayerLevelBox" Minimum="1" Maximum="79" Increment="1"
-                           Width="120" FormatString="0" />
-          </StackPanel>
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.LevelHint}" />
-        </StackPanel>
-        </Border>
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.QuestsHeading}" />
+                  <CheckBox Name="LevelFromLogBox" Content="{loc:Tr Prefs.LevelFromLog}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.LevelFromLogHint}" />
 
-        <!-- Minimap -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.MinimapHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.MinimapIntro}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.LevelLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="PlayerLevelBox" Minimum="1" Maximum="79" Increment="1"
+                                   Width="120" FormatString="0" />
+                  </StackPanel>
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.LevelHint}" />
+                </StackPanel>
+              </Border>
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.MinimapRangeLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="MinimapRangeBox" Minimum="25" Maximum="1000" Increment="25"
-                           Width="120" FormatString="0" />
-            <TextBlock Text="{loc:Tr Prefs.MinimapRangeUnit}" VerticalAlignment="Center" FontSize="12"
-                       Classes="secondary" />
-          </StackPanel>
-
-          <CheckBox Name="MinimapClickThroughBox" Content="{loc:Tr Prefs.MinimapClickThrough}"
-                    Margin="0,4,0,0" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.MinimapClickThroughHint}" />
-        </StackPanel>
-        </Border>
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
 
         <!-- Party -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.PartyHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.PartyNameHint}" />
-          <TextBox Name="PlayerNameBox" Watermark="{loc:Tr Prefs.PlayerNameWatermark}" MaxLength="16" />
-          <TextBlock Name="PlayerNameHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+        <ScrollViewer Name="PartyPage" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+          <Border Padding="16" MaxWidth="{Binding #PartyPage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-            <TextBlock Text="{loc:Tr Prefs.PortLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="PartyPortBox" Minimum="1024" Maximum="49151" Increment="1"
-                           Width="140" FormatString="0" />
-          </StackPanel>
-          <SelectableTextBlock Name="PartyPortHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+              <!-- Party -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr Prefs.PartyHeading}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.PartyNameHint}" />
+                  <TextBox Name="PlayerNameBox" Watermark="{loc:Tr Prefs.PlayerNameWatermark}" MaxLength="16" />
+                  <TextBlock Name="PlayerNameHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
 
-          <CheckBox Name="PingSoundBox" Content="{loc:Tr Prefs.PingSound}" Margin="0,6,0,0" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.PingSoundHint}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.PortLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="PartyPortBox" Minimum="1024" Maximum="49151" Increment="1"
+                                   Width="140" FormatString="0" />
+                  </StackPanel>
+                  <SelectableTextBlock Name="PartyPortHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
 
-          <CheckBox Name="ShowOffScreenPeersBox" Content="{loc:Tr Prefs.ShowOffScreenPeers}"
-                    Margin="0,6,0,0" />
-          <CheckBox Name="ShareRouteBox" Content="{loc:Tr Prefs.ShareRoute}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.ShareRouteHint}" />
+                  <CheckBox Name="PingSoundBox" Content="{loc:Tr Prefs.PingSound}" Margin="0,6,0,0" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.PingSoundHint}" />
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.TrailLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="PeerTrailBox" Minimum="0" Maximum="20" Increment="1"
-                           Width="120" FormatString="0" />
-            <TextBlock Name="PeerTrailLabel" VerticalAlignment="Center" FontSize="12"
-                       Classes="secondary" />
-          </StackPanel>
-        </StackPanel>
-        </Border>
+                  <CheckBox Name="ShowOffScreenPeersBox" Content="{loc:Tr Prefs.ShowOffScreenPeers}"
+                            Margin="0,6,0,0" />
+                  <CheckBox Name="ShareRouteBox" Content="{loc:Tr Prefs.ShareRoute}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr Prefs.ShareRouteHint}" />
 
-        <!--
-          WebSync: serves a read-only mirror of the current map to a tablet on the same Wi-Fi.
-          Sits next to Party because both are about reaching another device over the local network,
-          and it copies that section's shape: heading, hint, then label + control rows.
-        -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr WebSync.Section}" />
-          <CheckBox Name="WebSyncEnableBox" Content="{loc:Tr WebSync.Enable}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr WebSync.EnableHint}" />
-          <TextBlock Name="WebSyncStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr Prefs.TrailLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="PeerTrailBox" Minimum="0" Maximum="20" Increment="1"
+                                   Width="120" FormatString="0" />
+                    <TextBlock Name="PeerTrailLabel" VerticalAlignment="Center" FontSize="12"
+                               Classes="secondary" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr WebSync.Port}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="WebSyncPortBox" Minimum="1024" Maximum="65535" Increment="1"
-                           Width="140" FormatString="0" />
-          </StackPanel>
-          <TextBlock Name="WebSyncPortHint" FontSize="11" TextWrapping="Wrap"
-                     Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
 
-          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0">
-            <TextBlock Grid.Column="0" Text="{loc:Tr WebSync.Url}" VerticalAlignment="Center"
-                       Width="70" FontSize="12" />
-            <TextBox Grid.Column="1" Name="WebSyncUrlBox" IsReadOnly="True" FontSize="12" />
-            <Button Grid.Column="2" Name="WebSyncCopyButton" Content="{loc:Tr WebSync.Copy}" />
-          </Grid>
-          <TextBlock Name="WebSyncCopyNote" Classes="secondary" FontSize="11" IsVisible="False" />
+        <!-- LAN Sync: WebSync -->
+        <ScrollViewer Name="LanSyncPage" HorizontalScrollBarVisibility="Disabled" IsVisible="False">
+          <Border Padding="16" MaxWidth="{Binding #LanSyncPage.Viewport.Width}">
+            <StackPanel Spacing="18">
 
-          <!--
-            8 pixels per module comes out a few hundred pixels wide, so this is a downscale; the
-            high-quality filter keeps the modules from aliasing away at the display size.
-          -->
-          <Image Name="WebSyncQrImage" Width="160" Height="160" HorizontalAlignment="Left"
-                 Stretch="Uniform" Margin="0,4,0,0"
-                 RenderOptions.BitmapInterpolationMode="HighQuality" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr WebSync.QrHint}" />
+              <!--
+                WebSync: serves a read-only mirror of the current map to a tablet on the same Wi-Fi.
+                Gets its own category now, so it is the whole page rather than a footnote under
+                Party; it keeps the other pages' shape: heading, hint, then label + control rows.
+              -->
+              <Border Classes="panel" Padding="12">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="{loc:Tr WebSync.Section}" />
+                  <CheckBox Name="WebSyncEnableBox" Content="{loc:Tr WebSync.Enable}" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr WebSync.EnableHint}" />
+                  <TextBlock Name="WebSyncStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
 
-          <Button Name="WebSyncRegenerateButton" Content="{loc:Tr WebSync.RegenerateToken}"
-                  HorizontalAlignment="Left" Margin="0,6,0,0" />
-          <TextBlock Name="WebSyncRegenerateNote" Classes="secondary" FontSize="11"
-                     TextWrapping="Wrap" IsVisible="False" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <TextBlock Text="{loc:Tr WebSync.Port}" VerticalAlignment="Center" Width="70" FontSize="12" />
+                    <NumericUpDown Name="WebSyncPortBox" Minimum="1024" Maximum="65535" Increment="1"
+                                   Width="140" FormatString="0" />
+                  </StackPanel>
+                  <TextBlock Name="WebSyncPortHint" FontSize="11" TextWrapping="Wrap"
+                             Foreground="{DynamicResource DangerBrush}" IsVisible="False" />
 
-          <CheckBox Name="WebSyncFollowFloorBox" Content="{loc:Tr WebSync.FollowPlayerFloor}"
-                    Margin="0,6,0,0" />
-          <CheckBox Name="WebSyncShowPoisBox" Content="{loc:Tr WebSync.ShowPois}" />
-          <CheckBox Name="WebSyncShowQuestsBox" Content="{loc:Tr WebSync.ShowQuests}" />
-          <CheckBox Name="WebSyncShowAnnotationsBox" Content="{loc:Tr WebSync.ShowAnnotations}" />
-        </StackPanel>
-        </Border>
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0">
+                    <TextBlock Grid.Column="0" Text="{loc:Tr WebSync.Url}" VerticalAlignment="Center"
+                               Width="70" FontSize="12" />
+                    <TextBox Grid.Column="1" Name="WebSyncUrlBox" IsReadOnly="True" FontSize="12" />
+                    <Button Grid.Column="2" Name="WebSyncCopyButton" Content="{loc:Tr WebSync.Copy}" />
+                  </Grid>
+                  <TextBlock Name="WebSyncCopyNote" Classes="secondary" FontSize="11" IsVisible="False" />
 
-        <!-- Route markers -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.RouteHeading}" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.RouteIntro}" />
+                  <!--
+                    8 pixels per module comes out a few hundred pixels wide, so this is a downscale;
+                    the high-quality filter keeps the modules from aliasing away at the display size.
+                  -->
+                  <Image Name="WebSyncQrImage" Width="160" Height="160" HorizontalAlignment="Left"
+                         Stretch="Uniform" Margin="0,4,0,0"
+                         RenderOptions.BitmapInterpolationMode="HighQuality" />
+                  <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
+                             Text="{loc:Tr WebSync.QrHint}" />
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <TextBlock Text="{loc:Tr Prefs.ReachedAt}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <NumericUpDown Name="ArrivalRadiusBox" Minimum="5" Maximum="200" Increment="5"
-                           Width="120" FormatString="0" />
-            <TextBlock Text="{loc:Tr Common.Meters}" VerticalAlignment="Center" FontSize="12" Classes="secondary" />
-          </StackPanel>
+                  <Button Name="WebSyncRegenerateButton" Content="{loc:Tr WebSync.RegenerateToken}"
+                          HorizontalAlignment="Left" Margin="0,6,0,0" />
+                  <TextBlock Name="WebSyncRegenerateNote" Classes="secondary" FontSize="11"
+                             TextWrapping="Wrap" IsVisible="False" />
 
-          <RadioButton Name="ArrivalMarkThenRemove" GroupName="Arrival"
-                       Content="{loc:Tr Prefs.ArrivalMarkThenRemove}" />
-          <RadioButton Name="ArrivalRemoveOnArrival" GroupName="Arrival"
-                       Content="{loc:Tr Prefs.ArrivalRemoveOnArrival}" />
+                  <CheckBox Name="WebSyncFollowFloorBox" Content="{loc:Tr WebSync.FollowPlayerFloor}"
+                            Margin="0,6,0,0" />
+                  <CheckBox Name="WebSyncShowPoisBox" Content="{loc:Tr WebSync.ShowPois}" />
+                  <CheckBox Name="WebSyncShowQuestsBox" Content="{loc:Tr WebSync.ShowQuests}" />
+                  <CheckBox Name="WebSyncShowAnnotationsBox" Content="{loc:Tr WebSync.ShowAnnotations}" />
+                </StackPanel>
+              </Border>
 
-          <CheckBox Name="AnimateArrowsBox" Content="{loc:Tr Prefs.AnimateArrows}" Margin="0,6,0,0" />
-          <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="{loc:Tr Prefs.AnimateArrowsHint}" />
-        </StackPanel>
-        </Border>
+            </StackPanel>
+          </Border>
+        </ScrollViewer>
 
-        <!-- Appearance -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.AppearanceHeading}" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{loc:Tr Prefs.ThemeLabel}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <ComboBox Name="ThemeBox" Width="160" />
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Name="LanguageLabel" Text="{loc:Tr prefs.language}" VerticalAlignment="Center" Width="70" FontSize="12" />
-            <ComboBox Name="LanguageBox" Width="160" />
-          </StackPanel>
-          <TextBlock Name="LanguageRestartText" Classes="secondary" FontSize="11"
-                     TextWrapping="Wrap" IsVisible="False" />
-          <TextBlock Name="FontLabel" Classes="secondary" FontSize="11" Margin="0,6,0,0" />
-          <Slider Name="FontSlider" Minimum="11" Maximum="22" TickFrequency="1" IsSnapToTickEnabled="True" />
-          <CheckBox Name="AlwaysOnTopBox" Content="{loc:Tr Prefs.AlwaysOnTop}" />
-        </StackPanel>
-        </Border>
+      </Grid>
 
-        <!-- Data -->
-        <Border Classes="panel" Padding="12">
-        <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="{loc:Tr Prefs.MapDataHeading}" />
-          <CheckBox Name="AllowNetworkBox" Content="{loc:Tr Prefs.AllowNetwork}" />
-          <TextBlock Name="DataStatus" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Name="RefreshDataButton" Content="{loc:Tr Prefs.RefreshNow}" />
-            <Button Name="OpenCacheButton" Content="{loc:Tr Prefs.OpenCache}" />
-          </StackPanel>
-        </StackPanel>
-        </Border>
-
-      </StackPanel>
-      </Border>
-    </ScrollViewer>
+    </Grid>
 
   </DockPanel>
 
