@@ -24,7 +24,13 @@
   }
   #app{position:fixed;inset:0}
   /* ---- map surface ---- */
-  #stage{position:fixed;inset:0;overflow:hidden;touch-action:none;background:
+  /* Pinned to left/top with an explicit width/height the script sets to the SAME vw/vh the canvas
+     backing store and its dpr matrix are built from. `inset:0` would size this to the LAYOUT
+     viewport, which on a phone (URL bar showing) differs from window.innerWidth/innerHeight (the
+     VISUAL viewport): the marker canvas would be stretched by layoutHeight/innerHeight while the
+     SVG artwork was not. left/top are kept; the right/bottom edges are dropped so the script's
+     width/height win and #world, the tile <img>s, #cv and #pulse all share one box. */
+  #stage{position:fixed;left:0;top:0;overflow:hidden;touch-action:none;background:
     radial-gradient(120% 120% at 50% 0%,#1b2026 0%,#121518 60%,#0e1012 100%)}
   #world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;line-height:0}
   /* hidden, not visible: the desktop renderer clips the artwork to svgBaseRect (Skia's viewport is
@@ -33,7 +39,10 @@
      screen edge. Matching the desktop here is what keeps the two views aligned. */
   #world svg{position:absolute;display:block;overflow:hidden}
   #world img.tile{position:absolute;image-rendering:auto;-webkit-user-drag:none;pointer-events:none}
-  #cv{position:absolute;inset:0;pointer-events:none}
+  /* Sized by measure() to exactly vw x vh CSS px -- the same box whose backing store (round(vw*dpr))
+     and setTransform(dpr,...) matrix the marker drawing assumes. left/top (not inset:0) so the
+     script's width/height are authoritative instead of stretching to the stage's layout-viewport box. */
+  #cv{position:absolute;left:0;top:0;pointer-events:none}
   /* ---- player pulse (CSS-animated so canvas only redraws on real change) ---- */
   #pulse{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;opacity:0;
     transition:opacity .25s ease}
@@ -368,8 +377,15 @@
   }
   function measure(){
     vw=window.innerWidth; vh=window.innerHeight;
+    if(!(vw>0&&vh>0)) return;                          // a zero size would clear the canvas every frame
     var d=window.devicePixelRatio||1, w=Math.round(vw*d), h=Math.round(vh*d);
     if(w!==cw||h!==ch){ cv.width=w; cv.height=h; cw=w; ch=h; }
+    // Pin the CSS box to the measured viewport so the backing store, the dpr matrix and the displayed
+    // size are one and the same: 1 CSS px = dpr device px holds only if #cv is displayed at vw x vh.
+    // #stage gets the identical box, so the DOM artwork is laid out against the same vw/vh the canvas
+    // is drawn against and the two x/y formulas (tx+b*scale) land in one coordinate space.
+    cv.style.width=vw+"px"; cv.style.height=vh+"px";
+    stage.style.width=vw+"px"; stage.style.height=vh+"px";
     if(vw!==uiVw){ uiVw=vw; rescale(); }               // marker geometry follows the viewport width
   }
   function clamp(v,a,b){ return v<a?a:v>b?b:v; }
@@ -425,7 +441,17 @@
     view.scale=ns; view.tx=e.clientX-bx*ns; view.ty=e.clientY-by*ns;
     constrain(); requestRender();
   },{passive:false});
-  window.addEventListener("resize",function(){ measure(); constrain(); requestRender(); });
+  // One re-measure path for every way the viewport can change, so each re-establishes the agreement
+  // between the canvas backing store, its CSS box and #stage. Double invocation is harmless: measure()
+  // is idempotent, constrain() only clamps and requestRender() only schedules a frame.
+  function onViewportChange(){ measure(); constrain(); requestRender(); }
+  window.addEventListener("resize", onViewportChange);
+  window.addEventListener("orientationchange", onViewportChange);   // rotate: re-pin to the new box
+  // Some engines resize the VISUAL viewport (browser chrome collapsing/expanding) without firing a
+  // window resize; the canvas is drawn against innerWidth/innerHeight, so follow that too.
+  if(window.visualViewport && window.visualViewport.addEventListener){
+    window.visualViewport.addEventListener("resize", onViewportChange);
+  }
 
   // ---- artwork: inline SVG ------------------------------------------------------------------
   function buildArt(){
