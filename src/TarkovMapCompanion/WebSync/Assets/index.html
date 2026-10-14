@@ -53,20 +53,40 @@
   /* ---- chrome ---- */
   .panel{background:var(--panel);border:1px solid var(--edge);box-shadow:var(--shadow);
     -webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1)}
-  #topbar{position:absolute;left:calc(10px + var(--safeL));right:calc(10px + var(--safeR));
-    top:calc(10px + var(--safeT));height:52px;border-radius:14px;display:flex;align-items:center;
-    gap:12px;padding:0 14px;z-index:5}
+  /* ===== top bar: a compact, content-hugging backing (variant D) =============================
+     No full-width panel and no scrim: #topbar shrink-wraps to its content and sits as one small
+     rounded slab, anchored at the same left/top + safe-area insets the old bar used. The `right`
+     edge is gone -- that is what used to stretch it across the screen. Map name and the compact
+     status ride side by side inside it, so what the map lost is the wide tinted band, not the text.
+     The element no longer carries class="panel", and re-declares every surface property, so the old
+     translucent fill / edge / shadow cannot show through. */
+  #topbar{position:absolute;left:calc(10px + var(--safeL));top:calc(10px + var(--safeT));
+    z-index:5;display:flex;align-items:center;gap:12px;
+    width:max-content;max-width:calc(100% - 20px - var(--safeL) - var(--safeR));height:auto;
+    padding:7px 12px;border-radius:13px;background:rgba(10,12,15,.40);border:0;box-shadow:none;
+    -webkit-backdrop-filter:blur(7px) saturate(1.05);backdrop-filter:blur(7px) saturate(1.05)}
+  /* Hug the glyphs, but never let a long name stretch the slab across the screen: it takes its
+     content width normally and only shrinks + ellipsizes once #topbar hits its max-width cap. */
   #mapname{font-size:16px;font-weight:650;letter-spacing:.02em;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis;flex:1;min-width:0}
-  #mapname small{display:block;font-size:11px;font-weight:500;color:var(--dim);letter-spacing:.06em}
-  #status{display:flex;align-items:center;gap:8px;min-width:96px;justify-content:flex-end;flex:none}
-  #dot{width:10px;height:10px;border-radius:50%;background:var(--dim);flex:none;
-    box-shadow:0 0 0 2px rgba(255,255,255,.22);transition:background .3s,box-shadow .3s}
-  #status.open #dot{background:var(--green);box-shadow:0 0 0 2px rgba(255,255,255,.6),0 0 0 4px rgba(127,209,166,.32),0 0 12px rgba(127,209,166,.75)}
-  #status.connecting #dot{background:var(--amber);box-shadow:0 0 0 2px rgba(255,255,255,.5),0 0 0 4px rgba(242,193,91,.3)}
-  #status.closed #dot{background:var(--red);box-shadow:0 0 0 2px rgba(255,255,255,.5),0 0 0 4px rgba(255,107,107,.3)}
-  #stext{font-size:12.5px;font-weight:600;color:var(--dim);min-width:62px;text-align:right}
+    text-overflow:ellipsis;flex:1 1 auto;min-width:0;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+  #mapname small{display:block;font-size:11px;font-weight:600;color:#ccd6dc;letter-spacing:.06em;
+    text-shadow:0 1px 2px rgba(0,0,0,.55)}
+  /* Compact status: the min-width on the cluster and on the label are gone -- that reserved gap was
+     exactly the space the old bar wasted. 8 px dot, tighter gap, smaller label. */
+  #status{display:flex;align-items:center;gap:6px;flex:none}
+  #dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none;
+    box-shadow:0 0 0 1.5px rgba(255,255,255,.22);transition:background .3s,box-shadow .3s}
+  #status.open #dot{background:var(--green);box-shadow:0 0 0 1.5px rgba(255,255,255,.6),0 0 0 3px rgba(127,209,166,.32),0 0 12px rgba(127,209,166,.75)}
+  #status.connecting #dot{background:var(--amber);box-shadow:0 0 0 1.5px rgba(255,255,255,.5),0 0 0 3px rgba(242,193,91,.3)}
+  #status.closed #dot{background:var(--red);box-shadow:0 0 0 1.5px rgba(255,255,255,.5),0 0 0 3px rgba(255,107,107,.3)}
+  #stext{font-size:11px;font-weight:600;letter-spacing:.01em;color:#d3dbe0;white-space:nowrap;
+    text-shadow:0 1px 2px rgba(0,0,0,.55)}
   #status.open #stext{color:#cfe9db}
+  /* Landscape (the phone case where the bar was covering the map): drop the sub-label so the slab
+     stays a single compact line, matching variant D. Portrait keeps the two-line name below, where
+     there is ample vertical room and the slab can afford to grow taller. */
+  @media (orientation: landscape){ #mapname small{display:none} }
+  @media (orientation: portrait){ #mapname small{display:block} }
   #banner{position:absolute;left:50%;transform:translateX(-50%) translateY(-8px);
     top:calc(70px + var(--safeT));z-index:4;padding:8px 16px;border-radius:999px;font-size:12.5px;
     color:#ffd9d9;background:rgba(46,20,22,.82);border:1px solid rgba(255,107,107,.28);
@@ -149,7 +169,7 @@
     <div id="pulse"><i></i></div>
   </div>
 
-  <div id="topbar" class="panel">
+  <div id="topbar">
     <div id="mapname">—<small>WebSync</small></div>
     <div id="status" class="connecting"><span id="dot"></span><span id="stext">连接中</span></div>
   </div>
