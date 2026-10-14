@@ -1,3 +1,5 @@
+English · [简体中文 → README.zh-CN.md](README.zh-CN.md)
+
 # Tarkov Map Companion
 
 A second-monitor map for Escape from Tarkov that shows where you are, which way you are facing,
@@ -5,8 +7,6 @@ and how to get to the exit you picked.
 
 It works by watching your screenshot folder. Tarkov writes your position and camera rotation into
 the *filename* of every screenshot you take, so pressing the screenshot key updates the map.
-
-简体中文：[README.zh-CN.md](README.zh-CN.md)
 
 ![The app showing Shoreline with an exit selected](docs/screenshot-dark.png)
 
