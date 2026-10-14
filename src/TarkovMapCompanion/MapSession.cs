@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.GameLog;
@@ -8,6 +9,7 @@ using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
 using TarkovMapCompanion.Settings;
 using TarkovMapCompanion.Vision;
+using TarkovMapCompanion.WebSync;
 
 namespace TarkovMapCompanion;
 
@@ -45,6 +47,11 @@ public sealed class MapSession : IDisposable
     private readonly TaskStore _tasks;
     private readonly ItemIconStore _icons;
     private readonly AnnotationStore _annotations = new();
+
+    // WebSync: the broadcaster mirrors this session's state; the server serves it. Constructed at
+    // the end of the constructor, started only when the preference is on.
+    private readonly StateBroadcaster _broadcaster;
+    private readonly WebSyncServer _webSync;
 
     private IMapImageSource? _imageSource;
     private int _fixes;
@@ -183,10 +190,22 @@ public sealed class MapSession : IDisposable
                 Heatmap.Groups[group] = on;
         }
 
+        // Seeded before the broadcaster below is built, so this initial layer setup has no listeners
+        // to announce itself to.
         foreach (var kind in Enum.GetValues<PoiKind>())
-            Pois.Visible[kind] = settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on;
+            SetPoiLayer(kind, settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on);
 
         CurrentMap = catalog.Resolve(settings.CurrentMap);
+
+        // WebSync wiring, touchpoint 1 of 3 (docs/websync-implementation-spec.md section 5.4.1 D):
+        // build the broadcaster and server, but do not start anything. ApplyWebSyncSettings decides.
+        _broadcaster = new StateBroadcaster(this, settings);
+        _webSync = new WebSyncServer(
+            _broadcaster,
+            settings,
+            _assets,
+            _catalog,
+            message => Status?.Invoke(this, message));
     }
 
     public GameMap CurrentMap { get; private set; }
@@ -194,6 +213,37 @@ public sealed class MapSession : IDisposable
     public PlayerOverlay Player { get; }
 
     public PoiOverlay Pois { get; }
+
+    /// <summary>
+    /// Turns one POI layer on or off and tells listeners, so a read-only mirror of this session
+    /// cannot fall out of step with what the map is actually drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This raises the existing <see cref="PoisChanged"/>. That event already carries "the POI
+    /// drawing changed", its only producers are the map rebuild and this method, and every
+    /// subscriber reads the overlays without writing back through here, so raising it cannot
+    /// cycle. A dedicated event was considered and rejected: the broadcaster and the two windows
+    /// already listen for <see cref="PoisChanged"/> and would each need a second subscription for
+    /// no behavioural gain.
+    /// </para>
+    /// <para>
+    /// Setting a layer to the value it already has raises nothing.
+    /// </para>
+    /// </remarks>
+    internal void SetPoiLayer(PoiKind kind, bool visible)
+    {
+        // Missing counts as hidden, matching PoiOverlay.IsKindVisible. The entry is still written so
+        // the dictionary keeps a full set of keys, but a value that matches what was already
+        // effective is not a change and must not announce itself.
+        var wasVisible = Pois.Visible.TryGetValue(kind, out var current) && current;
+        Pois.Visible[kind] = visible;
+
+        if (wasVisible == visible)
+            return;
+
+        PoisChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public ExtractLineOverlay ExtractLine { get; }
 
@@ -419,7 +469,10 @@ public sealed class MapSession : IDisposable
     /// </summary>
     public event EventHandler<GameMap>? MapSuggested;
 
-    /// <summary>Raised when the POI set for the current map has been rebuilt.</summary>
+    /// <summary>
+    /// Raised when the POI drawing for the current map has changed: the set was rebuilt, or a
+    /// layer's visibility was toggled through <see cref="SetPoiLayer"/>.
+    /// </summary>
     public event EventHandler? PoisChanged;
 
     /// <summary>
@@ -481,7 +534,50 @@ public sealed class MapSession : IDisposable
         StartWatching();
         StartWatchingGameLog();
 
+        // WebSync wiring, touchpoint 2 of 3: apply the saved preference now that the session is
+        // coming up. The bind itself runs on the server's own worker thread, so this returns at once.
+        ApplyWebSyncSettings();
+
         _ = RefreshDataInBackgroundAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies the saved WebSync preference to the embedded server, generating a first token when
+    /// sharing is switched on without one. Safe to call repeatedly and from the preferences screen.
+    /// </summary>
+    /// <remarks>
+    /// The reconciler on the server's worker thread does the actual start/stop, so this never blocks
+    /// the caller and can be called from the UI thread. MapSession has no SettingsStore of its own,
+    /// so a freshly generated token is written to the settings object; whoever owns the store
+    /// persists it (the app already saves settings on shutdown).
+    /// </remarks>
+    internal void ApplyWebSyncSettings()
+    {
+        if (_settings.WebSyncEnabled && string.IsNullOrEmpty(_settings.WebSyncAccessToken))
+            _settings.WebSyncAccessToken = GenerateAccessToken();
+
+        _webSync.Update(_settings.WebSyncEnabled, _settings.WebSyncPort, _settings.WebSyncAccessToken);
+    }
+
+    /// <summary>
+    /// The token alphabet: Crockford base32 with the ambiguous <c>0</c>, <c>1</c>, <c>I</c>,
+    /// <c>L</c> and <c>O</c> removed, so a token can be read off a screen and typed without guessing.
+    /// </summary>
+    private const string TokenAlphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+    /// <summary>Generates an 8-character access token from <see cref="TokenAlphabet"/>.</summary>
+    /// <remarks>
+    /// The alphabet length is not a power of two, so <c>GetInt32</c> is used for a uniform pick
+    /// rather than masking a random byte, which would favour the first few symbols.
+    /// </remarks>
+    private static string GenerateAccessToken()
+    {
+        var chars = new char[8];
+
+        for (var i = 0; i < chars.Length; i++)
+            chars[i] = TokenAlphabet[RandomNumberGenerator.GetInt32(TokenAlphabet.Length)];
+
+        return new string(chars);
     }
 
     private async Task RefreshDataInBackgroundAsync(CancellationToken cancellationToken)
@@ -898,6 +994,9 @@ public sealed class MapSession : IDisposable
     /// <summary>Hands the watcher a known quest state, for tests.</summary>
     internal void ApplyQuestStateForTesting(IReadOnlyDictionary<string, QuestProgress> state) =>
         _questLog.SetStateForTesting(state);
+
+    /// <summary>Raises a player fix as if the screenshot watcher had detected it, for tests.</summary>
+    internal void ApplyFixForTesting(PlayerFix fix) => OnFixDetected(this, fix);
 
     /// <summary>
     /// The character the quest log is answering about, short enough to show.
@@ -1531,6 +1630,12 @@ public sealed class MapSession : IDisposable
             return;
 
         _disposed = true;
+
+        // WebSync wiring, touchpoint 3 of 3: teardown, in the fixed order of section 5.4.1 C.
+        // The broadcaster detaches its handlers and aborts sockets synchronously; the server then
+        // stops (bounded) and releases the port. Both are idempotent and null-safe.
+        _broadcaster?.Dispose();
+        _webSync?.Dispose();
 
         _watcher.FixDetected -= OnFixDetected;
         _watcher.Dispose();

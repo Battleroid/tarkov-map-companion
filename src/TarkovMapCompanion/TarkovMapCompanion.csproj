@@ -34,6 +34,12 @@
     <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Svg.Skia" Version="$(SvgSkiaVersion)" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!--
+      Pure managed QR encoder (MIT). Only its PngByteQRCode renderer is used, and that writer is
+      pure managed, so it brings no SkiaSharp of its own to collide with the pin in
+      Directory.Build.props.
+    -->
+    <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,10 +60,20 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Localization\StringsEn.json" />
     <EmbeddedResource Include="Localization\StringsZh.json" />
+    <EmbeddedResource Include="WebSync\Assets\**" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="TarkovMapCompanion.Tests" />
+  </ItemGroup>
+
+  <!--
+    WebSync (§docs/websync-implementation-spec.md) serves a read-only LAN mirror of the current
+    map to a tablet browser. Kestrel comes from the shared framework, which the self-contained
+    single-file publish bundles; that is the accepted ~8-15 MB cost.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

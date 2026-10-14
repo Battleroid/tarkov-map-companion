@@ -194,15 +194,26 @@ public sealed class TileMapSource : IMapImageSource
     /// then there is genuinely nothing to draw, and drawing the ground anyway would ignore the
     /// user and make the checkbox look broken.
     /// </remarks>
-    private string? ResolveTemplate(IReadOnlyCollection<string> activeFloorNames, bool includeBase)
+    private string? ResolveTemplate(IReadOnlyCollection<string> activeFloorNames, bool includeBase) =>
+        ResolveTemplate(_map, activeFloorNames, includeBase);
+
+    /// <summary>
+    /// The tile URL template for a floor selection: the first floor template whose name is active, else
+    /// the base template when <paramref name="includeBase"/>. Shared with the WebSync tile proxy so both
+    /// pick the same template for the same floors.
+    /// </summary>
+    internal static string? ResolveTemplate(
+        GameMap map,
+        IReadOnlyCollection<string> activeFloorNames,
+        bool includeBase)
     {
-        foreach (var floor in _map.Floors)
+        foreach (var floor in map.Floors)
         {
             if (floor.TilePathTemplate is not null && activeFloorNames.Contains(floor.Name))
                 return floor.TilePathTemplate;
         }
 
-        return includeBase ? _map.BaseTilePathTemplate : null;
+        return includeBase ? map.BaseTilePathTemplate : null;
     }
 
     private void QueueFetch(TileKey key)

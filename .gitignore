@@ -13,3 +13,6 @@ TarkovMapCompanion-*-win-x64.zip
 
 # Local render-test output
 *.render.png
+
+# Another agent tool's session memory. Machine-local, never part of the repo.
+.workbuddy/

@@ -106,6 +106,15 @@ public sealed class WaypointOverlay : IAnimatedOverlay
     /// </remarks>
     public void SetSharedRoutes(IReadOnlyList<SharedRoute> routes) => _shared = routes;
 
+    /// <summary>
+    /// Snapshot of the shared teammate routes currently displayed, for read-only consumers such as
+    /// WebSync. Returns a copy: callers may enumerate it without holding the overlay lock.
+    /// </summary>
+    public IReadOnlyList<SharedRoute> SharedRoutes
+    {
+        get { lock (_gate) return _shared.ToArray(); }
+    }
+
     public int Count
     {
         get { lock (_gate) return _waypoints.Count; }

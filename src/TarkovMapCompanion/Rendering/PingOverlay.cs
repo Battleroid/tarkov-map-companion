@@ -70,6 +70,16 @@ public sealed class PingOverlay : IAnimatedOverlay
         get { lock (_gate) return _pings.Count > 0; }
     }
 
+    /// <summary>
+    /// Snapshot of the pings currently on screen, newest last, for read-only consumers such as
+    /// WebSync. Returns a copy; the overlay keeps mutating its own list as pings expire.
+    /// </summary>
+    public IReadOnlyList<MapPing> Snapshot()
+    {
+        lock (_gate)
+            return _pings.ToArray();
+    }
+
     public void Add(MapPing ping)
     {
         lock (_gate)

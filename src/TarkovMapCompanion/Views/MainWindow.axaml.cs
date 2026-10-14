@@ -776,7 +776,7 @@ public partial class MainWindow : Window
         foreach (var kind in ExtractKinds)
         {
             var on = filter.Includes(kind);
-            _session.Pois.Visible[kind] = on;
+            _session.SetPoiLayer(kind, on);
             _settings.PoiLayers[kind.ToString()] = on;
         }
 
@@ -808,7 +808,7 @@ public partial class MainWindow : Window
             toggle.IsCheckedChanged += (_, _) => Apply(() =>
             {
                 var on = toggle.IsChecked ?? false;
-                _session.Pois.Visible[captured] = on;
+                _session.SetPoiLayer(captured, on);
                 _settings.PoiLayers[captured.ToString()] = on;
 
                 // Ticking an exit layer by hand contradicts a narrowed filter, so drop back to
