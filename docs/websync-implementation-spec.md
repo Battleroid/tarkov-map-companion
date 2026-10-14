@@ -1,11 +1,44 @@
 # WebSync 局域网同步功能 — 实现规格书（AI 开发指令）
 
-> 本文档是完整的、自包含的实现指令。按 M1 → M4 顺序执行，每个里程碑完成后必须
-> `dotnet test` 全绿再进入下一个。不要跳步，不要做「明确不做」清单里的任何事。
+> **状态：已于分支 `websync` 全部实现并交付（2026-10-14）。本文档保留为设计依据与决策记录，
+> 不再是待执行指令。** 现役状态见 `AGENTS.md` 的 Current state 一节；给终端用户的说明见
+> `README.md` 的 "On a tablet, over the LAN" 一段。文中若干处规格在实现中被实测证据修正，
+> 这些修正已就地写回（§4.1 两类路线、§4.2 线程与退订契约、§5.2 投影旋转、§5.4.1 Kestrel 启停、
+> §6.2 瓦片缓存 category、§9 体积判据），**以就地修正后的文本为准**，不要照着最初的假设重写。
+> 基线测试数已从 656 增至 716。
 >
-> 项目：tarkov-map-companion-self-improv · .NET 8 (`net8.0-windows10.0.19041.0`) ·
-> Avalonia 11.3.19 · SkiaSharp 2.88.9 · 基线 656 个测试
-> 日期：2026-10-13 · 状态：已确认立项
+> 历史基线：项目 tarkov-map-companion-self-improv · .NET 8 (`net8.0-windows10.0.19041.0`) ·
+> Avalonia 11.3.19 · SkiaSharp 2.88.9 · 立项日期：2026-10-13
+
+---
+
+## 实现后补记（2026-10-14，真机验证暴露的问题）
+
+规格书写成时，客户端只有纸面设计。真机上暴露并已修复的问题，按"不在本文档正文中、但会误导下一个人"的顺序补记如下——**它们全部属于客户端 `Assets/index.html`，服务端不受影响**：
+
+- 客户端 HTML 是内嵌资源、URL 恒定，早期 `/` 端点**没有发任何缓存头**，浏览器启发式缓存，
+  导致多轮客户端修复在手机上完全看不到效果。现在 `/` 发 `Cache-Control: no-store, must-revalidate`
+  + `Pragma: no-cache`。**改动"没效果"时先查这一条和发布产物，再去读绘制代码。**
+- `position:fixed; inset:0` 按**布局视口**定尺寸，而 `innerWidth/innerHeight` 报的是**可视视口**。
+  手机上地址栏让两者不等，canvas 被按布局视口显示、却用可视视口算出的后备存储与
+  `setTransform(dpr,…)` 绘制，于是**标记被拉伸而 DOM 底图不被拉伸**。现在 `#stage` 与 `#cv`
+  一律由 `measure()` 按实测 `vw/vh` 定尺寸。桌面永远复现不了。
+- 解析 SVG 文档时用 `document.importNode` 是**复制**、`appendChild` 是**移动**；
+  `while(root.firstChild) f.appendChild(document.importNode(...))` 永不终止，会冻死主线程——
+  定时器随之停摆，连超时都不会触发。现在用 `appendChild` 排空文档。
+- Canvas 2D 状态是累积的，`save()/restore()` 成对也可能泄漏 `globalAlpha/lineWidth/font/fillStyle`。
+  标记层现全部包在 `scoped()` 里，`draw()` 每帧先重置变换与绘制基线。
+- 标记半径原本直接照抄桌面端**绝对 CSS 像素**（`PoiOverlay` 是 1920px 宽窗口上的值），
+  在 366px 手机上相对大约放大 5 倍。现在按 `clamp(vw/1000, 0.6, 1.0)` 换算。
+- 局域网地址**不能**按 RFC1918 网段排序：虚拟网卡（WSL/Hyper-V）同样分到私网地址，会压过真实
+  WiFi。现在按"同子网的 IPv4 网关是否存在"分层，网关在同子网=真实局域网，优先级最高。
+- **客户端 JavaScript 至今没有任何自动化测试。** 716 个测试全部覆盖服务端；上面几条本该被拦住。
+  `?selfcheck=1` 是唯一的自动化守卫，且很薄。
+- headless Chrome **不等于手机**：`--window-size=390,844 --force-device-scale-factor=2` 产出
+  780x1688 截图，但页面实际 `innerWidth=491`，截图静默裁掉了页面，会制造"底图被裁"这类假象。
+  任何视觉结论前先从页面里读 `innerWidth/innerHeight/devicePixelRatio` 核对。
+
+---
 
 ---
 
