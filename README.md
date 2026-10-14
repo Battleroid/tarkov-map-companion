@@ -6,7 +6,36 @@ and how to get to the exit you picked.
 It works by watching your screenshot folder. Tarkov writes your position and camera rotation into
 the *filename* of every screenshot you take, so pressing the screenshot key updates the map.
 
+简体中文：[README.zh-CN.md](README.zh-CN.md)
+
 ![The app showing Shoreline with an exit selected](docs/screenshot-dark.png)
+
+## About this fork
+
+This is a self-improved fork of
+[`Battleroid/tarkov-map-companion`](https://github.com/Battleroid/tarkov-map-companion) — Battleroid's
+original, MIT-licensed, and still the project everything here is built on. The rest of this README
+is their text, kept as it is and amended where this fork differs; the original repository is the
+place to read about the features this fork did not touch.
+
+What this fork adds or changes:
+
+- **Simplified Chinese throughout.** Every control, panel, preference, floor name, layer label and
+  exit condition is translated, with a language switch in **Settings**. A new install starts in
+  Chinese; an existing `settings.json` keeps whichever language it already named.
+- **Vendored exit data corrected.** Three defects in the bundled tarkov.dev payload are normalized
+  when the list is built, so the exit list reads the way it is meant to. See
+  [Where the data comes from](#where-the-data-comes-from).
+- **LAN sync (WebSync).** An opt-in, read-only mirror of the map served to a tablet or phone over
+  your own network, with a QR code to scan and a token on every request. It is the
+  **On a tablet, over the LAN** section below.
+- **Settings rebuilt as a category rail.** Thirteen stacked sections became six pages, plus a
+  dedicated **LAN Sync** page, so the dialog is a set of categories rather than one long scroll.
+
+Known gaps in this fork, both deliberate and recorded in `docs/`: the exit-panel OCR still only
+matches English exit names, so **Read exits from screenshot** does nothing on a Chinese game
+client; and the WebSync browser page is Simplified Chinese only, whatever language the desktop is
+in. See **Known gaps**, near the end of *What it does*.
 
 ## This is not a cheat
 
@@ -26,13 +55,22 @@ the line where the game names the map it is about to load, and the line where yo
 is a plain text file in your Tarkov folder that you can open in Notepad, it contains nothing about
 anybody else's position, and nothing is written back to it.
 
+**LAN sync** is the one thing here that opens a network port, so it is worth being exact about: it
+is off by default, it binds your local network only, and every route on it either reads a copy of
+what the desktop window is already showing or sends you that copy again. There is no write path —
+the browser cannot move your marker, delete a note or change a setting — and a generated token is
+required on every request but the page itself.
+
 ## Install
 
 Download the latest **`TarkovMapCompanion-vX.Y.Z-win-x64.exe`** from
-[Releases](https://github.com/Battleroid/tarkov-map-companion/releases) and run it.
+[Releases](https://github.com/BlueMess/tarkov-map-companion-self-improv/releases) and run it.
 
 There is nothing to install. .NET is bundled, and the maps and exit data are baked into the
 executable, so it works with no internet connection.
+
+> The executable is larger than the upstream build — roughly 62 MB rather than about 30 — because
+> this fork's LAN sync carries the ASP.NET Core shared framework inside it.
 
 > Windows SmartScreen will warn about an unsigned executable the first time. Choose **More info**
 > then **Run anyway**. Every release is built by GitHub Actions from a tag in this repo, so you can
@@ -50,10 +88,18 @@ today's, and nothing older than the map's raid length is drawn.
 
 **Interface language.** English or Simplified Chinese, chosen in **Settings** and applied on
 restart. A fresh install starts in Simplified Chinese; an existing `settings.json` keeps whichever
-language it already names. Every control, panel and preference is translated, along with floor
-names, layer labels and the exit conditions themselves. Proper nouns stay in Latin — PMC, Scav,
-AI, boss names, traders and `ZB-####` codes — because that is how the game shows them. Each exit
-condition is drawn as a single line in the active language, not as Chinese over an English echo.
+language it already names. Every control, panel and preference is translated — 529 strings, key sets
+identical in both files — along with floor names, layer labels, faction labels and the exit
+conditions themselves.
+
+Proper nouns stay in Latin — PMC, Scav, AI, boss names, traders, Kappa, `ZB-####` extract codes —
+because that is how the game shows them. Extract codes are held to that even where the Chinese data
+offers a translation, so `ZB-1011` reads as `ZB-1011` and not as a translated building name. Each
+exit condition is drawn as a single line in the active language, not as Chinese over an English
+echo.
+
+The one thing language does not reach is the extraction-panel OCR, which still matches against the
+English exit names — see **Known gaps** below.
 
 **Exits, with their conditions.** Every exit is shown, colored by faction. Conditional exits are
 ringed on the map and flagged in the list, and selecting one tells you what it needs:
@@ -153,6 +199,13 @@ side pane was a lot of window for two checkboxes.
 map offer you the right one. It proposes rather than switches, because several maps overlap in world
 coordinates and a wrong auto-switch mid-raid is worse than no suggestion. Switching automatically is
 available in **Settings** if you would rather.
+
+**Settings, in six categories.** **General** (appearance, language, always-on-top, map data),
+**Capture & Logs**, **Map Display** (view, marker, exits, minimap), **Quests**, **Multiplayer** and
+**LAN Sync**. This fork replaced one long scroll of thirteen stacked sections with a category rail
+and a page per category, which is also why the LAN sync switches have somewhere to live. Edits
+apply as you make them — there is no OK and no Cancel — and everything is still hand-editable in
+`settings.json`.
 
 **Quests it already knows you are on.** With the game's log switched on, the app reads the trader
 messages Tarkov writes and follows along: accepting a quest ticks it, handing it in unticks it. The
@@ -338,16 +391,43 @@ The same color is what your squad sees you as, and while a session is running th
 colors somebody else is already using — nobody is stopped from picking one, and nobody is ever
 silently reassigned, but the moment to mention a clash is while you are choosing.
 
-**On a tablet, over the LAN.** Turn on **WebSync** in Settings and the app serves a read-only copy
-of the map to any browser on the same network. The tablet sees what the desktop sees — the artwork,
-your marker and its trail, the route, the guide line, exits, quest marks, notes, squad and pings —
-within a second, and pans and zooms by touch. It is a mirror and nothing else: every request only
-reads what the desktop already has, the browser cannot change a single thing, and none of it runs
-until you switch it on. Settings shows the address and a QR code to scan; an access token is
-generated for you and required on every request, so the link is the only way in and regenerating the
-token cuts off anyone who had the old one. It listens on port 8765 by default, only across your own
-network — it never announces itself to the internet — and the first time you turn it on, Windows may
-ask whether to let it through your private network.
+**On a tablet, over the LAN.** Turn on **Share this map** in **Settings → LAN Sync** and the app
+serves a read-only copy of the map to any browser on the same network. The tablet sees what the
+desktop sees — the artwork, your marker and its trail, the route, the guide line, exits, quest marks,
+notes, squad and pings — within a second, and pans and zooms by touch.
+
+It is a mirror and nothing else. Every route on it is a read: `GET /` for the page, `/api/state`
+for a snapshot, `/map/{map}.svg` and `/tiles/…` for the artwork and its tiles (served from the
+desktop's own cache rather than fetched twice), and `/ws` for the live stream, which only ever
+subscribes. There is no endpoint that writes, so the browser cannot change a single thing, and none
+of it runs until you switch it on.
+
+Settings shows the address, a **QR code** to scan, and a **New link** button. An eight-character
+access token is generated for you and required on every request except the page itself; a request
+without it — or with the wrong one — is a **404**, so somebody outside your network cannot even tell
+the service is there. Regenerating the token takes effect immediately and cuts off anyone holding
+the old link.
+
+It listens on port 8765 by default, on your local network only — it never announces itself to the
+internet, opens no port on your router and moves no port mapping — and the port is configurable if
+8765 clashes with something. Windows may ask whether to let it through your **private** network the
+first time you turn it on, and it will not work over a guest or public network until you allow it.
+
+Four switches decide what the tablet is shown: follow the player's floor, POIs, quest marks and
+annotations. Ticking a desktop map that is drawn with a lot on it and turning the tablet's own
+things off is the usual way to keep a small screen readable. The browser page itself is Simplified
+Chinese only, whatever the desktop is set to.
+
+**Known gaps.** Two, both written up rather than papered over:
+
+- **The exit-panel OCR only reads English.** With a Chinese game client the extraction list is
+  Chinese, but candidates come from the English exit names, so **Read exits from screenshot** finds
+  nothing. Fixing it means deciding how the Chinese names are matched at all, which is why it is
+  still open — see `docs/localization-ocr-chinese-backlog.md`.
+- **Rendering is expensive.** Measured 15–43 ms per frame with a full overlay set, and the arrow
+  animation runs a 20 fps clock for the whole raid whenever a route has two or more waypoints. It
+  is a real cost on an old machine and the prioritized fix list is in
+  `docs/render-performance-backlog.md`. LAN sync is not part of it.
 
 ## First run
 
@@ -358,13 +438,16 @@ line under the folder says how many Tarkov screenshots it can see — if that sa
 have taken some in raid, the game is writing somewhere else and **Find** will locate it. Pick your map from the dropdown; if a position lands somewhere the current map
 cannot contain, the app offers to switch.
 
+A fresh install starts in Simplified Chinese. To go back to English, or back again, it is
+**Settings → General → Language**, and the app restarts into it.
+
 ## Building from source
 
 Needs the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```
-git clone https://github.com/Battleroid/tarkov-map-companion
-cd tarkov-map-companion
+git clone https://github.com/BlueMess/tarkov-map-companion-self-improv
+cd tarkov-map-companion-self-improv
 dotnet test              # 718 tests
 Run.bat                  # or: dotnet run --project src/TarkovMapCompanion
 ```
@@ -374,6 +457,10 @@ To produce the same single-file executable the releases ship:
 ```
 scripts\publish.ps1
 ```
+
+That publish is now about 62 MB rather than about 30, because LAN sync carries the ASP.NET Core
+shared framework. It still lands in `publish\`, which is gitignored — so re-run it after every
+change you want to see, or you will keep launching the binary from before the fix.
 
 ### Extra command-line modes
 
@@ -387,6 +474,11 @@ scripts\publish.ps1
 | `--find-logs [folder] [all]` | Prints where Tarkov's own logs were found, what the parser made of the newest one, and any location name this build does not recognize. What to run when the map stops switching. `all` reads every launch's log rather than only the newest. |
 | `--party-test [name] [local]` / `--party-test join <code> [name]` | Hosts or joins a position-sharing session from the console. Says whether this network can host at all, which is the one part that cannot be tested any other way. `local` uses loopback so two processes on one machine can talk. |
 | `--read-exits <screenshot.png> [map] [whole]` | Reads the extraction panel out of one screenshot and prints every stage: the raw text, the rows it grouped, and which exits it matched. What to run when a read goes wrong. |
+
+There is no LAN-sync command line mode: WebSync is turned on and configured in **Settings**, and
+`--party-test` will not start it. The served page carries one automated check of its own —
+`?selfcheck=1` asserts the canvas transform survives a rotate and a dashed ring — which is thin
+cover for a browser client the test suite otherwise does not touch.
 
 ## Where the data comes from
 
@@ -407,11 +499,13 @@ Map authors are credited individually in the app's About screen: **Shebuka** (10
 
 Exit conditions are community-maintained and can lag a patch. You can correct them without
 rebuilding by creating `%APPDATA%\TarkovMapCompanion\extract-notes.json`; entries there override
-the bundled ones per exit.
+the bundled ones per exit. The Chinese file beside it, `extract-notes.zh.json`, overrides the same
+way for Chinese.
 
-Chinese text for exit *names* comes from tarkov.dev's own `maps_zh`. Chinese for exit *conditions*
-comes from the bundled `extract-notes.zh.json`, which sits beside the English file in
-`Data/Snapshots/`.
+Chinese text for exit, map, POI and item *names* comes from tarkov.dev's own `maps_zh` payload.
+Chinese for exit *conditions* is not in that data — the wiki has no official translation — so it
+comes from the bundled `Data/Snapshots/extract-notes.zh.json`, which sits beside the English file
+and decorates it for display without ever replacing it.
 
 That upstream payload has shipped defects that make the list unreadable, so three of them are
 corrected when the list is built:
@@ -419,25 +513,28 @@ corrected when the list is built:
 - a switch id attached to **every** extract on a map is ignored, instead of being turned into a
   condition on all of them and an "activated by" line on every row;
 - one physical exit that upstream now sends as **two coincident `pmc` and `scav` records** is folded
-  back into a single shared exit, in the **Exits: shared** layer;
-- an extract whose name is a plain code (`ZB-1011`, `D-2`) keeps that code in **every** language, even
-  where the Chinese table offers a translation for one of the two records.
+  back into a single shared exit, in the **Exits: shared** layer, while two genuinely different
+  same-named exits stay separate;
+- an extract whose name is a plain code (`ZB-1011`, `D-2`) keeps that code in **every** language,
+  even where the Chinese table offers a translation for one of the two records.
 
-Each is covered by a test in `PoiTests.cs` and `UpstreamDataFixesTests.cs`, so a data refresh that
-changes the shape will fail the build rather than quietly reintroduce one of them.
+Each is covered by a test in `PoiTests.cs`, so a data refresh that changes the shape will fail the
+build rather than quietly reintroduce one of them.
 
 ## Where it stores things
 
 | Path | Contents |
 | --- | --- |
-| `%APPDATA%\TarkovMapCompanion\settings.json` | Your preferences. Hand-editable. |
+| `%APPDATA%\TarkovMapCompanion\settings.json` | Your preferences, including your language, the LAN sync switches and its access token. Hand-editable. |
 | `%APPDATA%\TarkovMapCompanion\extract-notes.json` | Optional overrides for exit conditions. |
+| `%APPDATA%\TarkovMapCompanion\extract-notes.zh.json` | The same, in Chinese. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\` | Downloaded maps and tiles. Safe to delete. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\icons\` | Item pictures, one per item id. Safe to delete; they come back as needed. |
 | `%LOCALAPPDATA%\TarkovMapCompanion\cache\app.log` | What the app was doing, including why it stopped. Worth attaching to a bug report. |
 
-The WebSync access token is kept in `settings.json` with the rest of your preferences, and WebSync
-serves the same downloaded maps and tiles the desktop already cached rather than fetching its own.
+The LAN sync access token is kept in `settings.json` with the rest of your preferences, and the
+server reads it live rather than caching it — which is why **New link** takes effect at once — and
+serves the same downloaded maps and tiles the desktop already cached instead of fetching its own.
 
 Party activity is logged on both sides with a shared tag derived from the session secret, like
 `[party ecb8932e host]`. Both ends compute the same tag without either sending it, so two people's
@@ -445,10 +542,21 @@ logs can be lined up side by side — and a tag that differs is itself the answe
 somebody pasted an older code. Addresses are logged with the last octet masked, so a pasted log
 does not hand out anyone's IP.
 
+## Project documents
+
+| File | What it is |
+| --- | --- |
+| [`docs/websync-implementation-spec.md`](docs/websync-implementation-spec.md) | The LAN mirror's design and routes, marked delivered. |
+| [`docs/eval-security-and-lan-sync.md`](docs/eval-security-and-lan-sync.md) | Why the LAN mirror binds the way it does, and what an attacker on your network could and could not reach. |
+| [`docs/localization-ocr-chinese-backlog.md`](docs/localization-ocr-chinese-backlog.md) | What the Chinese option does not cover yet, and the open questions behind it. |
+| [`docs/render-performance-backlog.md`](docs/render-performance-backlog.md) | Measured frame costs and the prioritized optimization list. |
+| [`AGENTS.md`](AGENTS.md) | Notes for anyone — human or agent — changing this codebase. |
+
 ## License
 
 Code is [MIT](LICENSE). Bundled third-party data keeps its own terms — see
-[NOTICE.md](NOTICE.md).
+[NOTICE.md](NOTICE.md). This fork additionally uses
+[QRCoder](https://github.com/CodeBubbler/QRCode-.NET) (MIT) for the LAN sync QR code.
 
 Escape from Tarkov is a trademark of Battlestate Games. This is an unofficial fan-made tool with no
 connection to Battlestate Games.
