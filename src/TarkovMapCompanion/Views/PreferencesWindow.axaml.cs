@@ -20,6 +20,10 @@ public partial class PreferencesWindow : Window
 
     private bool _loading = true;
 
+    // Which category tab was open last time. Static so it survives the window being closed and
+    // reopened, which is the whole point of remembering it.
+    private static int _lastCategory;
+
     // Parameterless ctor exists only for the XAML previewer.
     public PreferencesWindow() : this(new AppSettings(), null, () => { })
     {
@@ -38,8 +42,42 @@ public partial class PreferencesWindow : Window
 
         LoadValues();
         Wire();
+        InitializeCategories();
 
         _loading = false;
+    }
+
+    /// <summary>
+    /// Wires the category rail and swaps the six pages. The last category is restored from a static
+    /// field, because a settings window that forgets which tab you were on every time you reopen it
+    /// is the reason the single scroller was worth replacing.
+    /// </summary>
+    private void InitializeCategories()
+    {
+        CategoryList.SelectedIndex = _lastCategory is >= 0 and < 6 ? _lastCategory : 0;
+
+        CategoryList.SelectionChanged += (_, _) =>
+        {
+            _lastCategory = CategoryList.SelectedIndex;
+            ShowCategory(_lastCategory);
+        };
+
+        ShowCategory(CategoryList.SelectedIndex);
+    }
+
+    private void ShowCategory(int index)
+    {
+        // -1 is what a list reports with no selection; showing every page as invisible would leave
+        // the pane blank. Fall back to the first category rather than honoring the sentinel.
+        if (index < 0)
+            index = 0;
+
+        GeneralPage.IsVisible = index == 0;
+        CapturePage.IsVisible = index == 1;
+        DisplayPage.IsVisible = index == 2;
+        QuestsPage.IsVisible = index == 3;
+        PartyPage.IsVisible = index == 4;
+        LanSyncPage.IsVisible = index == 5;
     }
 
     // ---- Load ---------------------------------------------------------------

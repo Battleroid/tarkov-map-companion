@@ -211,7 +211,13 @@ public sealed class MapPoi
 
             var where = MapNames.Display(destination);
 
-            return Name.Contains(where, StringComparison.OrdinalIgnoreCase)
+            // Name is always the English name (it is what OCR matches against), so the
+            // "already says where it goes" test has to run against the English map name. Comparing
+            // against the display name only suppressed the subtitle while English was active; in
+            // Chinese every transit row gained a redundant "leads to" line.
+            var english = MapNames.EnglishFor(destination) ?? GameMap.ToDisplayName(destination);
+
+            return Name.Contains(english, StringComparison.OrdinalIgnoreCase)
                 ? ""
                 : Localizer.Loc("Poi.LeadsTo", where);
         }

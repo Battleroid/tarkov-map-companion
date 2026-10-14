@@ -6,8 +6,14 @@ using Xunit;
 
 namespace TarkovMapCompanion.Tests;
 
-public sealed class ExitFilterTests
+public sealed class ExitFilterTests : IDisposable
 {
+    // The app defaults to Simplified Chinese now; the labels asserted below are English, so this
+    // class pins the language it actually exercises.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
+
     [Theory]
     [InlineData(ExitFilter.All, PoiKind.ExtractPmc, true)]
     [InlineData(ExitFilter.All, PoiKind.ExtractScav, true)]

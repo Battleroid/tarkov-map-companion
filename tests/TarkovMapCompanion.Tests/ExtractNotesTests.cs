@@ -10,9 +10,15 @@ namespace TarkovMapCompanion.Tests;
 /// turning up at a cliff without a Red Rebel, or at a paid extract without the Roubles -- so a
 /// silent regression in the scrape or the name matching is worth failing a build over.
 /// </summary>
-public sealed class ExtractNotesTests
+public sealed class ExtractNotesTests : IDisposable
 {
     private static readonly MapCatalog Catalog = MapCatalog.LoadEmbedded();
+
+    // The app defaults to Simplified Chinese now; this class matches extracts to English wiki notes
+    // through the translator, so it pins English.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
 
     private static ExtractNotesStore LoadNotes()
     {

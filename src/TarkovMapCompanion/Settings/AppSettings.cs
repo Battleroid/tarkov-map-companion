@@ -464,9 +464,10 @@ public sealed class AppSettings
 
     /// <summary>
     /// The language the UI draws in. A settings file written before this existed simply uses the
-    /// default; there is no migration to run.
+    /// default; there is no migration to run. New installs start in Simplified Chinese; an existing
+    /// settings.json that names a language keeps it.
     /// </summary>
-    public AppLanguage Language { get; set; } = AppLanguage.English;
+    public AppLanguage Language { get; set; } = AppLanguage.ChineseSimplified;
 
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>
     public double FontSize { get; set; } = 14.0;
@@ -611,9 +612,11 @@ public sealed class AppSettings
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);
 
-        // A hand-edited file could name a value the enum does not have; English is the safe default.
+        // A hand-edited file could name a value the enum does not have; Simplified Chinese is the
+        // default a new install would get, so an unreadable value falls back to that rather than
+        // silently switching the UI to English.
         if (!Enum.IsDefined(Language))
-            Language = AppLanguage.English;
+            Language = AppLanguage.ChineseSimplified;
 
         if (string.IsNullOrWhiteSpace(CurrentMap))
             CurrentMap = "customs";

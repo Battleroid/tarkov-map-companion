@@ -1,5 +1,6 @@
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Maps;
+using TarkovMapCompanion.Settings;
 using Xunit;
 
 namespace TarkovMapCompanion.Tests;
@@ -8,8 +9,14 @@ namespace TarkovMapCompanion.Tests;
 /// What a row says under the exit's name, now that the detail pane is gone and the requirements
 /// live in the list.
 /// </summary>
-public class ExitRowTests
+public class ExitRowTests : IDisposable
 {
+    // The app defaults to Simplified Chinese now; the labels asserted below are English, so this
+    // class pins the language it actually exercises.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
+
     private static MapPoi Poi(
         PoiKind kind, string name, string? destination = null, params string[] details) => new()
     {
@@ -25,9 +32,18 @@ public class ExitRowTests
     /// The name of a transit is already a complete sentence about where it goes. Repeating it
     /// underneath was the specific thing that made the old detail pane read as padding.
     /// </summary>
-    [Fact]
-    public void ATransitWhoseNameSaysWhereItGoesGetsNoSubtitle()
+    /// <remarks>
+    /// Run in both languages deliberately. The class pins English for the label assertions below,
+    /// but the suppression is not a display concern: it has to hold whichever language is active,
+    /// and under Chinese it used to fail because the test compared the English name against a
+    /// Chinese map name. This test names its own language rather than inheriting the class pin.
+    /// </remarks>
+    [Theory]
+    [InlineData(AppLanguage.English)]
+    [InlineData(AppLanguage.ChineseSimplified)]
+    public void ATransitWhoseNameSaysWhereItGoesGetsNoSubtitle(AppLanguage language)
     {
+        using var scope = new LanguageScope(language);
         var poi = Poi(PoiKind.Transit, "Transit to Shoreline", destination: "shoreline");
 
         Assert.Equal("", poi.SubtitleLabel);

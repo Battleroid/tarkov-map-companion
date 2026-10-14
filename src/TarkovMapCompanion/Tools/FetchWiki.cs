@@ -104,7 +104,10 @@ public static partial class FetchWiki
 
                 foreach (var extract in extracts)
                 {
-                    var name = store.Translate(extract.Name);
+                    // TranslateEn, not Translate: the notes are keyed by the wiki's English names
+                    // and the runtime lookup feeds Find() the English extract name, so a coverage
+                    // count taken from the display translation matches nothing under a Chinese UI.
+                    var name = store.TranslateEn(extract.Name);
                     if (wikiKeys.Contains(ExtractNotesStore.Key(name)))
                         matched++;
                     else
