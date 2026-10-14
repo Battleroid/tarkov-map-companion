@@ -118,4 +118,3 @@ finished work. Re-measure with `--render-test <map> <out.png> 1600 1100 [bare]` 
 - **`Gate Near Medblock` -> `17号仓库`**, **`Reserve Checkpoint` -> `Scav检查站`** — upstream's English
   and Chinese disagree for those keys; left as-is because the in-game Chinese could not be verified
   without a game install. Needs someone who can read the client.
-- **`_smoke/`** — 45 files / 7.8 MB of untracked scratch. Delete or ignore; undecided.
