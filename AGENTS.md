@@ -53,7 +53,7 @@ Fork of `Battleroid/tarkov-map-companion`; `master` at `d84e569`, pushed to
 (Simplified Chinese + three data fixes) are **not yet an open PR** — a bilingual description is
 drafted at `%TEMP%\opencode\PR_DESCRIPTION.md`, base `Battleroid/tarkov-map-companion:master`.
 
-On branch **`websync`** (20 commits on top of `d84e569`): an embedded, read-only LAN mirror of the
+On branch **`websync`** (built on `d84e569`): an embedded, read-only LAN mirror of the
 map, built as M1-M4 (skeleton + snapshot + token, basemap endpoints, WebSocket + client page,
 settings pane + QR) and then hardened against a real phone. `src/TarkovMapCompanion/WebSync/` holds
 a Kestrel server (`WebSyncServer`, all host work on a null-`SynchronizationContext` worker behind a
