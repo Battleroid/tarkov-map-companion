@@ -37,6 +37,9 @@ matches English exit names, so **Read exits from screenshot** does nothing on a 
 client; and the WebSync browser page is Simplified Chinese only, whatever language the desktop is
 in. See **Known gaps**, near the end of *What it does*.
 
+The [Simplified Chinese version](README.zh-CN.md) is machine-translated by AI and reviewed by hand;
+this English one is the source of truth wherever the two disagree.
+
 ## This is not a cheat
 
 The app never reads the game's memory, hooks the process, injects anything, modifies a game file,

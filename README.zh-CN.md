@@ -1,3 +1,5 @@
+> **本文档由 AI 从英文版翻译生成，仅供参考。** 术语和细节请以 [README.md](README.md) 为准；发现翻译问题，欢迎提交 issue。
+
 简体中文 · [English → README.md](README.md)
 
 # Tarkov Map Companion
