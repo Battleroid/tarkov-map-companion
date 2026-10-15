@@ -91,6 +91,7 @@
   "Layer.Ground": "Ground",
   "Layer.GroundTip": "Turn off to see a level underneath the ground floor",
   "Layer.Hazards": "Hazards",
+  "Layer.Landmarks": "Place Names",
   "Layer.LevelsCount": "Levels · {0}",
   "Layer.LevelsNone": "Levels · none",
   "Layer.LevelsOne": "Levels · {0}",

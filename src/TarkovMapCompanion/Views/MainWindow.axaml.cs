@@ -222,6 +222,7 @@ public partial class MainWindow : Window
 
         BuildLayerToggles();
         BuildHeatmapControls();
+        BuildLandmarkControls();
         WireParty();
 
         // Hover highlighting and click-to-select on the map itself.
@@ -927,6 +928,23 @@ public partial class MainWindow : Window
         SpawnGroup.Boss => Localizer.Loc("Heatmap.Boss"),
         _ => group.ToString(),
     };
+
+    /// <summary>
+    /// The place-names layer switch. Like the heatmap, an on/off layer rather than one with its own
+    /// options, so it needs no build-up beyond the toggle.
+    /// </summary>
+    private void BuildLandmarkControls()
+    {
+        var landmarks = _session.Landmarks;
+
+        LandmarksToggle.IsChecked = landmarks.IsVisible;
+        LandmarksToggle.IsCheckedChanged += (_, _) =>
+        {
+            landmarks.IsVisible = LandmarksToggle.IsChecked ?? false;
+            _settings.ShowLandmarks = landmarks.IsVisible;
+            _canvas.InvalidateVisual();
+        };
+    }
 
     // ---- Exits read from the screenshot -------------------------------------
 

@@ -197,6 +197,10 @@ public sealed class MapSession : IDisposable
 
         CurrentMap = catalog.Resolve(settings.CurrentMap);
 
+        // Built here rather than with the other overlays above: the place-name data hangs off the
+        // resolved map, which does not exist until this line.
+        Landmarks = new LandmarkOverlay(CurrentMap) { IsVisible = settings.ShowLandmarks };
+
         // WebSync wiring, touchpoint 1 of 3 (docs/websync-implementation-spec.md section 5.4.1 D):
         // build the broadcaster and server, but do not start anything. ApplyWebSyncSettings decides.
         _broadcaster = new StateBroadcaster(this, settings);
@@ -396,6 +400,9 @@ public sealed class MapSession : IDisposable
 
     public HeatmapOverlay Heatmap { get; }
 
+    /// <summary>Place names drawn over the map, straight from the map catalog's labels.</summary>
+    public LandmarkOverlay Landmarks { get; }
+
     /// <summary>
     /// Everything drawn on top of the map, for a second canvas to render the same picture.
     /// </summary>
@@ -405,7 +412,7 @@ public sealed class MapSession : IDisposable
     /// reader needs no synchronization and cannot drift out of step with the first.
     /// </remarks>
     public IReadOnlyList<IMapOverlay> Overlays =>
-        [Heatmap, Pois, Annotations, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
+        [Heatmap, Landmarks, Pois, Annotations, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
 
     public MapDataStore MapData => _mapData;
 
@@ -614,6 +621,8 @@ public sealed class MapSession : IDisposable
 
         Heatmap.Map = CurrentMap;
         Heatmap.SetData(data);
+
+        Landmarks.Map = CurrentMap;
 
         // Bound the trail by how long a raid on this map can actually run, rather than the
         // conservative default. Factory is 20 minutes; Terminal is 50.

@@ -335,6 +335,16 @@ public sealed class AppSettings
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }
+
+    /// <summary>
+    /// Place names layer visibility. On by default, matching tarkov.dev's place-names layer.
+    /// </summary>
+    /// <remarks>
+    /// The names themselves are always English place data and are never localized; this is only the
+    /// layer switch.
+    /// </remarks>
+    public bool ShowLandmarks { get; set; } = true;
+
     public double HeatmapRadiusMeters { get; set; } = 40.0;
     public double HeatmapOpacity { get; set; } = 0.55;
 

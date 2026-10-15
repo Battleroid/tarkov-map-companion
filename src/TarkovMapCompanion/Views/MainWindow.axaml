@@ -474,6 +474,7 @@
             <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0"
                     Padding="0,6,0,0">
               <StackPanel Spacing="4">
+                <CheckBox Name="LandmarksToggle" Content="{loc:Tr Layer.Landmarks}" FontSize="12" />
                 <CheckBox Name="HeatmapToggle" Content="{loc:Tr Main.SpawnHeatmap}" FontSize="12" />
                 <StackPanel Name="HeatmapGroups" Spacing="2" Margin="14,0,0,0" />
                 <TextBlock Name="HeatmapRadiusLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />

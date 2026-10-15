@@ -34,15 +34,17 @@ public static class RenderTest
         // Flags, position-independent:
         //   nobase  hide the ground level, the only way to see a floor underneath it
         //   bare    imagery only, no markers or heatmap, for comparing layers cleanly
+        //   labels  imagery + place names only, matching tarkov.dev's place-names layer
         //   marks   lay a route of waypoints between the player and the exit
         //   quests  draw every positioned quest objective on this map
         var flags = args.Select(a => a.ToLowerInvariant()).ToHashSet();
         var includeBase = !flags.Contains("nobase");
         var bare = flags.Contains("bare");
+        var labelsOnly = flags.Contains("labels");
         var marks = flags.Contains("marks");
         var quests = flags.Contains("quests");
 
-        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare" or "marks" or "quests")
+        var floors = args.Length > 4 && args[4].Length > 0 && args[4] is not ("nobase" or "bare" or "labels" or "marks" or "quests")
             ? args[4].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];
 
@@ -117,7 +119,9 @@ public static class RenderTest
         store.LoadLocal();
         Console.WriteLine($"poi data   {store.Origin}");
 
-        if (store.ForMap(map.NormalizedName) is { } poiData)
+        // In labels mode only the base imagery and the place-name layer are wanted: skip the
+        // heatmap, POI, guide-line, route and bounds overlays entirely.
+        if (!labelsOnly && store.ForMap(map.NormalizedName) is { } poiData)
         {
             var pois = PoiBuilder.Build(map, poiData, store);
             var byKind = pois.GroupBy(p => p.Kind).ToDictionary(g => g.Key, g => g.Count());
@@ -229,24 +233,32 @@ public static class RenderTest
                     $"guide      -> {(line.Waypoint is { } next ? $"marker #{next.Number}" : target.Name)}");
             }
         }
-        else
+        else if (!labelsOnly)
         {
             Console.WriteLine("poi data   none for this map");
         }
 
-        // Landmark names from the map catalog, an independent check on the affine.
+        // Landmark names from the map catalog, an independent check on the affine. This is the
+        // only overlay labels mode keeps, so it is also the place-names layer a map can ship.
         if (map.Labels.Count > 0)
-            overlays.Add(new DebugLabelOverlay(map));
+        {
+            overlays.Add(new LandmarkOverlay(map));
+            Console.WriteLine($"labels     {map.Labels.Count} place names");
+        }
+        else
+        {
+            Console.WriteLine("labels     none for this map");
+        }
 
         // Plot the real screenshots when they are available, so the render shows a genuine path
-        // through the map rather than synthetic points.
-        var fixes = LoadRealFixes(map);
-        if (fixes.Count > 0)
+        // through the map rather than synthetic points. Skipped in labels mode.
+        List<PlayerFix> fixes = labelsOnly ? [] : LoadRealFixes(map);
+        if (!labelsOnly && fixes.Count > 0)
         {
             Console.WriteLine($"fixes      {fixes.Count} real screenshot positions on this map");
             overlays.Add(new DebugTrackOverlay(fixes, map));
         }
-        else
+        else if (!labelsOnly)
         {
             Console.WriteLine("fixes      none for this map; drawing a bounds probe instead");
             overlays.Add(new DebugBoundsOverlay(map));
@@ -458,52 +470,6 @@ public static class RenderTest
                 canvas.DrawPath(arrow, fill);
                 canvas.DrawPath(arrow, outline);
                 canvas.Restore();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Plots each landmark name at its game position. Any rotation, mirror or offset error in the
-    /// projection shows up immediately as names sitting on the wrong buildings.
-    /// </summary>
-    private sealed class DebugLabelOverlay(GameMap map) : IMapOverlay
-    {
-        public int ZOrder => 90;
-        public bool IsVisible => true;
-
-        public void Draw(SKCanvas canvas, Viewport viewport)
-        {
-            var typeface = AppFonts.Label;
-
-            using var text = new SKPaint
-            {
-                Color = SKColors.White,
-                IsAntialias = true,
-                Typeface = typeface,
-                TextSize = 13,
-            };
-            using var halo = new SKPaint
-            {
-                Color = new SKColor(0, 0, 0, 220),
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 3,
-                Typeface = typeface,
-                TextSize = 13,
-            };
-            using var dot = new SKPaint { Color = new SKColor(0x4F, 0xC3, 0xF7), IsAntialias = true };
-
-            foreach (var label in map.Labels)
-            {
-                var position = label.Position!;
-                var screen = viewport.ToScreen(map.Projection.ToBase(position[0], position[1]));
-
-                canvas.DrawCircle((float)screen.X, (float)screen.Y, 3.5f, dot);
-
-                var x = (float)screen.X + 6;
-                var y = (float)screen.Y - 5;
-                canvas.DrawText(label.Text, x, y, halo);
-                canvas.DrawText(label.Text, x, y, text);
             }
         }
     }

@@ -71,6 +71,14 @@ public sealed class SettingsKeyTests
     }
 
     [Fact]
+    public void LandmarksLayer_IsOnByDefault()
+    {
+        // Place names ship visible, matching tarkov.dev's place-names layer; the switch is there to
+        // turn them off, not to turn them on.
+        Assert.True(new AppSettings().ShowLandmarks);
+    }
+
+    [Fact]
     public void SettingsDrivesTheOverlayBands_NotTheOtherWayAround()
     {
         // Reproduces the mismatch that let a settings file and the overlay disagree: every enum

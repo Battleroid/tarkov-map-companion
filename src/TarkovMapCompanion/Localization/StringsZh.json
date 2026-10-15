@@ -91,6 +91,7 @@
   "Layer.Ground": "地面层",
   "Layer.GroundTip": "关闭后可看到地面层下方的楼层",
   "Layer.Hazards": "危险区域",
+  "Layer.Landmarks": "地点名称",
   "Layer.LevelsCount": "楼层 · {0}",
   "Layer.LevelsNone": "楼层 · 无",
   "Layer.LevelsOne": "楼层 · {0}",
