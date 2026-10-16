@@ -854,6 +854,7 @@ public partial class MainWindow : Window
         PoiKind.Switch => Localizer.Loc("Layer.Switches"),
         PoiKind.StationaryWeapon => Localizer.Loc("Layer.MountedGuns"),
         PoiKind.BtrStop => Localizer.Loc("Layer.BtrStops"),
+        PoiKind.SeasonDocuments => Localizer.Loc("Layer.SeasonDocuments"),
         _ => kind.ToString(),
     };
 

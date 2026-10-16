@@ -44,6 +44,7 @@ public sealed class MapSession : IDisposable
 
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
+    private readonly SeasonDocumentStore _seasonDocuments;
     private readonly TaskStore _tasks;
     private readonly ItemIconStore _icons;
     private readonly AnnotationStore _annotations = new();
@@ -79,6 +80,8 @@ public sealed class MapSession : IDisposable
 
         _extractNotes = new ExtractNotesStore();
         _extractNotes.Load();
+
+        _seasonDocuments = new SeasonDocumentStore();
 
         _tasks = new TaskStore(settings);
         _tasks.Updated += (_, _) => RebuildQuestMarks();
@@ -439,6 +442,9 @@ public sealed class MapSession : IDisposable
 
     public ExtractNotesStore ExtractNotes => _extractNotes;
 
+    /// <summary>Bundled season document spawn points, for the season layer.</summary>
+    public SeasonDocumentStore SeasonDocuments => _seasonDocuments;
+
     /// <summary>
     /// The extract the player is heading for. Drives the guide line and, when extract-focus mode
     /// is on, the framing.
@@ -614,7 +620,7 @@ public sealed class MapSession : IDisposable
         var data = _mapData.ForMap(CurrentMap.NormalizedName);
 
         Pois.Map = CurrentMap;
-        Pois.SetPois(data is null ? [] : PoiBuilder.Build(CurrentMap, data, _mapData, _extractNotes));
+        Pois.SetPois(data is null ? [] : PoiBuilder.Build(CurrentMap, data, _mapData, _extractNotes, _seasonDocuments));
 
         ExtractLine.Map = CurrentMap;
         ExtractLine.Target = null;

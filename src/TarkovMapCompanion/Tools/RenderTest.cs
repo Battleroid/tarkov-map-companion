@@ -123,7 +123,7 @@ public static class RenderTest
         // heatmap, POI, guide-line, route and bounds overlays entirely.
         if (!labelsOnly && store.ForMap(map.NormalizedName) is { } poiData)
         {
-            var pois = PoiBuilder.Build(map, poiData, store);
+            var pois = PoiBuilder.Build(map, poiData, store, seasonDocuments: new SeasonDocumentStore());
             var byKind = pois.GroupBy(p => p.Kind).ToDictionary(g => g.Key, g => g.Count());
 
             Console.WriteLine($"pois       {pois.Count} total: " +

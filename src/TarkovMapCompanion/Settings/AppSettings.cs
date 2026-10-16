@@ -82,8 +82,11 @@ public sealed class AppSettings
     /// 2: the exit filter left the Exits tab for Settings, so anyone still carrying a narrowed one
     ///    from when the dropdown was in front of them is put back to All. Without this, moving the
     ///    control means eight exits stay hidden with nothing on screen saying why.
+    /// 3: the season document layer shipped and defaults on. An older file's <c>poiLayers</c> map
+    ///    deserializes without the new key (System.Text.Json replaces the whole dictionary), which
+    ///    would silently leave the layer off; backfill it so the feature is visible on load.
     /// </remarks>
-    public const int Current = 2;
+    public const int Current = 3;
 
     /// <summary>
     /// Brings a settings file forward from whatever build wrote it.
@@ -96,6 +99,9 @@ public sealed class AppSettings
     {
         if (Version < 2)
             ExitFilter = ExitFilter.All;
+
+        if (Version < 3)
+            PoiLayers.TryAdd("SeasonDocuments", true);
 
         Version = Current;
     }
@@ -380,6 +386,7 @@ public sealed class AppSettings
         ["Switch"] = false,
         ["StationaryWeapon"] = false,
         ["BtrStop"] = false,
+        ["SeasonDocuments"] = true,
     };
 
     /// <summary>Number of past fixes drawn as a fading trail. 0 disables the trail.</summary>

@@ -72,7 +72,8 @@ public static class PoiBuilder
         GameMap map,
         MapPoiData data,
         MapDataStore store,
-        ExtractNotesStore? notes = null)
+        ExtractNotesStore? notes = null,
+        SeasonDocumentStore? seasonDocuments = null)
     {
         var pois = new List<MapPoi>();
 
@@ -86,6 +87,7 @@ public static class PoiBuilder
         AddLootContainers(pois, map, data, store);
         AddStationaryWeapons(pois, map, data, store);
         AddBtrStops(pois, map, data, store);
+        AddSeasonDocuments(pois, map, seasonDocuments);
 
         return pois;
     }
@@ -611,6 +613,43 @@ public static class PoiBuilder
                 NameZh = nameZh,
                 Position = ToGame(stop.Position),
                 Base = map.Projection.ToBase(stop.Position.X, stop.Position.Z),
+            });
+        }
+    }
+
+    private static void AddSeasonDocuments(List<MapPoi> pois, GameMap map, SeasonDocumentStore? store)
+    {
+        if (store is null)
+            return;
+
+        foreach (var point in store.FindFor(map.NormalizedName))
+        {
+            // The source is Chinese-only metadata; both detail lists carry the same lines so the
+            // display shows them whether English or Chinese is active.
+            var details = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(point.TypeZh))
+                details.Add(point.TypeZh!);
+
+            if (!string.IsNullOrWhiteSpace(point.Floor))
+                details.Add($"楼层 {point.Floor}");
+
+            if (!string.IsNullOrWhiteSpace(point.KeyRequiredZh))
+                details.Add($"需钥匙：{point.KeyRequiredZh}");
+
+            var name = point.NameZh ?? "";
+
+            pois.Add(new MapPoi
+            {
+                Kind = PoiKind.SeasonDocuments,
+                Id = point.Id,
+                Name = name,
+                NameZh = name,
+                Position = new GamePosition(point.X, 0, point.Z),
+                Base = map.Projection.ToBase(point.X, point.Z),
+                Details = details,
+                DetailsZh = details,
+                IsUnverified = !point.Confirmed,
             });
         }
     }

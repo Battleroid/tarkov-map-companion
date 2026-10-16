@@ -185,6 +185,12 @@ zones and transits, each independently toggleable. Layers and the heatmap live i
 floating over the bottom-left of the map, alongside **Levels** — what is drawn on the map is a thing
 about the map, so that is where the switches are.
 
+**Season documents.** Where the current season's TerraGroup files can spawn, as one toggleable
+layer. An amber dot has been confirmed in game; a dimmed dot with a question mark is a community
+report nobody has verified yet — a place worth looking at, not a promise. They are *possible* spawn
+points: each document type puts out only a handful per raid and one of them is yours, so the layer is
+a shorter list to work from, not a route.
+
 **Screenshot cleanup.** Optional and **off by default**. When enabled it keeps only the newest N
 screenshots, or removes each one after reading it. Deleted files go to the Recycle Bin, never
 outside the watched folder, and never anything that does not match Tarkov's own screenshot naming.
@@ -512,6 +518,13 @@ Chinese text for exit, map, POI and item *names* comes from tarkov.dev's own `ma
 Chinese for exit *conditions* is not in that data — the wiki has no official translation — so it
 comes from the bundled `Data/Snapshots/extract-notes.zh.json`, which sits beside the English file
 and decorates it for display without ever replacing it.
+
+Season document spawns come from [TarkovDoc](https://tarkovdoc.com)'s KORD BREACH pages, gathered on
+2026-10-15 into `Data/Snapshots/season-documents.json`: 334 possible spawn points over 11 maps.
+Nothing upstream publishes these, so the positions were fitted against this project's own map
+artwork and are approximate, and the 13 points nobody has confirmed in game are drawn dimmed with a
+question mark. Unlike the exit notes there is no override file — a new season means a new bundled
+snapshot.
 
 That upstream payload has shipped defects that make the list unreadable, so three of them are
 corrected when the list is built:

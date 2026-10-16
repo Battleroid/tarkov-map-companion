@@ -58,7 +58,10 @@ CI runs on `windows-latest` and includes a real `--render-test` smoke test.
   scrape, and it has shipped real defects. `PoiBuilder` normalizes three (mis-assigned switch ids,
   coincident same-name extracts, code-named extracts), each pinned in `PoiTests.cs` /
   `UpstreamDataFixesTests.cs`. A refresh that changes the shape should fail the suite, not silently
-  reintroduce one.
+  reintroduce one. `season-documents.json` is a third source with a different trust profile: its
+  coordinates were fitted against this repo's own artwork, so they are approximate by construction,
+  and its per-point `confirmed` flag is the only confidence signal there is — never present an
+  unconfirmed point as if it had been surveyed.
 - `.gitattributes` is load-bearing: `*.sln`/`*.bat`/`*.ps1` CRLF, everything else LF.
 - PowerShell mangles UTF-8 here. Read or compare JSON with `python`, not `ConvertFrom-Json`.
 
@@ -86,6 +89,26 @@ single-file browser client (`Assets/index.html`). Spec and its corrections:
 404. Wire the enable switch through `MapSession.ApplyWebSyncSettings()`. Tiles are cached under
 `Path.Combine("tiles", NormalizedName)` to match `TileMapSource` (the bare `"tiles"` category is
 wrong). Publish is now ~62 MB (the ASP.NET Core shared framework).
+
+**Season documents ship as one layer.** `PoiKind.SeasonDocuments` draws season-1 ("KORD BREACH")
+TerraGroup document spawns from `Data/Snapshots/season-documents.json` — 334 points over 11 maps,
+321 confirmed plus 13 unconfirmed drawn dimmed with a `?`. It rides the existing
+`Enum.GetValues<PoiKind>()` switch generation and is independent of quest selection.
+`AppSettings` went to version 3 so an older `poiLayers` map backfills the new key instead of leaving
+the layer dark. The upstream source is Chinese-only, so `Name` and `NameZh` carry the same string —
+a deliberate exception to the English-canonical rule, because there is no English source to keep
+canonical.
+
+**Every `PoiBuilder.Build` call site must pass the store.** The layer has no other entry point, so a
+call site that omits `seasonDocuments` builds a map with the layer silently missing — no error, no
+warning, just absent markers. `--render-test` prints per-kind POI counts and `SeasonDocuments=<n>` in
+that line is the smoke check; it caught exactly this after the main path was already wired.
+
+**The snapshot's refresh pipeline lives outside this repo**, at `../_work/season-docs/` (scrape →
+namefit calibration → merge → `export_companion.mjs`), next to the map artwork it calibrates against
+in `_work/season-docs/maps/`. Nothing there is version-controlled, and the default paths are
+relative to the scripts themselves. A new season means re-running that pipeline; do not hand-edit the
+JSON, and do not assume a missing directory means the data was lost.
 
 ### Traps this branch paid for (do not rediscover them)
 

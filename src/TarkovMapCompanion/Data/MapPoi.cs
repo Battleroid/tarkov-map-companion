@@ -49,6 +49,9 @@ public enum PoiKind
     Switch,
     StationaryWeapon,
     BtrStop,
+
+    /// <summary>Season-1 KORD BREACH TerraGroup document spawns; last so existing ordinals hold.</summary>
+    SeasonDocuments,
 }
 
 /// <summary>
@@ -151,6 +154,12 @@ public sealed class MapPoi
 
     /// <summary>Usable once per raid, so a squad cannot all follow you out.</summary>
     public bool IsSingleUse { get; init; }
+
+    /// <summary>
+    /// True when the source has not confirmed this point (a season document spawn nobody has
+    /// checked yet). Drives the dimmed "?" styling inside the layer; it never filters the point out.
+    /// </summary>
+    public bool IsUnverified { get; init; }
 
     /// <summary>
     /// Ground distance from the last known player position, in meters, or null before the first
