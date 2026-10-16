@@ -5,10 +5,11 @@
         xmlns:maps="using:TarkovMapCompanion.Maps"
         xmlns:data="using:TarkovMapCompanion.Data"
         xmlns:views="using:TarkovMapCompanion.Views"
+        xmlns:loc="using:TarkovMapCompanion.Localization"
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.MainWindow"
         x:DataType="maps:GameMap"
-        Title="Tarkov Map Companion"
+        Title="{loc:Tr Main.Title}"
         Width="1280" Height="860"
         MinWidth="820" MinHeight="520"
         Background="{DynamicResource SurfaceBaseBrush}">
@@ -20,35 +21,67 @@
             BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="0,0,0,1"
             Padding="12,8">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+      <StackPanel Spacing="8">
 
-        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <TextBlock Classes="heading" VerticalAlignment="Center" Text="MAP" />
-          <ComboBox Name="MapSelector" Width="220" />
-        </StackPanel>
+        <!--
+          A flowing toolbar rather than one fixed row. The controls are grouped into three clusters
+          and laid out in a WrapPanel, so the row wraps onto a second line when the window is too
+          narrow to hold it instead of pushing the right-hand controls off the edge.
 
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
-                    Margin="16,0,0,0" VerticalAlignment="Center">
-          <Button Name="FitButton" Content="Fit" ToolTip.Tip="Zoom out to the whole map" />
-          <!-- Buttons rather than checkboxes: all three arm a mode that changes what the map does
-               with your clicks or your view, and a filled button says "on" from across a room in a
-               way a tick in a box does not. -->
-          <ToggleButton Name="FollowToggle" Classes="mode" Content="Follow Player"
-                        ToolTip.Tip="Recenter on the player when a new screenshot arrives. Panning and zooming will not switch this off." />
-          <ToggleButton Name="FocusToggle" Classes="mode" Content="Focus Exit"
-                        ToolTip.Tip="Zoom so the player and the selected exit both stay in view, tightening as you get closer. Turning it off puts your previous view back." />
-          <ToggleButton Name="MarkToggle" Classes="mode" Content="Mark Route"
-                        ToolTip.Tip="Click the map to drop numbered markers in the order you want to visit them. Click Mark Route again, or press Escape, to finish." />
-          <ToggleButton Name="AnnotateToggle" Classes="mode" Content="Add Note"
-                        ToolTip.Tip="Click the map to write a label on it. Click Add Note again, or press Escape, to finish." />
-          <Button Name="ClearMarksButton" Content="Clear marks" IsVisible="False"
-                  ToolTip.Tip="Remove every marker and point the guide line back at the selected exit" />
-        </StackPanel>
+          This replaced a single Grid row split by a star spacer. That spacer was the bug: the star
+          column took whatever the left groups did not use, and the trailing cluster was then left
+          with the remainder, so Chinese labels (wider than their English equivalents) pushed
+          the Panel, Minimap and On Top controls past the right edge where nothing could reach them.
+          A WrapPanel has no such column to over-allocate, and grouping keeps related controls
+          together when a wrap does happen.
+        -->
+        <WrapPanel Orientation="Horizontal">
 
-        <!-- Map suggestion, shown only when a fix lands off the current map. -->
-        <Border Grid.Column="2" Name="SuggestionBar"
+          <StackPanel Orientation="Horizontal" Spacing="8"
+                      Margin="0,0,16,0" VerticalAlignment="Center">
+            <TextBlock Classes="heading" VerticalAlignment="Center" Text="{loc:Tr Main.MapHeading}" />
+            <ComboBox Name="MapSelector" Width="220" />
+          </StackPanel>
+
+          <!-- What the map does with your clicks and your view. -->
+          <StackPanel Orientation="Horizontal" Spacing="8"
+                      Margin="0,0,16,0" VerticalAlignment="Center">
+            <Button Name="FitButton" Content="{loc:Tr Main.Fit}" ToolTip.Tip="{loc:Tr Main.FitTip}" />
+            <!-- Buttons rather than checkboxes: all three arm a mode that changes what the map does
+                 with your clicks or your view, and a filled button says "on" from across a room in a
+                 way a tick in a box does not. -->
+            <ToggleButton Name="FollowToggle" Classes="mode" Content="{loc:Tr Main.FollowPlayer}"
+                          ToolTip.Tip="{loc:Tr Main.FollowPlayerTip}" />
+            <ToggleButton Name="FocusToggle" Classes="mode" Content="{loc:Tr Main.FocusExit}"
+                          ToolTip.Tip="{loc:Tr Main.FocusExitTip}" />
+            <ToggleButton Name="MarkToggle" Classes="mode" Content="{loc:Tr Main.MarkRoute}"
+                          ToolTip.Tip="{loc:Tr Main.MarkRouteTip}" />
+            <ToggleButton Name="AnnotateToggle" Classes="mode" Content="{loc:Tr Main.AddNote}"
+                          ToolTip.Tip="{loc:Tr Main.AddNoteTip}" />
+            <Button Name="ClearMarksButton" Content="{loc:Tr Main.ClearMarks}" IsVisible="False"
+                    ToolTip.Tip="{loc:Tr Main.ClearMarksTip}" />
+          </StackPanel>
+
+          <!-- Window chrome: what is shown, and the app-level commands. -->
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ToggleButton Name="PanelToggle" Classes="mode" Content="{loc:Tr Main.Panel}" IsChecked="True"
+                          ToolTip.Tip="{loc:Tr Main.PanelTip}" />
+            <ToggleButton Name="MinimapToggle" Classes="mode" Content="{loc:Tr Main.Minimap}"
+                          ToolTip.Tip="{loc:Tr Main.MinimapTip}" />
+            <ToggleButton Name="AlwaysOnTopToggle" Classes="mode" Content="{loc:Tr Main.OnTop}"
+                          ToolTip.Tip="{loc:Tr Main.OnTopTip}" />
+            <Button Name="ThemeButton" Content="{loc:Tr Main.Theme}" ToolTip.Tip="{loc:Tr Main.ThemeTip}" />
+            <Button Name="PreferencesButton" Content="{loc:Tr Main.Settings}" />
+            <Button Name="AboutButton" Content="{loc:Tr Main.About}" />
+          </StackPanel>
+
+        </WrapPanel>
+
+        <!-- Map suggestion, shown only when a fix lands off the current map. On its own line below
+             the toolbar so it never competes with the controls for width. Collapsed between fixes,
+             so StackPanel spacing collapses with it. -->
+        <Border Name="SuggestionBar"
                 IsVisible="False"
-                Margin="16,0"
                 Padding="10,4"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
@@ -58,24 +91,12 @@
                 CornerRadius="{DynamicResource RadiusSmall}">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Name="SuggestionText" VerticalAlignment="Center" />
-            <Button Name="SuggestionAccept" Content="Switch" Padding="8,2" />
-            <Button Name="SuggestionDismiss" Content="No" Padding="8,2" />
+            <Button Name="SuggestionAccept" Content="{loc:Tr Main.SuggestionSwitch}" Padding="8,2" />
+            <Button Name="SuggestionDismiss" Content="{loc:Tr Main.SuggestionNo}" Padding="8,2" />
           </StackPanel>
         </Border>
 
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <ToggleButton Name="PanelToggle" Classes="mode" Content="Panel" IsChecked="True"
-                        ToolTip.Tip="Show or hide the exits, quests and notes panel. Drag its edge to resize." />
-          <ToggleButton Name="MinimapToggle" Classes="mode" Content="Minimap"
-                        ToolTip.Tip="Pop out a small always-on-top map that can sit over the game" />
-          <ToggleButton Name="AlwaysOnTopToggle" Classes="mode" Content="On Top"
-                        ToolTip.Tip="Keep this window above the game" />
-          <Button Name="ThemeButton" Content="Theme" ToolTip.Tip="Cycle dark, light, follow system" />
-          <Button Name="PreferencesButton" Content="Settings" />
-          <Button Name="AboutButton" Content="About" />
-        </StackPanel>
-
-      </Grid>
+      </StackPanel>
     </Border>
 
     <Border DockPanel.Dock="Bottom"
@@ -117,9 +138,9 @@
               BorderThickness="0,0,1,0">
         <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="12,10,10,6">
-            <TextBlock Grid.Column="0" Classes="heading" FontSize="11" Text="QUEST" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="0" Classes="heading" FontSize="11" Text="{loc:Tr Main.QuestHeading}" VerticalAlignment="Center" />
             <Button Grid.Column="1" Name="QuestPaneCloseButton" Content="✕" FontSize="11"
-                    Padding="6,1" MinHeight="0" ToolTip.Tip="Close this pane" />
+                    Padding="6,1" MinHeight="0" ToolTip.Tip="{loc:Tr Main.CloseQuestPaneTip}" />
           </Grid>
 
           <ScrollViewer Grid.Row="1" Margin="12,0,4,10">
@@ -132,7 +153,7 @@
                     Width="5" IsVisible="False"
                     Background="{DynamicResource BorderSubtleBrush}"
                     ResizeDirection="Columns"
-                    ToolTip.Tip="Drag to resize the quest pane" />
+                    ToolTip.Tip="{loc:Tr Main.QuestPaneSplitterTip}" />
 
     <!--
       Exits, quests and notes as tabs rather than three panels stacked in one column. All three are
@@ -145,11 +166,11 @@
             BorderThickness="1,0,0,0">
       <TabControl Name="SidePanel" Padding="0">
 
-      <TabItem Header="Exits">
+      <TabItem Header="{loc:Tr Main.TabExits}">
       <Grid RowDefinitions="Auto,*">
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
-          <TextBlock Classes="heading" Text="EXITS" />
+          <TextBlock Classes="heading" Text="{loc:Tr Main.ExitsHeading}" />
 
           <!--
             Every exit, every time. Which ones your faction can use is a fact about each exit and
@@ -158,12 +179,12 @@
             The dropdown still exists in Settings for anyone who wants the shorter list.
           -->
           <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-            <ToggleButton Grid.Column="0" Name="SortByDistanceToggle" Classes="mode" Content="Nearest"
+            <ToggleButton Grid.Column="0" Name="SortByDistanceToggle" Classes="mode" Content="{loc:Tr Main.Nearest}"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="11"
-                          ToolTip.Tip="Order the list by distance from your last known position" />
-            <ToggleButton Grid.Column="1" Name="ReadExitsToggle" Classes="mode" Content="Read Exits"
+                          ToolTip.Tip="{loc:Tr Main.NearestTip}" />
+            <ToggleButton Grid.Column="1" Name="ReadExitsToggle" Classes="mode" Content="{loc:Tr Main.ReadExits}"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="11"
-                          ToolTip.Tip="When a screenshot catches the in-game extraction list (double-tap O), dim the exits it does not name. Reads the picture only; nothing touches the game." />
+                          ToolTip.Tip="{loc:Tr Main.ReadExitsTip}" />
           </Grid>
 
           <!-- What the last read found, and a way out of it. Only shown once something was read. -->
@@ -179,9 +200,9 @@
               <!-- Not "Clear": there is another Clear four rows down that drops the selected exit,
                    and two identical labels a few pixels apart doing different destructive things
                    is a trap. This one says what it does. -->
-              <Button Name="ClearReadExitsButton" Grid.Column="1" Content="Show all"
+              <Button Name="ClearReadExitsButton" Grid.Column="1" Content="{loc:Tr Main.ShowAll}"
                       FontSize="11" Padding="7,2" VerticalAlignment="Center"
-                      ToolTip.Tip="Forget what the screenshot said and un-dim every exit" />
+                      ToolTip.Tip="{loc:Tr Main.ShowAllTip}" />
             </Grid>
           </Border>
 
@@ -194,10 +215,10 @@
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
             <TextBlock Grid.Column="0" Name="ExitHint" Classes="secondary" FontSize="11"
                        TextWrapping="Wrap" VerticalAlignment="Center"
-                       Text="Pick one to draw a guide line from the player." />
-            <Button Grid.Column="1" Name="ClearSelectionButton" Content="Clear exit" IsVisible="False"
+                       Text="{loc:Tr Main.ExitHint}" />
+            <Button Grid.Column="1" Name="ClearSelectionButton" Content="{loc:Tr Main.ClearExit}" IsVisible="False"
                     FontSize="11" Padding="7,2" VerticalAlignment="Center"
-                    ToolTip.Tip="Stop pointing at this exit. Leaves the screenshot reading alone." />
+                    ToolTip.Tip="{loc:Tr Main.ClearExitTip}" />
           </Grid>
         </StackPanel>
 
@@ -215,7 +236,7 @@
                    the list comes from reading a screenshot, which can be wrong. -->
               <StackPanel Opacity="{Binding ListOpacity}" Spacing="2" Margin="0,1">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                  <TextBlock Grid.Column="0" Text="{Binding Name}" TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextWrapping="Wrap" />
                   <TextBlock Grid.Column="1" Text="{Binding DistanceLabel}"
                              Classes="secondary" FontSize="11"
                              VerticalAlignment="Center" />
@@ -226,17 +247,20 @@
                              FontWeight="Bold"
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource WarningBrush}"
-                             ToolTip.Tip="This exit has conditions. Double-click to fold them away." />
+                             ToolTip.Tip="{loc:Tr Main.ConditionsTip}" />
                 </Grid>
 
                 <StackPanel IsVisible="{Binding ShowDetails}" Margin="0,1,0,3" Spacing="1">
                   <TextBlock Text="{Binding SubtitleLabel}"
                              IsVisible="{Binding SubtitleLabel.Length}"
                              Classes="secondary" FontSize="11" TextWrapping="Wrap" />
-                  <ItemsControl ItemsSource="{Binding Details}">
+                  <ItemsControl ItemsSource="{Binding DetailLines}">
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate>
-                        <TextBlock Text="{Binding}" FontSize="11" TextWrapping="Wrap"
+                      <DataTemplate x:DataType="data:PoiDetailLine">
+                        <!-- One line, in the active language: the Chinese text when Chinese is
+                             active, otherwise the English original. There is no second echo line. -->
+                        <TextBlock Text="{Binding Text}"
+                                   FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource WarningBrush}" />
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -255,44 +279,44 @@
         servers and this app reads files rather than accounts. Only ticked tasks draw: Lighthouse
         alone has 169 positioned objectives, so drawing them all would bury the map.
       -->
-      <TabItem Header="Quests">
+      <TabItem Header="{loc:Tr Main.TabQuests}">
       <Grid RowDefinitions="Auto,*,Auto">
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="5">
-          <TextBox Name="QuestSearchBox" FontSize="12" Watermark="Search tasks and objectives" />
+          <TextBox Name="QuestSearchBox" FontSize="12" Watermark="{loc:Tr Main.QuestSearchWatermark}" />
 
           <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-            <CheckBox Grid.Column="0" Name="QuestThisMapBox" Content="This map" FontSize="12"
-                      ToolTip.Tip="Only tasks with an objective on the map you are looking at" />
-            <CheckBox Grid.Column="1" Name="QuestTrackedBox" Content="Tracked" FontSize="12"
-                      ToolTip.Tip="Only the tasks you have ticked" />
+            <CheckBox Grid.Column="0" Name="QuestThisMapBox" Content="{loc:Tr Main.QuestThisMap}" FontSize="12"
+                      ToolTip.Tip="{loc:Tr Main.QuestThisMapTip}" />
+            <CheckBox Grid.Column="1" Name="QuestTrackedBox" Content="{loc:Tr Main.QuestTracked}" FontSize="12"
+                      ToolTip.Tip="{loc:Tr Main.QuestTrackedTip}" />
           </Grid>
 
           <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-            <CheckBox Grid.Column="0" Name="QuestKappaBox" Content="Kappa" FontSize="12"
-                      ToolTip.Tip="Only tasks required for the Kappa container" />
-            <CheckBox Grid.Column="1" Name="QuestLevelBox" Content="My level" FontSize="12"
-                      ToolTip.Tip="Hide tasks above your level. The level itself comes from the game log; Settings can override it." />
+            <CheckBox Grid.Column="0" Name="QuestKappaBox" Content="{loc:Tr Main.QuestKappa}" FontSize="12"
+                      ToolTip.Tip="{loc:Tr Main.QuestKappaTip}" />
+            <CheckBox Grid.Column="1" Name="QuestLevelBox" Content="{loc:Tr Main.QuestMyLevel}" FontSize="12"
+                      ToolTip.Tip="{loc:Tr Main.QuestMyLevelTip}" />
           </Grid>
 
           <!--
             One switch for the question actually being asked in a raid: what am I on right now,
             here. The game decides what "on" means, and the map decides what "here" means.
           -->
-          <CheckBox Name="QuestActiveHereBox" Content="Active here" FontSize="12"
-                    ToolTip.Tip="Only quests the game says you have accepted that have an objective on this map" />
+          <CheckBox Name="QuestActiveHereBox" Content="{loc:Tr Main.QuestActiveHere}" FontSize="12"
+                    ToolTip.Tip="{loc:Tr Main.QuestActiveHereTip}" />
 
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-            <Button Grid.Column="0" Name="SyncQuestsButton" Content="Sync from game"
+            <Button Grid.Column="0" Name="SyncQuestsButton" Content="{loc:Tr Main.SyncFromGame}"
                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                     FontSize="11" Padding="7,2"
-                    ToolTip.Tip="Throw away the hand-picked list and track exactly the quests the log says are accepted" />
-            <Button Grid.Column="1" Name="ClearQuestsButton" Content="Untrack all"
+                    ToolTip.Tip="{loc:Tr Main.SyncFromGameTip}" />
+            <Button Grid.Column="1" Name="ClearQuestsButton" Content="{loc:Tr Main.UntrackAll}"
                     FontSize="11" Padding="7,2" />
           </Grid>
 
-          <CheckBox Name="QuestLabelsBox" Content="Label markers on the map" FontSize="12"
-                    ToolTip.Tip="Off still labels whichever marker the pointer is on" />
+          <CheckBox Name="QuestLabelsBox" Content="{loc:Tr Main.QuestLabels}" FontSize="12"
+                    ToolTip.Tip="{loc:Tr Main.QuestLabelsTip}" />
 
           <TextBlock Name="QuestHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
@@ -318,7 +342,7 @@
                 <ToggleButton Name="QuestKitToggle" Classes="overlayHeader"
                               FontSize="11" Padding="8,3" IsChecked="True"
                               HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                              ToolTip.Tip="What the quests you are tracking need you to bring to this map" />
+                              ToolTip.Tip="{loc:Tr Main.QuestKitTip}" />
                 <StackPanel Name="QuestKit" Spacing="3" Margin="2,0,0,2" />
               </StackPanel>
             </Border>
@@ -337,24 +361,24 @@
         Notes. Local by default and shared only if you say so, because a set of labels is something
         somebody builds up over weeks rather than a plan for the next ten minutes.
       -->
-      <TabItem Header="Notes">
+      <TabItem Header="{loc:Tr Main.TabNotes}">
       <Grid RowDefinitions="Auto,*,Auto">
 
         <StackPanel Grid.Row="0" Margin="10,10,10,6" Spacing="6">
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                     Text="Press Add Note, then click the map to label a spot. Click any note on the map to edit or delete it. Notes are saved to disk and stay on the map you wrote them on." />
+                     Text="{loc:Tr Main.NotesIntro}" />
 
-          <CheckBox Name="ShowAnnotationsBox" Content="Show notes on the map" FontSize="12" />
-          <CheckBox Name="ShareAnnotationsBox" Content="Share my notes with the party" FontSize="12"
-                    ToolTip.Tip="Sends your notes to the squad. Theirs appear in their color and are never saved to your file." />
+          <CheckBox Name="ShowAnnotationsBox" Content="{loc:Tr Main.ShowNotes}" FontSize="12" />
+          <CheckBox Name="ShareAnnotationsBox" Content="{loc:Tr Main.ShareNotes}" FontSize="12"
+                    ToolTip.Tip="{loc:Tr Main.ShareNotesTip}" />
 
           <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
-            <Button Grid.Column="0" Name="ImportNotesButton" Content="Import" FontSize="11" Padding="6,2"
-                    ToolTip.Tip="Merge a shared notes file, or a plain map,x,z,text list" />
-            <Button Grid.Column="1" Name="ExportNotesButton" Content="Export" FontSize="11" Padding="6,2"
-                    ToolTip.Tip="Write your notes to a file somebody else can import" />
-            <Button Grid.Column="2" Name="ClearNotesButton" Content="Clear map" FontSize="11" Padding="6,2"
-                    ToolTip.Tip="Delete every note you wrote on the map you are looking at" />
+            <Button Grid.Column="0" Name="ImportNotesButton" Content="{loc:Tr Main.Import}" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="{loc:Tr Main.ImportTip}" />
+            <Button Grid.Column="1" Name="ExportNotesButton" Content="{loc:Tr Main.Export}" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="{loc:Tr Main.ExportTip}" />
+            <Button Grid.Column="2" Name="ClearNotesButton" Content="{loc:Tr Main.ClearMap}" FontSize="11" Padding="6,2"
+                    ToolTip.Tip="{loc:Tr Main.ClearMapTip}" />
           </Grid>
 
           <TextBlock Name="NotesHint" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
@@ -381,7 +405,7 @@
                   Width="5"
                   Background="{DynamicResource BorderSubtleBrush}"
                   ResizeDirection="Columns"
-                  ToolTip.Tip="Drag to resize the panel, double-click to hide it" />
+                  ToolTip.Tip="{loc:Tr Main.PanelSplitterTip}" />
 
     <!--
       The map, and the chrome that floats over it. A Panel z-orders by child order and the canvas
@@ -401,16 +425,16 @@
               HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,14,0,0"
               MinWidth="320">
         <StackPanel Spacing="6">
-          <TextBlock Name="AnnotationEditorTitle" Classes="heading" FontSize="11" Text="LABEL THIS SPOT" />
+          <TextBlock Name="AnnotationEditorTitle" Classes="heading" FontSize="11" Text="{loc:Tr Main.LabelThisSpot}" />
           <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
             <TextBox Grid.Column="0" Name="AnnotationTextBox" FontSize="12" Width="240"
-                     Watermark="Dorms, stash, sniper spot..." MaxLength="60" />
-            <Button Grid.Column="1" Name="AnnotationSaveButton" Content="Save" FontSize="11" Padding="8,2" />
+                     Watermark="{loc:Tr Main.AnnotationWatermark}" MaxLength="60" />
+            <Button Grid.Column="1" Name="AnnotationSaveButton" Content="{loc:Tr Main.Save}" FontSize="11" Padding="8,2" />
             <!-- Only when editing one that exists, so deleting is where you already are: you
                  clicked the note, and the thing you want to do to it is right there. -->
-            <Button Grid.Column="2" Name="AnnotationDeleteButton" Content="Delete" IsVisible="False"
-                    FontSize="11" Padding="8,2" ToolTip.Tip="Remove this note from the map" />
-            <Button Grid.Column="3" Name="AnnotationCancelButton" Content="Cancel" FontSize="11" Padding="8,2" />
+            <Button Grid.Column="2" Name="AnnotationDeleteButton" Content="{loc:Tr Main.Delete}" IsVisible="False"
+                    FontSize="11" Padding="8,2" ToolTip.Tip="{loc:Tr Main.DeleteNoteTip}" />
+            <Button Grid.Column="3" Name="AnnotationCancelButton" Content="{loc:Tr Main.Cancel}" FontSize="11" Padding="8,2" />
           </Grid>
         </StackPanel>
       </Border>
@@ -419,9 +443,9 @@
       <Border Name="FloorOverlay" Classes="mapOverlay" IsVisible="False"
               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
         <StackPanel Spacing="5">
-          <ToggleButton Name="FloorOverlayToggle" Classes="overlayHeader" Content="Levels" FontSize="11" Padding="8,3"
+          <ToggleButton Name="FloorOverlayToggle" Classes="overlayHeader" Content="{loc:Tr Main.Levels}" FontSize="11" Padding="8,3"
                         HorizontalAlignment="Stretch"
-                        ToolTip.Tip="Turn map levels on and off. Ground has to be off to see anything underneath it." />
+                        ToolTip.Tip="{loc:Tr Main.LevelsTip}" />
           <StackPanel Name="FloorBody" Spacing="3" IsVisible="False" MaxWidth="180">
             <StackPanel Name="FloorList" Spacing="2" />
             <TextBlock Name="FloorHint" IsVisible="False" FontSize="11" TextWrapping="Wrap"
@@ -438,9 +462,9 @@
       <Border Name="LayersOverlay" Classes="mapOverlay"
               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10">
         <StackPanel Spacing="5">
-          <ToggleButton Name="LayersOverlayToggle" Classes="overlayHeader" Content="Layers"
+          <ToggleButton Name="LayersOverlayToggle" Classes="overlayHeader" Content="{loc:Tr Main.Layers}"
                         FontSize="11" Padding="8,3" HorizontalAlignment="Stretch"
-                        ToolTip.Tip="Which points of interest and spawn data are drawn" />
+                        ToolTip.Tip="{loc:Tr Main.LayersTip}" />
 
           <StackPanel Name="LayersBody" Spacing="6" IsVisible="False" Width="210">
             <ScrollViewer MaxHeight="260">
@@ -450,7 +474,8 @@
             <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0"
                     Padding="0,6,0,0">
               <StackPanel Spacing="4">
-                <CheckBox Name="HeatmapToggle" Content="Spawn heatmap" FontSize="12" />
+                <CheckBox Name="LandmarksToggle" Content="{loc:Tr Layer.Landmarks}" FontSize="12" />
+                <CheckBox Name="HeatmapToggle" Content="{loc:Tr Main.SpawnHeatmap}" FontSize="12" />
                 <StackPanel Name="HeatmapGroups" Spacing="2" Margin="14,0,0,0" />
                 <TextBlock Name="HeatmapRadiusLabel" Classes="secondary" FontSize="11" Margin="0,4,0,0" />
                 <Slider Name="HeatmapRadius" Minimum="10" Maximum="150" />
@@ -472,7 +497,7 @@
       <Border Name="PartyOverlay" Classes="mapOverlay"
               HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
         <StackPanel Spacing="6">
-          <ToggleButton Name="PartyOverlayToggle" Classes="overlayHeader" Content="Party" FontSize="11" Padding="8,3"
+          <ToggleButton Name="PartyOverlayToggle" Classes="overlayHeader" Content="{loc:Tr Main.Party}" FontSize="11" Padding="8,3"
                         HorizontalAlignment="Stretch" />
 
           <StackPanel Name="PartyBody" Spacing="6" IsVisible="False" Width="250">
@@ -481,25 +506,25 @@
               <!-- Two star columns rather than a StackPanel, so the pair reads as one control
                    instead of a wide button next to a narrow one. -->
               <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                <Button Grid.Column="0" Name="HostPartyButton" Content="Host" FontSize="11"
+                <Button Grid.Column="0" Name="HostPartyButton" Content="{loc:Tr Main.Host}" FontSize="11"
                         Padding="8,3" HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" />
-                <Button Grid.Column="1" Name="JoinPartyButton" Content="Join" FontSize="11"
+                <Button Grid.Column="1" Name="JoinPartyButton" Content="{loc:Tr Main.Join}" FontSize="11"
                         Padding="8,3" HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" />
               </Grid>
-              <TextBox Name="JoinCodeBox" Watermark="Paste a session code" FontSize="11" />
+              <TextBox Name="JoinCodeBox" Watermark="{loc:Tr Main.JoinCodeWatermark}" FontSize="11" />
               <SelectableTextBlock Name="PartyIdleHint" Classes="secondary" FontSize="11"
                                    TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Name="PartyActivePanel" Spacing="6" IsVisible="False">
               <StackPanel Name="PartyCodePanel" Spacing="3">
-                <TextBlock Classes="secondary" FontSize="11" Text="Share this code with your squad:" />
+                <TextBlock Classes="secondary" FontSize="11" Text="{loc:Tr Main.ShareCode}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <SelectableTextBlock Name="PartyCodeText" FontWeight="SemiBold" FontSize="13"
                                        VerticalAlignment="Center" />
-                  <Button Name="CopyCodeButton" Content="Copy" FontSize="11" Padding="7,2" />
+                  <Button Name="CopyCodeButton" Content="{loc:Tr Main.Copy}" FontSize="11" Padding="7,2" />
                 </StackPanel>
               </StackPanel>
 
@@ -515,13 +540,13 @@
                       <!-- Round trip to the host, blank until a heartbeat has come back. -->
                       <TextBlock Grid.Column="3" Text="{Binding Latency}" FontSize="10"
                                  Classes="secondary" VerticalAlignment="Center" Opacity="0.75"
-                                 ToolTip.Tip="Round trip to the host, from the last heartbeat" />
+                                 ToolTip.Tip="{loc:Tr Main.LatencyTip}" />
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <Button Name="LeavePartyButton" Content="Stop session" FontSize="11" Padding="8,3"
+              <Button Name="LeavePartyButton" Content="{loc:Tr Main.StopSession}" FontSize="11" Padding="8,3"
                       HorizontalAlignment="Left" />
             </StackPanel>
 

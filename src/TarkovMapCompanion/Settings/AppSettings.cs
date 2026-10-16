@@ -9,6 +9,16 @@ public enum AppTheme
     Dark,
 }
 
+/// <summary>Which language the UI draws in. Applied on restart, not live.</summary>
+public enum AppLanguage
+{
+    /// <summary>English. Also the fallback for any string with no translation.</summary>
+    English,
+
+    /// <summary>Simplified Chinese.</summary>
+    ChineseSimplified,
+}
+
 /// <summary>
 /// How (and whether) the app removes screenshots from the watched folder.
 /// Defaults to <see cref="Off"/>: this feature deletes the user's files, so it is opt-in.
@@ -72,8 +82,11 @@ public sealed class AppSettings
     /// 2: the exit filter left the Exits tab for Settings, so anyone still carrying a narrowed one
     ///    from when the dropdown was in front of them is put back to All. Without this, moving the
     ///    control means eight exits stay hidden with nothing on screen saying why.
+    /// 3: the season document layer shipped and defaults on. An older file's <c>poiLayers</c> map
+    ///    deserializes without the new key (System.Text.Json replaces the whole dictionary), which
+    ///    would silently leave the layer off; backfill it so the feature is visible on load.
     /// </remarks>
-    public const int Current = 2;
+    public const int Current = 3;
 
     /// <summary>
     /// Brings a settings file forward from whatever build wrote it.
@@ -86,6 +99,9 @@ public sealed class AppSettings
     {
         if (Version < 2)
             ExitFilter = ExitFilter.All;
+
+        if (Version < 3)
+            PoiLayers.TryAdd("SeasonDocuments", true);
 
         Version = Current;
     }
@@ -325,6 +341,16 @@ public sealed class AppSettings
     // ---- Layers ------------------------------------------------------------
 
     public bool ShowHeatmap { get; set; }
+
+    /// <summary>
+    /// Place names layer visibility. On by default, matching tarkov.dev's place-names layer.
+    /// </summary>
+    /// <remarks>
+    /// The names themselves are always English place data and are never localized; this is only the
+    /// layer switch.
+    /// </remarks>
+    public bool ShowLandmarks { get; set; } = true;
+
     public double HeatmapRadiusMeters { get; set; } = 40.0;
     public double HeatmapOpacity { get; set; } = 0.55;
 
@@ -360,6 +386,7 @@ public sealed class AppSettings
         ["Switch"] = false,
         ["StationaryWeapon"] = false,
         ["BtrStop"] = false,
+        ["SeasonDocuments"] = true,
     };
 
     /// <summary>Number of past fixes drawn as a fading trail. 0 disables the trail.</summary>
@@ -452,12 +479,51 @@ public sealed class AppSettings
 
     public AppTheme Theme { get; set; } = AppTheme.Dark;
 
+    /// <summary>
+    /// The language the UI draws in. A settings file written before this existed simply uses the
+    /// default; there is no migration to run. New installs start in Simplified Chinese; an existing
+    /// settings.json that names a language keeps it.
+    /// </summary>
+    public AppLanguage Language { get; set; } = AppLanguage.ChineseSimplified;
+
     /// <summary>Base UI font size in device-independent pixels. 14 is the accessible floor we target.</summary>
     public double FontSize { get; set; } = 14.0;
 
     public bool AlwaysOnTop { get; set; }
 
     public WindowPlacement? Window { get; set; }
+
+    // ---- WebSync -----------------------------------------------------------
+
+    /// <summary>The port WebSync listens on unless the user picks another one.</summary>
+    public const int DefaultWebSyncPort = 8765;
+
+    /// <summary>
+    /// Serve a read-only mirror of the current map to a browser on the local network. Off by
+    /// default: nothing is served until the user turns it on.
+    /// </summary>
+    public bool WebSyncEnabled { get; set; }
+
+    /// <summary>The port the embedded server listens on. Must be between 1024 and 65535.</summary>
+    public int WebSyncPort { get; set; } = DefaultWebSyncPort;
+
+    /// <summary>
+    /// The token the browser client must present. Empty means none has been generated yet; a
+    /// Crockford base32 token is generated on first enable and persisted.
+    /// </summary>
+    public string WebSyncAccessToken { get; set; } = "";
+
+    /// <summary>Whether the tablet client follows the player's floor automatically.</summary>
+    public bool WebSyncFollowPlayerFloor { get; set; } = true;
+
+    /// <summary>Whether POIs are included in the broadcast.</summary>
+    public bool WebSyncShowPois { get; set; } = true;
+
+    /// <summary>Whether quest marks are included in the broadcast.</summary>
+    public bool WebSyncShowQuests { get; set; } = true;
+
+    /// <summary>Whether annotations are included in the broadcast.</summary>
+    public bool WebSyncShowAnnotations { get; set; } = true;
 
     // ---- Minimap -----------------------------------------------------------
 
@@ -525,6 +591,12 @@ public sealed class AppSettings
 
         // Above the well-known range, below the ephemeral range Windows hands out on its own.
         PartyPort = Math.Clamp(PartyPort, 1024, 49151);
+
+        // Outside the usable range a hand-edited port falls back to the default, so the embedded
+        // server still has somewhere to bind instead of failing on load.
+        if (WebSyncPort < 1024 || WebSyncPort > 65535)
+            WebSyncPort = DefaultWebSyncPort;
+
         HeatmapRadiusMeters = Math.Clamp(HeatmapRadiusMeters, 1.0, 500.0);
         HeatmapOpacity = Math.Clamp(HeatmapOpacity, 0.0, 1.0);
         HistoryTrailLength = Math.Clamp(HistoryTrailLength, 0, 500);
@@ -556,6 +628,12 @@ public sealed class AppSettings
 
         FontSize = Math.Clamp(FontSize, 10.0, 32.0);
         DataRefreshIntervalHours = Math.Clamp(DataRefreshIntervalHours, 1, 24 * 365);
+
+        // A hand-edited file could name a value the enum does not have; Simplified Chinese is the
+        // default a new install would get, so an unreadable value falls back to that rather than
+        // silently switching the UI to English.
+        if (!Enum.IsDefined(Language))
+            Language = AppLanguage.ChineseSimplified;
 
         if (string.IsNullOrWhiteSpace(CurrentMap))
             CurrentMap = "customs";

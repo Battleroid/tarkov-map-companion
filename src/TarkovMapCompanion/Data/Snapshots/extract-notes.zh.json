@@ -1,0 +1,259 @@
+{
+  "maps": {
+    "customs": [
+      {
+        "name": "Boiler Room Basement (Co-op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Dorms V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 4 名玩家"
+      },
+      {
+        "name": "Old Gas Station",
+        "requirementZh": "绿色信号弹 = 仅限 PMC 开启",
+        "availabilityZh": "PMC：否 · Scav：是"
+      },
+      {
+        "name": "Railroad Passage (Flare)",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
+      },
+      {
+        "name": "Smugglers' Boat",
+        "requirementZh": "写有代码词 Voron 的纸条"
+      },
+      {
+        "name": "Smugglers' Bunker (ZB-1012)",
+        "requirementZh": "写有代码词 Voron 的纸条"
+      },
+      {
+        "name": "ZB-1013",
+        "requirementZh": "在起重机区的 4 号仓库拉下开关 · 用于打开通往撤离点的门"
+      }
+    ],
+    "factory": [
+      {
+        "name": "Cellars",
+        "requirementZh": "用于打开通往撤离点的门"
+      },
+      {
+        "name": "Med Tent Gate",
+        "requirementZh": "用于打开通往撤离点的门"
+      },
+      {
+        "name": "Smugglers' Passage",
+        "requirementZh": "写有代码词 Ark 的纸条"
+      }
+    ],
+    "ground-zero": [
+      {
+        "name": "Mira Ave (Flare)",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 靠在撤离点黄色巴士上的 Scav 尸体每个战局会刷新一枚信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启…"
+      },
+      {
+        "name": "Police Cordon V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 4 名玩家"
+      },
+      {
+        "name": "Scav Checkpoint (Co-op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Tartowers Sales Office",
+        "requirementZh": "写有代码词 Adaptation 的纸条"
+      }
+    ],
+    "icebreaker": [
+      {
+        "name": "Helicopter",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，直升机不会来 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 每位玩家 2400 欧元"
+      }
+    ],
+    "interchange": [
+      {
+        "name": "Path to River (Flare)",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
+      },
+      {
+        "name": "Power Station V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 4 名玩家"
+      },
+      {
+        "name": "Saferoom Exfil",
+        "requirementZh": "1. 在发电站开启电源 · 2. 在「Burger Spot」餐厅冲掉小便池 · 3. 在显露的读卡面板刷 Object #11SR 门禁卡 · 4. 从内部用旁边的按钮锁上撤离门"
+      },
+      {
+        "name": "Scav Camp (Co-Op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Smugglers' Tunnel",
+        "requirementZh": "立交桥地下管线图"
+      }
+    ],
+    "lighthouse": [
+      {
+        "name": "Mountain Pass",
+        "requirementZh": "Red Rebel 冰镐 · 伞绳 · 未装备防弹衣"
+      },
+      {
+        "name": "Passage by the Lake",
+        "requirementZh": "雷区地图（灯塔）"
+      },
+      {
+        "name": "Road to Military Base V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 5 名玩家"
+      },
+      {
+        "name": "Side Tunnel (Co-Op)",
+        "requirementZh": "Scav + PMC"
+      }
+    ],
+    "reserve": [
+      {
+        "name": "Bunker Hermetic Door",
+        "requirementZh": "在白色兵营西侧的小屋拉下开关"
+      },
+      {
+        "name": "Cliff Descent",
+        "requirementZh": "Red Rebel 冰镐 · 伞绳 · 未装备防弹衣"
+      },
+      {
+        "name": "D-2",
+        "requirementZh": "1. 在地下掩体系统拉下开关，开启电源 · 2. 按下推拉门旁边墙上的按钮"
+      },
+      {
+        "name": "Exit to Woods",
+        "requirementZh": "雷区地图（储备站）"
+      },
+      {
+        "name": "Scav Lands (Co-Op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Sewer Manhole",
+        "requirementZh": "未装备背包"
+      }
+    ],
+    "shoreline": [
+      {
+        "name": "Climber's Trail",
+        "requirementZh": "Red Rebel 冰镐 · 伞绳 · 未装备防弹衣"
+      },
+      {
+        "name": "Mountain Bunker",
+        "requirementZh": "写有代码词 Heartbeat 的纸条"
+      },
+      {
+        "name": "Pier Boat",
+        "requirementZh": "绿色信号弹 = 开启"
+      },
+      {
+        "name": "Road to North V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 5 名玩家"
+      },
+      {
+        "name": "Smugglers' Path (Co-op)",
+        "requirementZh": "Scav + PMC"
+      }
+    ],
+    "streets-of-tarkov": [
+      {
+        "name": "Courtyard",
+        "requirementZh": "绿色信号弹 = 开启"
+      },
+      {
+        "name": "Klimov Street (Flare)",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
+      },
+      {
+        "name": "Pinewood Basement (Co-Op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Primorsky Ave Taxi V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 4 名玩家"
+      },
+      {
+        "name": "Smugglers' Basement",
+        "requirementZh": "写有代码词 Onyx 的纸条"
+      }
+    ],
+    "terminal": [
+      {
+        "name": "Zubr Boat",
+        "requirementZh": "可用船位取决于进入战局的玩家人数： · 1-3 名玩家时 3 个船位 · 4 名玩家时 3 至 4 个船位 · 5 名玩家时 4 至 5 个船位 · 携带装有 TerraGroup 证据的安全箱 Alpha-1 的玩家必须把它带在身上"
+      }
+    ],
+    "the-lab": [
+      {
+        "name": "Cargo Elevator",
+        "requirementZh": "在地下室 G1 房间恢复供电"
+      },
+      {
+        "name": "Hangar Gate",
+        "requirementZh": "打开机库二层的 B24 号舱室大门"
+      },
+      {
+        "name": "Main Elevator",
+        "requirementZh": "在地下室 R4 房间对面恢复供电"
+      },
+      {
+        "name": "Medical Block Elevator",
+        "requirementZh": "在地下室 G6 房间恢复供电"
+      },
+      {
+        "name": "Parking Gate",
+        "requirementZh": "打开二层 Y21 房间的大门，紧邻 R22"
+      },
+      {
+        "name": "Sewage Conduit",
+        "requirementZh": "降低水位"
+      },
+      {
+        "name": "Ventilation Shaft",
+        "requirementZh": "未装备背包"
+      }
+    ],
+    "the-labyrinth": [
+      {
+        "name": "Ariadne's Path",
+        "requirementZh": "Ariadne 符号钥匙"
+      },
+      {
+        "name": "The Way Up",
+        "requirementZh": "战局开始 15 分钟后才开放"
+      }
+    ],
+    "woods": [
+      {
+        "name": "Bridge V-Ex",
+        "requirementZh": "每位玩家 5000 卢布 · 最多 4 名玩家"
+      },
+      {
+        "name": "Friendship Bridge (Co-Op)",
+        "requirementZh": "Scav + PMC"
+      },
+      {
+        "name": "Power Line Passage (Flare)",
+        "requirementZh": "在信号弹区域内朝天空发射绿色信号弹。如果信号弹未达到特定高度，撤离点不会开启 · 信号弹： · 手持 RSP-30 绿色信号弹 · 信号枪发射的 26x75mm 绿色信号弹 · 大厅组队的队伍中只需一人发射信号弹，即可为全队开启撤离点"
+      },
+      {
+        "name": "Railway Bridge to Tarkov",
+        "requirementZh": "雷区地图（森林）"
+      },
+      {
+        "name": "RUAF Gate",
+        "requirementZh": "绿色信号弹 = 开启"
+      },
+      {
+        "name": "ZB-014",
+        "requirementZh": "绿色信号弹 = 开启"
+      },
+      {
+        "name": "ZB-016",
+        "requirementZh": "绿色信号弹 = 开启"
+      }
+    ]
+  }
+}

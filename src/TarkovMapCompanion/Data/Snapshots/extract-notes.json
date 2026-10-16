@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-08-08T09:18:30.7717296+00:00",
+  "fetchedAt": "2026-10-12T06:26:56.9104142+00:00",
   "maps": {
     "customs": [
       {
@@ -7,182 +7,144 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Boiler Room Basement (Co-op)",
-        "alwaysAvailable": false,
-        "availability": "PMC: no \u00B7 Scav: yes",
+        "alwaysAvailable": true,
+        "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Crossroads",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Dorms V-Ex",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
-        "name": "Factory Far Corner",
+        "name": "Gate Near Medblock",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Factory Shacks",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Military Base CP",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Old Gas Station",
         "alwaysAvailable": false,
-        "availability": null,
+        "availability": "PMC: no \u00B7 Scav: yes",
         "singleUse": false,
-        "requirement": "Green flares = Open"
-      },
-      {
-        "name": "Old Gas Station Gate",
-        "alwaysAvailable": false,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Old Road Gate",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Passage Between Rocks",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
+        "requirement": "Green flares = Open for PMCs",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railroad Passage (Flare)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
-      },
-      {
-        "name": "Railroad to Military Base",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 Only one person amongst a lobby-made group needs to shoot a flare to open the extraction for all members of the group",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railroad to Port",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
+      },
+      {
+        "name": "Railroad to Reserve",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railroad to Tarkov",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
-        "name": "RUAF Roadblock",
+        "name": "Reserve Checkpoint",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Scav Checkpoint",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Boat",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Voron"
+        "requirement": "Note with code word Voron",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Bunker (ZB-1012)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Voron"
-      },
-      {
-        "name": "Sniper Roadblock",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
+        "requirement": "Note with code word Voron",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Trailer Park",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Trailer Park Workers\u0027 Shack",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Warehouse 4",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "Warehouse 17",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": null
-      },
-      {
-        "name": "ZB-013",
-        "alwaysAvailable": true,
-        "availability": null,
-        "singleUse": false,
-        "requirement": "Activate lever in warehouse #4 at the crane yard \u00B7 Used to open the door to the extraction"
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "ZB-1011",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
+      },
+      {
+        "name": "ZB-1013",
+        "alwaysAvailable": true,
+        "availability": null,
+        "singleUse": false,
+        "requirement": "Activate lever in warehouse #4 at the crane yard \u00B7 Used to open the door to the extraction",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "factory": [
@@ -191,56 +153,72 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Cellars",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Used to open the door to the extraction"
+        "requirement": "Used to open the door to the extraction",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Courtyard Gate",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Gate 0",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Gate 3",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Med Tent Gate",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Used to open the door to the extraction"
+        "requirement": "Used to open the door to the extraction",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Office Window",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Passage",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Ark"
+        "requirement": "Note with code word Ark",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "ground-zero": [
@@ -249,42 +227,54 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Mira Ave (Flare)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 The Scav body leaned against the yellow bus at the extraction spawns one flare every raid \u00B7 Only one person amongst a lobby-made group needs to shoot a flare to open the\u2026",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Nakatani Basement Stairs",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Police Cordon V-Ex",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav Checkpoint (Co-op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Tartowers Sales Office",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Adaptation"
+        "requirement": "Note with code word Adaptation",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "icebreaker": [
@@ -293,7 +283,9 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the helicopter won\u0027t come \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the helicopter won\u0027t come \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 2400 Euros per player",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "interchange": [
@@ -302,49 +294,63 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Path to River (Flare)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 Only one person amongst a lobby-made group needs to shoot a flare to open the extraction for all members of the group",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Power Station V-Ex",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railway Exfil",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Saferoom Exfil",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": true,
-        "requirement": "1.Turn on power at the power station \u00B7 2.Flush urinal in the \u0022Burger Spot\u0022 restaurant \u00B7 3.Swipe Object #11SR keycard at revealed keycard panel \u00B7 4.Lock the extraction door from inside with\u2026"
+        "requirement": "1.Turn on power at the power station \u00B7 2.Flush urinal in the \u0022Burger Spot\u0022 restaurant \u00B7 3.Swipe Object #11SR keycard at revealed keycard panel \u00B7 4.Lock the extraction door from inside with the button next to it",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav Camp (Co-Op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Tunnel",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Interchange underground utility plan"
+        "requirement": "Interchange underground utility plan",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "lighthouse": [
@@ -353,84 +359,108 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Hideout Under the Landing Stage",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Industrial Zone Gates",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Mountain Pass",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Northern Checkpoint",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Passage by the Lake",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Minefield map (Lighthouse)"
+        "requirement": "Minefield map (Lighthouse)",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Path to Shoreline",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Road to Military Base V-Ex",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav Hideout at the Grotto",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Side Tunnel (Co-Op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Southern Road",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Southern Road Landslide",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "reserve": [
@@ -439,77 +469,99 @@
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Bunker Hermetic Door",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Activate the lever in the shack west of the white pawn barracks"
+        "requirement": "Activate the lever in the shack west of the white pawn barracks",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Checkpoint Fence",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Cliff Descent",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "D-2",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "1.Turn on power with a lever in the command part of the underground bunker system \u00B7 2.Press the button on the wall next to the sliding door"
+        "requirement": "1.Turn on power with a lever in the \u00B7 underground bunker system \u00B7 2.Press the button on the wall next to the sliding door",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Depot Hermetic Door",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Exit to Woods",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Minefield map (Reserve)"
+        "requirement": "Minefield map (Reserve)",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Heating Pipe",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Hole in the Wall by the Mountains",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav Lands (Co-Op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Sewer Manhole",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "No backpack equipped"
+        "requirement": "No backpack equipped",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "shoreline": [
@@ -518,91 +570,117 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Climber\u0027s Trail",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped"
+        "requirement": "Red Rebel ice pick \u00B7 Paracord \u00B7 No armor vest equipped",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "East Wing Gym Entrance",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Lighthouse",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Mountain Bunker",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Heartbeat"
+        "requirement": "Note with code word Heartbeat",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Path to Lighthouse",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Pier Boat",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Green flare = Open"
+        "requirement": "Green flare = Open",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railway Bridge",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Road to Customs",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Road to North V-Ex",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 5 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Ruined Road",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Path (Co-op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Tunnel",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "streets-of-tarkov": [
@@ -611,119 +689,153 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Collapsed Crane",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Courtyard",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Green flare = Open"
+        "requirement": "Green flare = Open",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Crash Site",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Damaged House",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Entrance to Catacombs",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Expo Checkpoint",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Klimov Shopping Mall Exfil",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Klimov Street (Flare)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 Only one person amongst a lobby-made group needs to shoot a flare to open the extraction for all members of the group",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Near Kamchatskaya Arch",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Pinewood Basement (Co-Op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Primorsky Ave Taxi V-Ex",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Sewer Manhole",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Sewer River",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Smugglers\u0027 Basement",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Note with code word Onyx"
+        "requirement": "Note with code word Onyx",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Stylobate Building Elevator",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Ventilation Shaft",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "terminal": [
@@ -732,7 +844,9 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": true,
-        "requirement": "The available boat seats depend on the number of players that entered the raid: \u00B7 3 seats with 1-3 players \u00B7 3 to 4 seats with 4 players \u00B7 4 to 5 seats with 5 players \u00B7 Players who brought\u2026"
+        "requirement": "The available boat seats depend on the number of players that entered the raid: \u00B7 3 seats with 1-3 players \u00B7 3 to 4 seats with 4 players \u00B7 4 to 5 seats with 5 players \u00B7 Players who brought in the Secure container Alpha-1 with TerraGroup evidence must have it on them",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "the-lab": [
@@ -741,49 +855,63 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": true,
-        "requirement": "Restore power in the basement, room G1"
+        "requirement": "Restore power in the basement, room G1",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Hangar Gate",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Open the gate in cabin B24, on the second floor of the hangar"
+        "requirement": "Open the gate in cabin B24, on the second floor of the hangar",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Main Elevator",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Restore power in the basement, opposite of room R4"
+        "requirement": "Restore power in the basement, opposite of room R4",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Medical Block Elevator",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Restore power in the basement, room G6"
+        "requirement": "Restore power in the basement, room G6",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Parking Gate",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Open the gate in room Y21 on the second floor, next to R22"
+        "requirement": "Open the gate in room Y21 on the second floor, next to R22",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Sewage Conduit",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Sink the water level"
+        "requirement": "Sink the water level",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Ventilation Shaft",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "No backpack equipped"
+        "requirement": "No backpack equipped",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "the-labyrinth": [
@@ -792,14 +920,18 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Ariadne symbol key"
+        "requirement": "Ariadne symbol key",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "The Way Up",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Only available 15 min after raid start"
+        "requirement": "Only available 15 min after raid start",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ],
     "woods": [
@@ -808,126 +940,162 @@
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Bridge V-Ex",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": true,
-        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players"
+        "requirement": "5000 Roubles per player \u00B7 Maximum of 4 players",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Dead Man\u0027s Place",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Eastern Rocks",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Friendship Bridge (Co-Op)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Scav \u002B PMC"
+        "requirement": "Scav \u002B PMC",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Mountain Stash",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Northern UN Roadblock",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Old Railway Depot",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Outskirts",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Power Line Passage (Flare)",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal\u2026"
+        "requirement": "Shoot a green flare into the sky while inside the signal flare area. If the flare doesn\u0027t reach a certain height, the extraction won\u0027t open \u00B7 Flares: \u00B7 Handheld RSP-30 green flare \u00B7 Signal pistol fired 26x75mm green flare \u00B7 Only one person amongst a lobby-made group needs to shoot a flare to open the extraction for all members of the group",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Railway Bridge to Tarkov",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": "Minefield map (Woods)"
+        "requirement": "Minefield map (Woods)",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "RUAF Gate",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Green flare = Open"
+        "requirement": "Green flare = Open",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "RUAF Roadblock",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav Bunker",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "Scav House",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "UN Roadblock",
         "alwaysAvailable": true,
         "availability": null,
         "singleUse": false,
-        "requirement": null
+        "requirement": null,
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "ZB-014",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Green flares = Open"
+        "requirement": "Green flares = Open",
+        "requirementZh": null,
+        "availabilityZh": null
       },
       {
         "name": "ZB-016",
         "alwaysAvailable": false,
         "availability": null,
         "singleUse": false,
-        "requirement": "Green flares = Open"
+        "requirement": "Green flares = Open",
+        "requirementZh": null,
+        "availabilityZh": null
       }
     ]
   }

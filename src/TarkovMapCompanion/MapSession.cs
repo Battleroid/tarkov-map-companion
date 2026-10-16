@@ -1,12 +1,15 @@
+using System.Security.Cryptography;
 using TarkovMapCompanion.Data;
 using TarkovMapCompanion.Diagnostics;
 using TarkovMapCompanion.GameLog;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Party;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Screenshots;
 using TarkovMapCompanion.Settings;
 using TarkovMapCompanion.Vision;
+using TarkovMapCompanion.WebSync;
 
 namespace TarkovMapCompanion;
 
@@ -41,9 +44,15 @@ public sealed class MapSession : IDisposable
 
     private readonly MapDataStore _mapData;
     private readonly ExtractNotesStore _extractNotes;
+    private readonly SeasonDocumentStore _seasonDocuments;
     private readonly TaskStore _tasks;
     private readonly ItemIconStore _icons;
     private readonly AnnotationStore _annotations = new();
+
+    // WebSync: the broadcaster mirrors this session's state; the server serves it. Constructed at
+    // the end of the constructor, started only when the preference is on.
+    private readonly StateBroadcaster _broadcaster;
+    private readonly WebSyncServer _webSync;
 
     private IMapImageSource? _imageSource;
     private int _fixes;
@@ -71,6 +80,8 @@ public sealed class MapSession : IDisposable
 
         _extractNotes = new ExtractNotesStore();
         _extractNotes.Load();
+
+        _seasonDocuments = new SeasonDocumentStore();
 
         _tasks = new TaskStore(settings);
         _tasks.Updated += (_, _) => RebuildQuestMarks();
@@ -182,10 +193,26 @@ public sealed class MapSession : IDisposable
                 Heatmap.Groups[group] = on;
         }
 
+        // Seeded before the broadcaster below is built, so this initial layer setup has no listeners
+        // to announce itself to.
         foreach (var kind in Enum.GetValues<PoiKind>())
-            Pois.Visible[kind] = settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on;
+            SetPoiLayer(kind, settings.PoiLayers.TryGetValue(kind.ToString(), out var on) && on);
 
         CurrentMap = catalog.Resolve(settings.CurrentMap);
+
+        // Built here rather than with the other overlays above: the place-name data hangs off the
+        // resolved map, which does not exist until this line.
+        Landmarks = new LandmarkOverlay(CurrentMap) { IsVisible = settings.ShowLandmarks };
+
+        // WebSync wiring, touchpoint 1 of 3 (docs/websync-implementation-spec.md section 5.4.1 D):
+        // build the broadcaster and server, but do not start anything. ApplyWebSyncSettings decides.
+        _broadcaster = new StateBroadcaster(this, settings);
+        _webSync = new WebSyncServer(
+            _broadcaster,
+            settings,
+            _assets,
+            _catalog,
+            message => Status?.Invoke(this, message));
     }
 
     public GameMap CurrentMap { get; private set; }
@@ -193,6 +220,37 @@ public sealed class MapSession : IDisposable
     public PlayerOverlay Player { get; }
 
     public PoiOverlay Pois { get; }
+
+    /// <summary>
+    /// Turns one POI layer on or off and tells listeners, so a read-only mirror of this session
+    /// cannot fall out of step with what the map is actually drawing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This raises the existing <see cref="PoisChanged"/>. That event already carries "the POI
+    /// drawing changed", its only producers are the map rebuild and this method, and every
+    /// subscriber reads the overlays without writing back through here, so raising it cannot
+    /// cycle. A dedicated event was considered and rejected: the broadcaster and the two windows
+    /// already listen for <see cref="PoisChanged"/> and would each need a second subscription for
+    /// no behavioural gain.
+    /// </para>
+    /// <para>
+    /// Setting a layer to the value it already has raises nothing.
+    /// </para>
+    /// </remarks>
+    internal void SetPoiLayer(PoiKind kind, bool visible)
+    {
+        // Missing counts as hidden, matching PoiOverlay.IsKindVisible. The entry is still written so
+        // the dictionary keeps a full set of keys, but a value that matches what was already
+        // effective is not a change and must not announce itself.
+        var wasVisible = Pois.Visible.TryGetValue(kind, out var current) && current;
+        Pois.Visible[kind] = visible;
+
+        if (wasVisible == visible)
+            return;
+
+        PoisChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public ExtractLineOverlay ExtractLine { get; }
 
@@ -235,7 +293,7 @@ public sealed class MapSession : IDisposable
         // ground distance, the same as every other distance the app reports.
         if (!Waypoints.Add(new GamePosition(x, 0, z), basePoint))
         {
-            Status?.Invoke(this, $"A route holds at most {WaypointOverlay.MaxWaypoints} markers.");
+            Status?.Invoke(this, Localizer.Loc("Status.RouteLimit", WaypointOverlay.MaxWaypoints));
             return;
         }
 
@@ -345,6 +403,9 @@ public sealed class MapSession : IDisposable
 
     public HeatmapOverlay Heatmap { get; }
 
+    /// <summary>Place names drawn over the map, straight from the map catalog's labels.</summary>
+    public LandmarkOverlay Landmarks { get; }
+
     /// <summary>
     /// Everything drawn on top of the map, for a second canvas to render the same picture.
     /// </summary>
@@ -354,7 +415,7 @@ public sealed class MapSession : IDisposable
     /// reader needs no synchronization and cannot drift out of step with the first.
     /// </remarks>
     public IReadOnlyList<IMapOverlay> Overlays =>
-        [Heatmap, Pois, Annotations, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
+        [Heatmap, Landmarks, Pois, Annotations, Quests, Waypoints, ExtractLine, Peers, Pings, Player];
 
     public MapDataStore MapData => _mapData;
 
@@ -380,6 +441,9 @@ public sealed class MapSession : IDisposable
     public event EventHandler? QuestsChanged;
 
     public ExtractNotesStore ExtractNotes => _extractNotes;
+
+    /// <summary>Bundled season document spawn points, for the season layer.</summary>
+    public SeasonDocumentStore SeasonDocuments => _seasonDocuments;
 
     /// <summary>
     /// The extract the player is heading for. Drives the guide line and, when extract-focus mode
@@ -418,7 +482,10 @@ public sealed class MapSession : IDisposable
     /// </summary>
     public event EventHandler<GameMap>? MapSuggested;
 
-    /// <summary>Raised when the POI set for the current map has been rebuilt.</summary>
+    /// <summary>
+    /// Raised when the POI drawing for the current map has changed: the set was rebuilt, or a
+    /// layer's visibility was toggled through <see cref="SetPoiLayer"/>.
+    /// </summary>
     public event EventHandler? PoisChanged;
 
     /// <summary>
@@ -480,7 +547,50 @@ public sealed class MapSession : IDisposable
         StartWatching();
         StartWatchingGameLog();
 
+        // WebSync wiring, touchpoint 2 of 3: apply the saved preference now that the session is
+        // coming up. The bind itself runs on the server's own worker thread, so this returns at once.
+        ApplyWebSyncSettings();
+
         _ = RefreshDataInBackgroundAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies the saved WebSync preference to the embedded server, generating a first token when
+    /// sharing is switched on without one. Safe to call repeatedly and from the preferences screen.
+    /// </summary>
+    /// <remarks>
+    /// The reconciler on the server's worker thread does the actual start/stop, so this never blocks
+    /// the caller and can be called from the UI thread. MapSession has no SettingsStore of its own,
+    /// so a freshly generated token is written to the settings object; whoever owns the store
+    /// persists it (the app already saves settings on shutdown).
+    /// </remarks>
+    internal void ApplyWebSyncSettings()
+    {
+        if (_settings.WebSyncEnabled && string.IsNullOrEmpty(_settings.WebSyncAccessToken))
+            _settings.WebSyncAccessToken = GenerateAccessToken();
+
+        _webSync.Update(_settings.WebSyncEnabled, _settings.WebSyncPort, _settings.WebSyncAccessToken);
+    }
+
+    /// <summary>
+    /// The token alphabet: Crockford base32 with the ambiguous <c>0</c>, <c>1</c>, <c>I</c>,
+    /// <c>L</c> and <c>O</c> removed, so a token can be read off a screen and typed without guessing.
+    /// </summary>
+    private const string TokenAlphabet = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+    /// <summary>Generates an 8-character access token from <see cref="TokenAlphabet"/>.</summary>
+    /// <remarks>
+    /// The alphabet length is not a power of two, so <c>GetInt32</c> is used for a uniform pick
+    /// rather than masking a random byte, which would favour the first few symbols.
+    /// </remarks>
+    private static string GenerateAccessToken()
+    {
+        var chars = new char[8];
+
+        for (var i = 0; i < chars.Length; i++)
+            chars[i] = TokenAlphabet[RandomNumberGenerator.GetInt32(TokenAlphabet.Length)];
+
+        return new string(chars);
     }
 
     private async Task RefreshDataInBackgroundAsync(CancellationToken cancellationToken)
@@ -491,7 +601,7 @@ public sealed class MapSession : IDisposable
         }
         catch (Exception ex)
         {
-            Status?.Invoke(this, $"Map data refresh failed: {ex.Message}");
+            Status?.Invoke(this, Localizer.Loc("Status.MapRefreshFailed", ex.Message));
         }
 
         try
@@ -500,7 +610,7 @@ public sealed class MapSession : IDisposable
         }
         catch (Exception ex)
         {
-            Status?.Invoke(this, $"Quest data refresh failed: {ex.Message}");
+            Status?.Invoke(this, Localizer.Loc("Status.QuestRefreshFailed", ex.Message));
         }
     }
 
@@ -510,13 +620,15 @@ public sealed class MapSession : IDisposable
         var data = _mapData.ForMap(CurrentMap.NormalizedName);
 
         Pois.Map = CurrentMap;
-        Pois.SetPois(data is null ? [] : PoiBuilder.Build(CurrentMap, data, _mapData, _extractNotes));
+        Pois.SetPois(data is null ? [] : PoiBuilder.Build(CurrentMap, data, _mapData, _extractNotes, _seasonDocuments));
 
         ExtractLine.Map = CurrentMap;
         ExtractLine.Target = null;
 
         Heatmap.Map = CurrentMap;
         Heatmap.SetData(data);
+
+        Landmarks.Map = CurrentMap;
 
         // Bound the trail by how long a raid on this map can actually run, rather than the
         // conservative default. Factory is 20 minutes; Terminal is 50.
@@ -619,9 +731,9 @@ public sealed class MapSession : IDisposable
 
                     forThisTask.Add(new QuestMark(
                         task.Id,
-                        task.Name,
+                        task.DisplayName,
                         objective.Id,
-                        objective.Description,
+                        objective.DisplayDescription,
                         MarkerPalette.Quest,
                         new GamePosition(point.X, point.Y, point.Z),
                         Index: 0,
@@ -653,6 +765,16 @@ public sealed class MapSession : IDisposable
     /// which objectives belong to which map should not need either.
     /// </remarks>
     internal void SetMapForTesting(GameMap map) => CurrentMap = map;
+
+    /// <summary>
+    /// Rebuilds the POIs for the current map from whatever data is loaded, for tests.
+    /// </summary>
+    /// <remarks>
+    /// The uses of this are about restoring the saved extract, which only runs as part of a rebuild.
+    /// <see cref="SetMapAsync"/> would also rebuild, but it rasterizes an SVG and may reach for the
+    /// network, neither of which such a test is about.
+    /// </remarks>
+    internal void RebuildPoisForTesting() => RebuildPois();
 
     // ---- Annotations --------------------------------------------------------
 
@@ -767,10 +889,41 @@ public sealed class MapSession : IDisposable
         var match = Pois.Extracts.FirstOrDefault(p =>
             string.Equals(p.Id, _settings.SelectedExtractId, StringComparison.Ordinal));
 
+        // Upstream now ships one physical exit as two records -- a pmc one and a scav one, same name
+        // a few metres apart -- and the builder folds those into a single POI that keeps whichever
+        // half is representative. A selection saved before that fold therefore names an id no POI
+        // carries any more. The two halves share a name, so fall back to it rather than lose the
+        // selection the one time it matters.
+        match ??= ExtractByName(_settings.SelectedExtractId);
+
         // Assign through the field, not the property: the saved id belongs to whichever map it
         // was chosen on, and clearing it here would lose it when switching maps and back.
         Pois.Selected = match;
         ExtractLine.Target = match;
+    }
+
+    /// <summary>
+    /// Finds the extract POI whose raw id is <paramref name="savedId"/>, matched by name.
+    /// </summary>
+    /// <remarks>
+    /// The raw record is still in the map data under its own id -- only the built POI is gone -- so
+    /// its localization key is what bridges the two. Names are not unique in principle, but on one
+    /// map they are, and the exact-id lookup above is tried first.
+    /// </remarks>
+    private MapPoi? ExtractByName(string savedId)
+    {
+        var key = _mapData.ForMap(CurrentMap.NormalizedName)?.Extracts?
+            .FirstOrDefault(e => string.Equals(e.Id, savedId, StringComparison.Ordinal))?.Name;
+
+        if (string.IsNullOrEmpty(key))
+            return null;
+
+        // TranslateEn, not Translate: a built extract's Name is always the English half of its
+        // translation pair (see PoiBuilder), so the display-language translation would only ever
+        // match while the UI happened to be in English. The bridge has to be in the POI's language.
+        var name = _mapData.TranslateEn(key);
+        return Pois.Extracts.FirstOrDefault(p =>
+            string.Equals(p.Name, name, StringComparison.Ordinal));
     }
 
     public void StartWatching()
@@ -784,7 +937,7 @@ public sealed class MapSession : IDisposable
         if (!Directory.Exists(folder))
         {
             Log.Warn($"[screenshots] folder does not exist: {folder}");
-            Status?.Invoke(this, $"Folder not found: {folder}");
+            Status?.Invoke(this, Localizer.Loc("Status.FolderNotFound", folder));
             return;
         }
 
@@ -815,7 +968,7 @@ public sealed class MapSession : IDisposable
             Log.Info($"[screenshots] watching {folder} ({count} already there)");
         }
 
-        Status?.Invoke(this, $"Watching {folder}");
+        Status?.Invoke(this, Localizer.Loc("Status.Watching", folder));
     }
 
     /// <summary>
@@ -843,7 +996,7 @@ public sealed class MapSession : IDisposable
         if (folder is null)
         {
             Log.Warn("[game log] could not find where Tarkov is installed; run --find-logs to see what was tried");
-            Status?.Invoke(this, "Could not find Tarkov's log folder. Set it in Settings.");
+            Status?.Invoke(this, Localizer.Loc("Status.LogFolderNotFound"));
             return;
         }
 
@@ -858,7 +1011,7 @@ public sealed class MapSession : IDisposable
         Log.Info($"[game log] following {folder} ({launches} launches recorded)");
 
         if (launches == 0)
-            Status?.Invoke(this, $"No Tarkov logs in {folder} yet.");
+            Status?.Invoke(this, Localizer.Loc("Status.NoLogsYet", folder));
     }
 
     /// <summary>
@@ -869,6 +1022,9 @@ public sealed class MapSession : IDisposable
     /// <summary>Hands the watcher a known quest state, for tests.</summary>
     internal void ApplyQuestStateForTesting(IReadOnlyDictionary<string, QuestProgress> state) =>
         _questLog.SetStateForTesting(state);
+
+    /// <summary>Raises a player fix as if the screenshot watcher had detected it, for tests.</summary>
+    internal void ApplyFixForTesting(PlayerFix fix) => OnFixDetected(this, fix);
 
     /// <summary>
     /// The character the quest log is answering about, short enough to show.
@@ -1254,8 +1410,8 @@ public sealed class MapSession : IDisposable
         if (!_imageSource.IsReady)
         {
             Status?.Invoke(this, _settings.AllowNetwork
-                ? $"Could not download the {map.DisplayName} map. Check your connection."
-                : $"{map.DisplayName} is not cached and network access is off.");
+                ? Localizer.Loc("Status.MapDownloadFailed", map.DisplayName)
+                : Localizer.Loc("Status.MapNotCached", map.DisplayName));
         }
     }
 
@@ -1315,7 +1471,7 @@ public sealed class MapSession : IDisposable
         catch (Exception ex)
         {
             Log.Error($"failed to apply fix from {fix.FileName}", ex);
-            Status?.Invoke(this, $"Could not read {fix.FileName}; see {Log.Path}");
+            Status?.Invoke(this, Localizer.Loc("Status.CouldNotReadFile", fix.FileName, Log.Path));
         }
     }
 
@@ -1352,13 +1508,14 @@ public sealed class MapSession : IDisposable
             }
             else if (result.Refusal is not (CullRefusal.None or CullRefusal.WithinKeepWindow))
             {
-                Status?.Invoke(this, $"Kept {Path.GetFileName(result.Path)}: {Describe(result.Refusal)}");
+                Status?.Invoke(this, Localizer.Loc("Status.CullKept",
+                    Path.GetFileName(result.Path), Describe(result.Refusal)));
             }
         }
 
         var deleted = results.Count(r => r.Deleted);
         if (deleted > 0)
-            Status?.Invoke(this, $"Removed {deleted} old screenshot{(deleted == 1 ? "" : "s")} to the Recycle Bin");
+            Status?.Invoke(this, Localizer.Loc("Status.CullRemoved", deleted, deleted == 1 ? "" : "s"));
     }
 
     /// <summary>
@@ -1456,7 +1613,7 @@ public sealed class MapSession : IDisposable
             if (availability is null)
             {
                 Log.Warn($"exit panel read from {fix.FileName} matched no known exit on {map.NormalizedName}");
-                Status?.Invoke(this, "Found the exit panel but could not match any names; leaving all exits shown.");
+                Status?.Invoke(this, Localizer.Loc("Status.ExitPanelUnmatched"));
                 return;
             }
 
@@ -1488,11 +1645,11 @@ public sealed class MapSession : IDisposable
 
     private static string Describe(CullRefusal refusal) => refusal switch
     {
-        CullRefusal.OutsideWatchedFolder => "outside the watched folder",
-        CullRefusal.NotAScreenshotName => "not a Tarkov screenshot",
-        CullRefusal.DeleteFailed => "could not be deleted",
-        CullRefusal.Disabled => "culling is off",
-        _ => "skipped",
+        CullRefusal.OutsideWatchedFolder => Localizer.Loc("Cull.OutsideWatchedFolder"),
+        CullRefusal.NotAScreenshotName => Localizer.Loc("Cull.NotAScreenshotName"),
+        CullRefusal.DeleteFailed => Localizer.Loc("Cull.DeleteFailed"),
+        CullRefusal.Disabled => Localizer.Loc("Cull.Disabled"),
+        _ => Localizer.Loc("Cull.Skipped"),
     };
 
     public void Dispose()
@@ -1501,6 +1658,12 @@ public sealed class MapSession : IDisposable
             return;
 
         _disposed = true;
+
+        // WebSync wiring, touchpoint 3 of 3: teardown, in the fixed order of section 5.4.1 C.
+        // The broadcaster detaches its handlers and aborts sockets synchronously; the server then
+        // stops (bounded) and releases the port. Both are idempotent and null-safe.
+        _broadcaster?.Dispose();
+        _webSync?.Dispose();
 
         _watcher.FixDetected -= OnFixDetected;
         _watcher.Dispose();

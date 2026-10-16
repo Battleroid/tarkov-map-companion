@@ -14,10 +14,7 @@ namespace TarkovMapCompanion.Rendering;
 /// </remarks>
 public sealed class ExtractLineOverlay : IMapOverlay
 {
-    private static readonly SKTypeface Typeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface Typeface = AppFonts.Label;
 
     public int ZOrder => 900;
 
@@ -110,14 +107,15 @@ public sealed class ExtractLineOverlay : IMapOverlay
         if (DistanceMeters is not { } distance)
             return;
 
-        var text = label is null ? $"{distance:F0} m" : $"{label}  {distance:F0} m";
+        var unit = Localization.Localizer.Loc("extract.meters");
+        var text = label is null ? $"{distance:F0} {unit}" : $"{label}  {distance:F0} {unit}";
 
         if (RelativeBearingDegrees is { } bearing)
         {
             // Under a few degrees, "dead ahead" is more useful than a jittering number.
             text += Math.Abs(bearing) < 4
-                ? "  ahead"
-                : $"  {Math.Abs(bearing):F0}° {(bearing < 0 ? "left" : "right")}";
+                ? "  " + Localization.Localizer.Loc("extract.ahead")
+                : $"  {Math.Abs(bearing):F0}° {Localization.Localizer.Loc(bearing < 0 ? "extract.left" : "extract.right")}";
         }
 
         var midX = (float)((from.X + to.X) / 2);

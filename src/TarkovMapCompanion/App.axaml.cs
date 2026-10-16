@@ -23,6 +23,10 @@ public partial class App : Application
 
         ApplyTheme(_settings.Theme);
 
+        // The active language is process-wide and has to be known before any window (and the map
+        // catalog it builds) is constructed, exactly like the theme above it.
+        Localization.Localizer.SetLanguage(_settings.Language);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new MainWindow(_settings);

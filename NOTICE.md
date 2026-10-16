@@ -15,6 +15,15 @@ Copyright (c) 2019 Oskar Risberg.
 `https://json.tarkov.dev/regular/maps`, published by the same project. Regenerate with
 `--fetch-data`.
 
+## Season document spawns — TarkovDoc
+
+`src/TarkovMapCompanion/Data/Snapshots/season-documents.json` lists community-mapped TerraGroup
+season-document spawn points for season 1 ("KORD BREACH"), gathered from
+[TarkovDoc](https://tarkovdoc.com) on 2026-10-15. The coordinates were fitted against this project's
+own map artwork rather than surveyed in game, so they are approximate; each point carries a
+`confirmed` flag and unconfirmed points are drawn as unverified. No upstream API provides this data,
+and the file cannot be overridden from the app — a new season means a new snapshot.
+
 ## Map artwork
 
 Map images are downloaded at runtime from `assets.tarkov.dev` and cached locally; they are not
@@ -33,6 +42,12 @@ gathered from the [Escape from Tarkov Wiki](https://escapefromtarkov.fandom.com)
 [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Only the short structured
 requirement fields are used; the wiki's free-text notes are not reproduced. Regenerate with
 `--fetch-wiki`.
+
+## QR code rendering — QRCoder
+
+`src/TarkovMapCompanion/WebSync/QrCode.cs` renders the WebSync access URL as a QR code with
+[QRCoder](https://github.com/Shane32/QRCoder) 1.8.0, MIT licensed, Copyright (c) 2013-2025 Raffael
+Herrmann and Copyright (c) 2024-2025 Shane Krueger.
 
 ## Trademarks
 

@@ -1,3 +1,4 @@
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Settings;
 
@@ -23,12 +24,12 @@ public static class ExitFilters
 
     public static string Label(this ExitFilter filter) => filter switch
     {
-        ExitFilter.All => "All exits",
-        ExitFilter.AsPmc => "Running as PMC",
-        ExitFilter.AsScav => "Running as Scav",
-        ExitFilter.PmcOnly => "PMC exits only",
-        ExitFilter.ScavOnly => "Scav exits only",
-        ExitFilter.SharedOnly => "Shared exits only",
+        ExitFilter.All => Localizer.Loc("ExitFilter.All"),
+        ExitFilter.AsPmc => Localizer.Loc("ExitFilter.AsPmc"),
+        ExitFilter.AsScav => Localizer.Loc("ExitFilter.AsScav"),
+        ExitFilter.PmcOnly => Localizer.Loc("ExitFilter.PmcOnly"),
+        ExitFilter.ScavOnly => Localizer.Loc("ExitFilter.ScavOnly"),
+        ExitFilter.SharedOnly => Localizer.Loc("ExitFilter.SharedOnly"),
         _ => filter.ToString(),
     };
 }
@@ -48,6 +49,9 @@ public enum PoiKind
     Switch,
     StationaryWeapon,
     BtrStop,
+
+    /// <summary>Season-1 KORD BREACH TerraGroup document spawns; last so existing ordinals hold.</summary>
+    SeasonDocuments,
 }
 
 /// <summary>
@@ -66,6 +70,18 @@ public sealed class MapPoi
 
     public required string Name { get; init; }
 
+    /// <summary>
+    /// Simplified-Chinese name, when the data has one. Null means the English name is shown.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Name"/> stays English and is what OCR matches against; this is only ever used for
+    /// display, so the display-language switch can never remove the English name.
+    /// </remarks>
+    public string? NameZh { get; init; }
+
+    /// <summary>The name to draw/read in the active language.</summary>
+    public string DisplayName => Localization.Localizer.Pick(Name, NameZh);
+
     public required GamePosition Position { get; init; }
 
     /// <summary>Position in the map's base pixel space.</summary>
@@ -83,6 +99,50 @@ public sealed class MapPoi
     /// </summary>
     public IReadOnlyList<string> Details { get; init; } = [];
 
+    /// <summary>
+    /// The Chinese rendering of <see cref="Details"/>, index-for-index. Empty when the source has
+    /// no Chinese for a line, in which case the display falls back to the English text.
+    /// </summary>
+    /// <remarks>
+    /// Built alongside <see cref="Details"/> from the wiki overlay. The English list stays the
+    /// canonical, OCR-facing one; this is only ever used to pick the text the active language
+    /// should show.
+    /// </remarks>
+    public IReadOnlyList<string> DetailsZh { get; init; } = [];
+
+    /// <summary>
+    /// The detail block as it should actually be drawn: one line per detail, in the active
+    /// language.
+    /// </summary>
+    /// <remarks>
+    /// When Simplified Chinese is active and a line has a Chinese rendering, that line is shown;
+    /// otherwise the English original stands in. There is no bilingual echo: the row shows a single
+    /// line, so exactly one <see cref="PoiDetailLine"/> is produced per entry in
+    /// <see cref="Details"/>.
+    /// </remarks>
+    public IReadOnlyList<PoiDetailLine> DetailLines
+    {
+        get
+        {
+            if (Details.Count == 0)
+                return [];
+
+            var bilingual = Localizer.Language == AppLanguage.ChineseSimplified;
+            var lines = new List<PoiDetailLine>(Details.Count);
+
+            for (var i = 0; i < Details.Count; i++)
+            {
+                var english = Details[i];
+                var chinese = i < DetailsZh.Count ? DetailsZh[i] : null;
+
+                var text = bilingual && chinese is { Length: > 0 } ? chinese : english;
+                lines.Add(new PoiDetailLine(text));
+            }
+
+            return lines;
+        }
+    }
+
     /// <summary>Destination map for a transit.</summary>
     public string? DestinationMap { get; init; }
 
@@ -96,6 +156,12 @@ public sealed class MapPoi
     public bool IsSingleUse { get; init; }
 
     /// <summary>
+    /// True when the source has not confirmed this point (a season document spawn nobody has
+    /// checked yet). Drives the dimmed "?" styling inside the layer; it never filters the point out.
+    /// </summary>
+    public bool IsUnverified { get; init; }
+
+    /// <summary>
     /// Ground distance from the last known player position, in meters, or null before the first
     /// screenshot places you.
     /// </summary>
@@ -107,7 +173,7 @@ public sealed class MapPoi
     public double? DistanceMeters { get; set; }
 
     /// <summary>Distance formatted for the list, or empty when the player has not been placed.</summary>
-    public string DistanceLabel => DistanceMeters is { } d ? $"{d:F0} m" : "";
+    public string DistanceLabel => DistanceMeters is { } d ? Localizer.Loc("Poi.DistanceMeters", d) : "";
 
     /// <summary>
     /// Whether the game listed this exit for the current raid, or null when nobody has told us.
@@ -152,11 +218,17 @@ public sealed class MapPoi
             if (DestinationMap is not { } destination)
                 return FactionLabel;
 
-            var where = Maps.GameMap.ToDisplayName(destination);
+            var where = MapNames.Display(destination);
 
-            return Name.Contains(where, StringComparison.OrdinalIgnoreCase)
+            // Name is always the English name (it is what OCR matches against), so the
+            // "already says where it goes" test has to run against the English map name. Comparing
+            // against the display name only suppressed the subtitle while English was active; in
+            // Chinese every transit row gained a redundant "leads to" line.
+            var english = MapNames.EnglishFor(destination) ?? GameMap.ToDisplayName(destination);
+
+            return Name.Contains(english, StringComparison.OrdinalIgnoreCase)
                 ? ""
-                : $"Leads to {where}";
+                : Localizer.Loc("Poi.LeadsTo", where);
         }
     }
 
@@ -168,12 +240,16 @@ public sealed class MapPoi
     /// <summary>Who may use this, in words. Empty for non-extracts.</summary>
     public string FactionLabel => Kind switch
     {
-        PoiKind.ExtractPmc => "PMC only",
-        PoiKind.ExtractScav => "Scav only",
-        PoiKind.ExtractShared => "PMC and Scav",
-        PoiKind.Transit => "Transit",
+        PoiKind.ExtractPmc => Localizer.Loc("Faction.PmcOnly"),
+        PoiKind.ExtractScav => Localizer.Loc("Faction.ScavOnly"),
+        PoiKind.ExtractShared => Localizer.Loc("Faction.PmcScav"),
+        PoiKind.Transit => Localizer.Loc("Faction.Transit"),
         _ => "",
     };
 
     public override string ToString() => Name;
 }
+
+/// <summary>One line of a POI's detail block, already resolved for the active language.</summary>
+public sealed record PoiDetailLine(string Text);
+

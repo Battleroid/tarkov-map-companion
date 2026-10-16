@@ -34,10 +34,7 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
     /// typeface by family name) per label per frame cost about 10 ms a frame on Customs, which is
     /// most of a 60 fps budget spent on font lookups.
     /// </summary>
-    private static readonly SKTypeface LabelTypeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface LabelTypeface = AppFonts.Label;
 
     private static readonly SKPaint LabelHalo = new()
     {
@@ -54,6 +51,15 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
         IsAntialias = true,
         Typeface = LabelTypeface,
         TextSize = 12,
+        Color = MarkerPalette.LabelText,
+    };
+
+    /// <summary>The "?" centered in an unconfirmed season document marker.</summary>
+    private static readonly SKPaint UnverifiedMark = new()
+    {
+        IsAntialias = true,
+        Typeface = LabelTypeface,
+        TextSize = 8,
         Color = MarkerPalette.LabelText,
     };
 
@@ -232,11 +238,19 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
         var x = (float)screen.X;
         var y = (float)screen.Y;
 
+        var highlighted = ReferenceEquals(poi, Hovered) || ReferenceEquals(poi, Selected);
+
+        // Season document spawns have their own two-state look rather than the extract styling.
+        if (poi.Kind == PoiKind.SeasonDocuments)
+        {
+            DrawSeasonDocument(canvas, x, y, poi, highlighted, fill, stroke);
+            return;
+        }
+
         var color = ColorFor(poi.Kind);
         var isExtract = poi.IsExtract || poi.Kind == PoiKind.Transit;
         var radius = isExtract ? ExtractRadius : MarkerRadius;
 
-        var highlighted = ReferenceEquals(poi, Hovered) || ReferenceEquals(poi, Selected);
         if (highlighted)
             radius += 2.5f;
 
@@ -287,7 +301,40 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
         // unless it is being pointed at. The marker stays; the noise goes.
         var labeled = isExtract && !muted && (ShowExtractNames || highlighted);
         if (labeled)
-            DrawLabel(canvas, x, y, radius + 4, poi.Name);
+            DrawLabel(canvas, x, y, radius + 4, poi.DisplayName);
+    }
+
+    /// <summary>
+    /// A season document spawn: an amber dot once confirmed, a smaller gray dot with a "?" while
+    /// nobody has checked it. Unconfirmed points never disappear -- they only recede -- so an
+    /// unchecked lead is still findable on the map.
+    /// </summary>
+    private static void DrawSeasonDocument(
+        SKCanvas canvas,
+        float x,
+        float y,
+        MapPoi poi,
+        bool highlighted,
+        SKPaint fill,
+        SKPaint stroke)
+    {
+        var unverified = poi.IsUnverified;
+        var radius = unverified ? MarkerRadius - 1.5f : MarkerRadius;
+
+        if (highlighted)
+            radius += 2.5f;
+
+        fill.Color = unverified ? MarkerPalette.SeasonDocDim : MarkerPalette.SeasonDoc;
+        stroke.Color = unverified ? MutedOutline : Outline;
+
+        canvas.DrawCircle(x, y, radius, fill);
+        canvas.DrawCircle(x, y, radius, stroke);
+
+        if (unverified)
+        {
+            var width = UnverifiedMark.MeasureText("?");
+            canvas.DrawText("?", x - width / 2f, y + 3f, UnverifiedMark);
+        }
     }
 
     private void DrawSelection(SKCanvas canvas, Viewport viewport, MapPoi selected)
@@ -364,6 +411,7 @@ public sealed class PoiOverlay : IMapOverlay, ILabeledOverlay
         PoiKind.Switch => MarkerPalette.Switch,
         PoiKind.StationaryWeapon => MarkerPalette.StationaryWeapon,
         PoiKind.BtrStop => MarkerPalette.BtrStop,
+        PoiKind.SeasonDocuments => MarkerPalette.SeasonDoc,
         _ => SKColors.White,
     };
 }

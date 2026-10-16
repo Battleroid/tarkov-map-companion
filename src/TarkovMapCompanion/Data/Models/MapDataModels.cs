@@ -42,6 +42,16 @@ public sealed class MapDataDocument
     [JsonPropertyName("translations")]
     public Dictionary<string, string> Translations { get; set; } = [];
 
+    /// <summary>
+    /// Localization-key to Simplified-Chinese-text lookup, merged in from <c>maps_zh</c>.
+    /// </summary>
+    /// <remarks>
+    /// Kept alongside the English table rather than replacing it: OCR still matches against the
+    /// English names, and the display language is chosen at runtime, not at bake time.
+    /// </remarks>
+    [JsonPropertyName("translationsZh")]
+    public Dictionary<string, string> TranslationsZh { get; set; } = [];
+
     /// <summary>When this snapshot was taken, so the app knows whether to refresh.</summary>
     [JsonPropertyName("fetchedAt")]
     public DateTimeOffset? FetchedAt { get; set; }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia.Controls;
 using TarkovMapCompanion.Data;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 
 namespace TarkovMapCompanion.Views;
@@ -32,7 +33,7 @@ public partial class AboutWindow : Window
 
         InitializeComponent();
 
-        VersionText.Text = $"Version {Version()} · an unofficial map helper for Escape from Tarkov";
+        VersionText.Text = Localizer.Loc("About.Version", Version());
 
         CreditsList.ItemsSource = BuildCredits();
 
@@ -40,11 +41,10 @@ public partial class AboutWindow : Window
             MapCatalog.SourceUrl,
             MapDataStore.DataUrl,
             MapDataStore.TranslationsUrl,
-            "https://assets.tarkov.dev/maps/ (map artwork and tiles)",
-            "https://escapefromtarkov.fandom.com/ (exit conditions)");
+            "https://assets.tarkov.dev/maps/ " + Localizer.Loc("About.SourceArtwork"),
+            "https://escapefromtarkov.fandom.com/ " + Localizer.Loc("About.SourceExitConditions"));
 
-        StackText.Text = "Avalonia 11 and SkiaSharp on .NET 8. "
-                       + "SVG maps are rendered with Svg.Skia. Everything on the map is custom-drawn.";
+        StackText.Text = Localizer.Loc("About.Stack");
 
         CloseButton.Click += (_, _) => Close();
         TarkovDevButton.Click += (_, _) => Open("https://tarkov.dev");
@@ -63,16 +63,19 @@ public partial class AboutWindow : Window
             .OrderByDescending(g => g.Count())
             .Select(g => new Credit(
                 g.Key,
-                $"{g.Count()} map{(g.Count() == 1 ? "" : "s")}: " +
-                string.Join(", ", g.Select(m => m.DisplayName).Order())))
+                Localizer.Loc(
+                    "About.CreditMaps",
+                    g.Count(),
+                    g.Count() == 1 ? "" : "s",
+                    string.Join(", ", g.Select(m => m.DisplayName).Order()))))
             .ToList();
 
-        byAuthor.Insert(0, new Credit("tarkov.dev", "Map geometry, exits, spawns, loot and hazard data"));
-        byAuthor.Insert(1, new Credit("EFT Wiki", "Exit conditions: costs, required items, timings (CC BY-SA)"));
+        byAuthor.Insert(0, new Credit(Localizer.Loc("About.CreditWhoTarkovDev"), Localizer.Loc("About.CreditTarkovDev")));
+        byAuthor.Insert(1, new Credit(Localizer.Loc("About.CreditWhoWiki"), Localizer.Loc("About.CreditWiki")));
 
         var unattributed = _catalog.Maps.Count(m => string.IsNullOrWhiteSpace(m.Author));
         if (unattributed > 0)
-            byAuthor.Add(new Credit("Unattributed", $"{unattributed} map(s) list no author upstream"));
+            byAuthor.Add(new Credit(Localizer.Loc("About.Unattributed"), Localizer.Loc("About.UnattributedCount", unattributed)));
 
         return byAuthor;
     }

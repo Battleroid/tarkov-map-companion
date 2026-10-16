@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TarkovMapCompanion.Data;
@@ -17,13 +18,26 @@ public static class FetchTasks
 {
     private const string DefaultOutput = "src/TarkovMapCompanion/Data/Snapshots/tasks.json.gz";
 
+    /// <summary>
+    /// Raw UTF-8 rather than the default <c>\uXXXX</c> escapes, so the Chinese in the snapshot stays
+    /// greppable and the file is smaller.
+    /// </summary>
+    private static readonly JsonSerializerOptions SnapshotJson = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     public static async Task<int> RunAsync(string[] args)
     {
         var output = args.Length > 0 ? args[0] : DefaultOutput;
 
         Console.WriteLine($"source     {TaskStore.DataUrl}");
         Console.WriteLine($"           {TaskStore.TranslationsUrl}");
+        Console.WriteLine($"           {TaskStore.TranslationsZhUrl}");
         Console.WriteLine($"           {TaskStore.TradersUrl}");
+        Console.WriteLine($"           {TaskStore.ItemTranslationsUrl}");
+        Console.WriteLine($"           {TaskStore.ItemTranslationsZhUrl}");
 
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
 
@@ -64,7 +78,7 @@ public static class FetchTasks
             await JsonSerializer.SerializeAsync(
                 gzip,
                 document,
-                new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull })
+                SnapshotJson)
                 .ConfigureAwait(false);
         }
 

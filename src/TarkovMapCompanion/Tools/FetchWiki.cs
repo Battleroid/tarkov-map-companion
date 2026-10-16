@@ -104,7 +104,10 @@ public static partial class FetchWiki
 
                 foreach (var extract in extracts)
                 {
-                    var name = store.Translate(extract.Name);
+                    // TranslateEn, not Translate: the notes are keyed by the wiki's English names
+                    // and the runtime lookup feeds Find() the English extract name, so a coverage
+                    // count taken from the display translation matches nothing under a Chinese UI.
+                    var name = store.TranslateEn(extract.Name);
                     if (wikiKeys.Contains(ExtractNotesStore.Key(name)))
                         matched++;
                     else
@@ -392,12 +395,19 @@ public static partial class FetchWiki
     }
 
     /// <summary>
-    /// Squashes a requirement cell into one short line. These are read in a tooltip mid-raid, so
+    /// Squashes a requirement cell into one bounded line. These are read in a tooltip mid-raid, so
     /// a wall of text is worse than no text; the wiki link is there for the full version.
     /// </summary>
+    /// <remarks>
+    /// The cap exists to keep genuinely enormous cells out of the tooltip, but it must sit above
+    /// the longest real requirement: an earlier 190-character cap silently cut the actionable tail
+    /// off long entries (a second flare type, a squad-sharing rule, a boat-seat rule). Anything
+    /// longer than <c>maxLength</c> is cut on a word boundary and marked with an ellipsis; at 400
+    /// that should almost never happen.
+    /// </remarks>
     private static string Condense(string text)
     {
-        const int maxLength = 190;
+        const int maxLength = 400;
 
         var joined = string.Join(" · ", text
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

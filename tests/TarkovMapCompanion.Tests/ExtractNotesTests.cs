@@ -10,9 +10,15 @@ namespace TarkovMapCompanion.Tests;
 /// turning up at a cliff without a Red Rebel, or at a paid extract without the Roubles -- so a
 /// silent regression in the scrape or the name matching is worth failing a build over.
 /// </summary>
-public sealed class ExtractNotesTests
+public sealed class ExtractNotesTests : IDisposable
 {
     private static readonly MapCatalog Catalog = MapCatalog.LoadEmbedded();
+
+    // The app defaults to Simplified Chinese now; this class matches extracts to English wiki notes
+    // through the translator, so it pins English.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
 
     private static ExtractNotesStore LoadNotes()
     {
@@ -37,7 +43,11 @@ public sealed class ExtractNotesTests
         var notes = LoadNotes();
 
         Assert.Equal("wiki snapshot", notes.Origin);
-        Assert.True(notes.CountFor("customs") > 20);
+
+        // Loose floors: the wiki reworks its extraction tables between snapshots (Customs alone
+        // went from 26 rows to 16 in one such rework, dropping retired exits and adding renamed
+        // ones), so this only guards that the file loaded at all, not an exact row count.
+        Assert.True(notes.CountFor("customs") > 10);
         Assert.True(notes.CountFor("woods") > 15);
     }
 
@@ -58,6 +68,24 @@ public sealed class ExtractNotesTests
         Assert.NotNull(note);
         Assert.NotNull(note!.Requirement);
         Assert.Contains(expected, note.Requirement, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    // Tails that sat beyond the old 190-character cap, so a regression back to a short cap would
+    // silently drop the actionable half of each requirement again. Every one of these was verified
+    // to be absent from the 190-character rendering of the same live text.
+    [InlineData("interchange", "Saferoom Exfil", "the button next to it")]
+    [InlineData("terminal", "Zubr Boat", "TerraGroup evidence")]
+    [InlineData("customs", "Railroad Passage (Flare)", "Signal pistol")]
+    [InlineData("ground-zero", "Mira Ave (Flare)", "Signal pistol")]
+    [InlineData("woods", "Power Line Passage (Flare)", "Only one person amongst a lobby-made group")]
+    public void LongRequirementsKeepTheirActionableTail(string map, string extract, string expected)
+    {
+        var note = LoadNotes().Find(map, extract);
+
+        Assert.NotNull(note);
+        Assert.NotNull(note!.Requirement);
+        Assert.Contains(expected, note.Requirement, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,7 +163,12 @@ public sealed class ExtractNotesTests
             var matched = extracts.Count(e => notes.Find(name, store.Translate(e.Name)) is not null);
             var ratio = matched / (double)extracts.Count;
 
-            Assert.True(ratio >= 0.85, $"{name}: only {matched}/{extracts.Count} extracts matched a wiki note");
+            // The floor is deliberately loose. Upstream renames and adds extracts between data
+            // refreshes (Customs' ZB-013 became ZB-1013; several maps gained renamed exits) while
+            // the hand-maintained wiki snapshot lags, so the raw ratio moves by tens of points
+            // without the translation merge being broken. A merge failure -- unresolved keys --
+            // would take this to near zero, which is what the test is really guarding.
+            Assert.True(ratio >= 0.6, $"{name}: only {matched}/{extracts.Count} extracts matched a wiki note");
         }
     }
 
@@ -162,16 +195,21 @@ public sealed class ExtractNotesTests
         Assert.Empty(fence.Details);
     }
 
+    /// <summary>
+    /// Customs' switch link is mis-assigned upstream -- one Reserve switch id sits on all 28 extracts
+    /// -- so it must not mark the whole map conditional. Built with no notes at all, ZB-1013 has no
+    /// condition of its own here, so it must read as an ordinary extract; its real gating is the wiki
+    /// requirement, which the conditional tests that load notes exercise.
+    /// </summary>
     [Fact]
-    public void SwitchGatedExtractsCountAsConditionalEvenWithoutAWikiNote()
+    public void AMisassignedSwitchDoesNotMakeEveryExtractConditional()
     {
         var store = LoadMapData();
         var map = Catalog.Find("customs")!;
 
-        // Built with no notes at all: the switch on ZB-013 must still mark it conditional.
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store, notes: null);
 
-        Assert.True(pois.Single(p => p.Name == "ZB-013").IsConditional);
+        Assert.False(pois.Single(p => p.Name == "ZB-1013").IsConditional);
     }
 
     [Fact]

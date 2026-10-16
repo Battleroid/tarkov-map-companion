@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using TarkovMapCompanion.Diagnostics;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 
 namespace TarkovMapCompanion.Party;
@@ -393,7 +394,7 @@ public sealed class PartySession : IDisposable
 
             if (useRouter)
             {
-                Status?.Invoke(this, "Asking your router to open a port...");
+                Status?.Invoke(this, Localizer.Loc("Status.PartyAskingRouter"));
 
                 _mapper = new PortMapper();
                 mapping = await _mapper.MapAsync(port, cancellationToken).ConfigureAwait(false);
@@ -411,8 +412,7 @@ public sealed class PartySession : IDisposable
                 State = PartyState.Failed;
                 Status?.Invoke(
                     this,
-                    $"Could not open a port automatically. Forward TCP {port} to this PC and try again, "
-                    + "or have someone else host.");
+                    Localizer.Loc("Status.PartyPortMapFailed", port));
 
                 Raise();
                 return false;
@@ -433,9 +433,8 @@ public sealed class PartySession : IDisposable
             _ = Task.Run(() => AcceptLoopAsync(_cancellation.Token), CancellationToken.None);
 
             Status?.Invoke(this, mapping.Mapped
-                ? "Session open. Share the code with your squad."
-                : $"Session open, but your router did not open the port itself. If nobody can join, "
-                  + $"forward TCP {mapping.Port} to this PC, or have someone else host.");
+                ? Localizer.Loc("Status.PartyOpen")
+                : Localizer.Loc("Status.PartyOpenNoRouter", mapping.Port));
 
             Raise();
             return true;
@@ -447,8 +446,7 @@ public sealed class PartySession : IDisposable
 
             Status?.Invoke(
                 this,
-                $"Port {port} is already in use. Another copy of the app is probably hosting; "
-                + "close it, or pick a different party port in Settings.");
+                Localizer.Loc("Status.PartyPortInUse", port));
 
             Raise();
             return false;
@@ -458,7 +456,7 @@ public sealed class PartySession : IDisposable
             Log.Error("could not start hosting", ex);
             Leave();
             State = PartyState.Failed;
-            Status?.Invoke(this, $"Could not start the session: {ex.Message}");
+            Status?.Invoke(this, Localizer.Loc("Status.PartyStartFailed", ex.Message));
             Raise();
             return false;
         }
@@ -534,7 +532,7 @@ public sealed class PartySession : IDisposable
                 $"\"{name}\" joined from {Mask(((IPEndPoint)client.Client.RemoteEndPoint!).Address)}, "
                 + $"speaking v{hello.Version}");
 
-            Status?.Invoke(this, $"{name} joined.");
+            Status?.Invoke(this, Localizer.Loc("Status.PartyJoined", name));
 
             SetPeer(name, null, isSelf: false, generation);
             await BroadcastAsync(cancellationToken).ConfigureAwait(false);
@@ -657,7 +655,7 @@ public sealed class PartySession : IDisposable
                 }
 
                 LogParty($"\"{hosted.Name}\" left; {_clients.Count} still connected");
-                Status?.Invoke(this, $"{hosted.Name} left.");
+                Status?.Invoke(this, Localizer.Loc("Status.PartyLeft", hosted.Name));
                 hosted.Dispose();
 
                 await BroadcastAsync(CancellationToken.None).ConfigureAwait(false);
@@ -721,7 +719,7 @@ public sealed class PartySession : IDisposable
                 // Closing the socket is what makes their serve loop return and clean up. Nothing
                 // else here touches the roster.
                 LogParty($"\"{client.Name}\" has not been heard from in {(now - lastHeard).TotalSeconds:F0}s; dropping");
-                Status?.Invoke(this, $"Lost contact with {client.Name}.");
+                Status?.Invoke(this, Localizer.Loc("Status.PartyLostContact", client.Name));
                 Disconnect(client);
                 continue;
             }
@@ -748,7 +746,7 @@ public sealed class PartySession : IDisposable
             // The failure this exists for: the socket is open, the read is blocked, and nothing has
             // arrived for twenty seconds. Saying so beats sitting there looking connected.
             LogParty("the host has gone quiet; leaving the session");
-            Status?.Invoke(this, "Lost contact with the host. The session has ended.");
+            Status?.Invoke(this, Localizer.Loc("Status.PartyHostLost"));
             Leave();
             return;
         }
@@ -960,7 +958,7 @@ public sealed class PartySession : IDisposable
         if (!SessionCode.TryParse(code, out var endPoint, out var secret))
         {
             State = PartyState.Failed;
-            Status?.Invoke(this, "That does not look like a session code.");
+            Status?.Invoke(this, Localizer.Loc("Status.PartyBadCode"));
             Raise();
             return false;
         }
@@ -997,7 +995,7 @@ public sealed class PartySession : IDisposable
             State = PartyState.Joined;
             LogParty("connected, sent hello");
 
-            Status?.Invoke(this, "Connected to the session.");
+            Status?.Invoke(this, Localizer.Loc("Status.PartyConnected"));
             Raise();
 
             _ = Task.Run(() => ReceiveLoopAsync(stream, _cancellation.Token), CancellationToken.None);
@@ -1018,8 +1016,8 @@ public sealed class PartySession : IDisposable
 
             State = PartyState.Failed;
             Status?.Invoke(this, ex is OperationCanceledException
-                ? "No answer from the host. Check the code, and that they are still hosting."
-                : $"Could not join: {ex.Message}");
+                ? Localizer.Loc("Status.PartyNoAnswer")
+                : Localizer.Loc("Status.PartyJoinFailed", ex.Message));
 
             Raise();
             return false;
@@ -1125,7 +1123,7 @@ public sealed class PartySession : IDisposable
         {
             if (State == PartyState.Joined)
             {
-                Status?.Invoke(this, "The host closed the session.");
+                Status?.Invoke(this, Localizer.Loc("Status.PartyHostClosed"));
                 Leave();
             }
         }

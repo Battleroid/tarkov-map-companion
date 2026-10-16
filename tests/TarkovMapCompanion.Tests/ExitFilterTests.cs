@@ -6,8 +6,14 @@ using Xunit;
 
 namespace TarkovMapCompanion.Tests;
 
-public sealed class ExitFilterTests
+public sealed class ExitFilterTests : IDisposable
 {
+    // The app defaults to Simplified Chinese now; the labels asserted below are English, so this
+    // class pins the language it actually exercises.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
+
     [Theory]
     [InlineData(ExitFilter.All, PoiKind.ExtractPmc, true)]
     [InlineData(ExitFilter.All, PoiKind.ExtractScav, true)]
@@ -59,7 +65,8 @@ public sealed class ExitFilterTests
 
         var asPmc = exits.Where(p => ExitFilter.AsPmc.Includes(p.Kind)).ToArray();
 
-        // Customs has 16 Scav-only exits; a PMC should never see them.
+        // Customs has 11 Scav-only exits (after the pmc+scav duplicates collapse); a PMC should
+        // never see them.
         Assert.DoesNotContain(asPmc, p => p.Kind == PoiKind.ExtractScav);
         Assert.Contains(asPmc, p => p.Name == "Dorms V-Ex");
         Assert.Contains(asPmc, p => p.Name.Contains("Boiler Room Basement", StringComparison.Ordinal));

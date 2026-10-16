@@ -3,9 +3,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="using:TarkovMapCompanion.Views"
+        xmlns:loc="using:TarkovMapCompanion.Localization"
         mc:Ignorable="d"
         x:Class="TarkovMapCompanion.Views.AboutWindow"
-        Title="About Tarkov Map Companion"
+        Title="{loc:Tr About.Title}"
         Width="620" Height="540"
         MinWidth="460" MinHeight="320"
         WindowStartupLocation="CenterOwner"
@@ -18,7 +19,7 @@
             BorderBrush="{DynamicResource BorderSubtleBrush}"
             BorderThickness="0,1,0,0"
             Padding="12,8">
-      <Button Name="CloseButton" Content="Close" Classes="accent"
+      <Button Name="CloseButton" Content="{loc:Tr Common.Close}" Classes="accent"
               HorizontalAlignment="Right" Padding="16,4" />
     </Border>
 
@@ -32,24 +33,24 @@
       <StackPanel Spacing="16">
 
         <StackPanel Spacing="3">
-          <TextBlock Text="Tarkov Map Companion" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="{loc:Tr About.AppName}" FontSize="17" FontWeight="SemiBold" />
           <TextBlock Name="VersionText" Classes="secondary" FontSize="11" />
         </StackPanel>
 
         <Border Classes="panel" Padding="12">
           <StackPanel Spacing="6">
-            <TextBlock Classes="heading" Text="HOW IT WORKS" />
+            <TextBlock Classes="heading" Text="{loc:Tr About.HowItWorksHeading}" />
             <TextBlock TextWrapping="Wrap" FontSize="12"
-                       Text="Escape from Tarkov writes your position and camera rotation into the filename of every screenshot you take. This app watches that folder and reads the filenames. Nothing else." />
+                       Text="{loc:Tr About.HowItWorks1}" />
             <TextBlock TextWrapping="Wrap" FontSize="12"
-                       Text="It does not read the game's memory, hook into the process, modify any game file, or communicate with the game in any way. It cannot see anything you have not already captured yourself." />
+                       Text="{loc:Tr About.HowItWorks2}" />
           </StackPanel>
         </Border>
 
         <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="MAPS AND DATA" />
+          <TextBlock Classes="heading" Text="{loc:Tr About.MapsHeading}" />
           <TextBlock TextWrapping="Wrap" FontSize="12"
-                     Text="All map artwork and point-of-interest data comes from the tarkov.dev community project. This app is not affiliated with them; it simply uses what they publish." />
+                     Text="{loc:Tr About.MapsIntro}" />
 
           <ItemsControl Name="CreditsList" Margin="0,4,0,0">
             <ItemsControl.ItemTemplate>
@@ -64,27 +65,27 @@
           </ItemsControl>
 
           <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
-                     Text="Map geometry is taken from tarkov-dev, which is MIT licensed. Map artwork remains the work of its authors, credited above." />
+                     Text="{loc:Tr About.MapGeometry}" />
 
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-            <Button Name="TarkovDevButton" Content="tarkov.dev" />
-            <Button Name="SourceButton" Content="tarkov-dev on GitHub" />
+            <Button Name="TarkovDevButton" Content="{loc:Tr About.TarkovDevButton}" />
+            <Button Name="SourceButton" Content="{loc:Tr About.SourceButton}" />
           </StackPanel>
         </StackPanel>
 
         <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="DATA SOURCES IN USE" />
+          <TextBlock Classes="heading" Text="{loc:Tr About.SourcesHeading}" />
           <TextBlock Name="SourcesText" Classes="secondary" FontSize="11" TextWrapping="Wrap"
                      FontFamily="{DynamicResource MonoFont}" />
         </StackPanel>
 
         <StackPanel Spacing="6">
-          <TextBlock Classes="heading" Text="BUILT WITH" />
+          <TextBlock Classes="heading" Text="{loc:Tr About.BuiltWithHeading}" />
           <TextBlock Name="StackText" Classes="secondary" FontSize="11" TextWrapping="Wrap" />
         </StackPanel>
 
         <TextBlock Classes="secondary" FontSize="11" TextWrapping="Wrap"
-                   Text="Escape from Tarkov is a trademark of Battlestate Games. This is an unofficial fan-made tool with no connection to Battlestate Games." />
+                   Text="{loc:Tr About.Trademark}" />
 
       </StackPanel>
       </Border>

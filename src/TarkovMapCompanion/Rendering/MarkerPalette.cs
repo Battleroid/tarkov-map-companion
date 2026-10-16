@@ -51,6 +51,15 @@ public static class MarkerPalette
     public static readonly SKColor StationaryWeapon = new(0x90, 0xA4, 0xAE);
     public static readonly SKColor BtrStop = new(0x80, 0xCB, 0xC4);
 
+    /// <summary>
+    /// Season-1 KORD BREACH TerraGroup document spawns. A warm paper/amber, distinct from the
+    /// lighter player yellow and the loot tan.
+    /// </summary>
+    public static readonly SKColor SeasonDoc = new(0xE0, 0xA8, 0x00);
+
+    /// <summary>A document spawn nobody has confirmed yet. Recedes to gray rather than competing.</summary>
+    public static readonly SKColor SeasonDocDim = new(0x96, 0x96, 0x96);
+
     // ---- Chrome drawn onto the map -----------------------------------------
 
     public static readonly SKColor Halo = new(0x00, 0x00, 0x00, 0xC0);

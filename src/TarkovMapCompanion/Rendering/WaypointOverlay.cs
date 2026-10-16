@@ -37,10 +37,7 @@ public sealed class Waypoint
 /// </remarks>
 public sealed class WaypointOverlay : IAnimatedOverlay
 {
-    private static readonly SKTypeface Typeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface Typeface = AppFonts.Label;
 
     /// <summary>Wall clock for the marching arrows. Shared, monotonic, and thread-safe to read.</summary>
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
@@ -108,6 +105,15 @@ public sealed class WaypointOverlay : IAnimatedOverlay
     /// camera mid-raid, which would make the feature a griefing tool rather than a convenience.
     /// </remarks>
     public void SetSharedRoutes(IReadOnlyList<SharedRoute> routes) => _shared = routes;
+
+    /// <summary>
+    /// Snapshot of the shared teammate routes currently displayed, for read-only consumers such as
+    /// WebSync. Returns a copy: callers may enumerate it without holding the overlay lock.
+    /// </summary>
+    public IReadOnlyList<SharedRoute> SharedRoutes
+    {
+        get { lock (_gate) return _shared.ToArray(); }
+    }
 
     public int Count
     {

@@ -1,4 +1,5 @@
 using TarkovMapCompanion.Data;
+using TarkovMapCompanion.Data.Models;
 using TarkovMapCompanion.Maps;
 using TarkovMapCompanion.Rendering;
 using TarkovMapCompanion.Settings;
@@ -10,9 +11,15 @@ namespace TarkovMapCompanion.Tests;
 /// Exercises the POI pipeline against the snapshot that actually ships, so a bad regeneration or
 /// an upstream shape change fails here rather than showing up as an empty map.
 /// </summary>
-public sealed class PoiTests
+public sealed class PoiTests : IDisposable
 {
     private static readonly MapCatalog Catalog = MapCatalog.LoadEmbedded();
+
+    // The app defaults to Simplified Chinese now; the detail strings asserted below are English, so
+    // this class pins the language it actually exercises.
+    private readonly LanguageScope _language = new(AppLanguage.English);
+
+    public void Dispose() => _language.Dispose();
 
     private static MapDataStore LoadStore()
     {
@@ -24,6 +31,59 @@ public sealed class PoiTests
 
         store.LoadLocal();
         return store;
+    }
+
+    /// <summary>
+    /// A synthetic single-map payload: one entry per extract plus the switch definitions those
+    /// extracts reference, so <see cref="PoiBuilder"/> has real ids and readable names to work with.
+    /// </summary>
+    private static MapPoiData SyntheticMap(params (string Name, string[] Switches)[] extracts)
+    {
+        var switchIds = extracts.SelectMany(e => e.Switches).Distinct(StringComparer.Ordinal).ToArray();
+
+        return new MapPoiData
+        {
+            NormalizedName = "customs",
+            Extracts = extracts.Select((e, i) => new ExtractData
+            {
+                Id = $"ex_{i}",
+                Name = e.Name,
+                Faction = "shared",
+                Position = new Vec3Data { X = i, Y = 0, Z = 0 },
+                Switches = e.Switches.Length == 0 ? null : e.Switches.ToList(),
+            }).ToList(),
+            Switches = switchIds
+                .Select(id => new SwitchData { Id = id, Name = "Power Switch", SwitchType = "Power" })
+                .ToList(),
+        };
+    }
+
+    /// <summary>One raw extract for <see cref="SyntheticExtractMap"/>: name, faction and position.</summary>
+    private sealed record SyntheticExtract(string Name, string Faction, double X, double Z, string[] Switches);
+
+    /// <summary>
+    /// A synthetic single-map payload with full control over faction and position, for pinning the
+    /// coincident-extract merge rule without depending on the shipped snapshot's exact names.
+    /// </summary>
+    private static MapPoiData SyntheticExtractMap(params SyntheticExtract[] extracts)
+    {
+        var switchIds = extracts.SelectMany(e => e.Switches).Distinct(StringComparer.Ordinal).ToArray();
+
+        return new MapPoiData
+        {
+            NormalizedName = "customs",
+            Extracts = extracts.Select((e, i) => new ExtractData
+            {
+                Id = $"ex_{i}",
+                Name = e.Name,
+                Faction = e.Faction,
+                Position = new Vec3Data { X = e.X, Y = 0, Z = e.Z },
+                Switches = e.Switches.Length == 0 ? null : e.Switches.ToList(),
+            }).ToList(),
+            Switches = switchIds
+                .Select(id => new SwitchData { Id = id, Name = "Power Switch", SwitchType = "Power" })
+                .ToList(),
+        };
     }
 
     [Fact]
@@ -62,14 +122,127 @@ public sealed class PoiTests
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store);
 
         var extracts = pois.Where(p => p.IsExtract).ToArray();
-        Assert.Equal(27, extracts.Length);
+
+        // Upstream now emits a pmc and a scav record for the exits it used to emit as one shared
+        // record; the builder folds each coincident same-name pair back into one row. Customs ships
+        // 28 raw records across 6 duplicated exits, so 22 rows is the post-merge count.
+        Assert.Equal(22, extracts.Length);
 
         // Localization keys must have been resolved; a raw EXFIL_ key means the merge broke.
         Assert.DoesNotContain(extracts, e => e.Name.StartsWith("EXFIL", StringComparison.Ordinal));
 
+        // Crossroads used to arrive as one shared record; upstream then split it into pmc and scav
+        // records. Both must collapse into a single shared exit carrying the translated name, not
+        // the untranslated scav sibling's English text.
+        var crossroads = extracts.Single(e => e.Name == "Crossroads");
+        Assert.Equal(PoiKind.ExtractShared, crossroads.Kind);
+        Assert.Equal("十字路口", crossroads.NameZh);
+
+        // The reverse case: here the pmc sibling is the untranslated one and the scav sibling
+        // carries the translation, so the merge must still pick the translated name.
+        var railroad = extracts.Single(e => e.Name == "Railroad to Reserve");
+        Assert.Equal("通往军事基地的铁路", railroad.NameZh);
+
+        // ZB-1011 is a code the game shows verbatim, but the Chinese table translates its scav half
+        // to 工厂远角. A code stays a code: the merged row must not carry that translation, so the
+        // display falls back to ZB-1011 itself in every language.
+        var zb1011 = extracts.Single(e => e.Name == "ZB-1011");
+        Assert.Null(zb1011.NameZh);
+        Assert.Equal("ZB-1011", zb1011.DisplayName);
+
+        // Names as the refreshed snapshot spells them (upstream renamed Scav Checkpoint to
+        // Reserve Checkpoint).
         Assert.Contains(extracts, e => e.Name == "Dorms V-Ex" && e.Kind == PoiKind.ExtractPmc);
-        Assert.Contains(extracts, e => e.Name == "Scav Checkpoint" && e.Kind == PoiKind.ExtractScav);
-        Assert.Contains(extracts, e => e.Name == "Crossroads" && e.Kind == PoiKind.ExtractShared);
+        Assert.Contains(extracts, e => e.Name == "Reserve Checkpoint" && e.Kind == PoiKind.ExtractScav);
+        Assert.Contains(extracts, e => e.Name.StartsWith("Boiler Room Basement", StringComparison.Ordinal)
+                                       && e.Kind == PoiKind.ExtractShared);
+    }
+
+    /// <summary>
+    /// Upstream's new shape: one physical exit arrives as a coincident pmc and scav record with the
+    /// same English name. They must collapse into one shared row, not two.
+    /// </summary>
+    [Fact]
+    public void CoincidentPmcAndScavExtracts_MergeIntoOneSharedPoi()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticExtractMap(
+            new SyntheticExtract("Shared Exit", "pmc", 0, 0, []),
+            new SyntheticExtract("Shared Exit", "scav", 0.3, 0.2, []));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+        var extracts = pois.Where(p => p.IsExtract).ToArray();
+
+        var merged = Assert.Single(extracts);
+        Assert.Equal(PoiKind.ExtractShared, merged.Kind);
+        Assert.Equal("Shared Exit", merged.Name);
+    }
+
+    /// <summary>
+    /// Coincident duplicates of the same faction (Customs has a scav+scav pair) also collapse, and
+    /// keep that faction rather than being promoted to shared.
+    /// </summary>
+    [Fact]
+    public void CoincidentSameFactionExtracts_MergeIntoOnePoiOfThatFaction()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticExtractMap(
+            new SyntheticExtract("Scav Exit", "scav", 5, 5, []),
+            new SyntheticExtract("Scav Exit", "scav", 5.4, 5.3, []));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+        var merged = pois.Single(p => p.IsExtract);
+
+        Assert.Equal(PoiKind.ExtractScav, merged.Kind);
+    }
+
+    /// <summary>
+    /// Same name but genuinely far apart is not a duplicate: both must survive as separate POIs.
+    /// </summary>
+    [Fact]
+    public void SameNameExtractsFarApart_StaySeparatePois()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticExtractMap(
+            new SyntheticExtract("Far Exit", "pmc", 0, 0, []),
+            new SyntheticExtract("Far Exit", "pmc", 50, 0, []));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+        var extracts = pois.Where(p => p.IsExtract).ToArray();
+
+        Assert.Equal(2, extracts.Length);
+        Assert.All(extracts, e => Assert.Equal(PoiKind.ExtractPmc, e.Kind));
+    }
+
+    /// <summary>
+    /// When coincident records carry different switches, the merged POI takes the union of them.
+    /// </summary>
+    [Fact]
+    public void MergingExtracts_UnionsTheirSwitches()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        // Two unrelated extracts keep a switch on one of the merged records below half this map's
+        // extracts, so the mis-assignment guard cannot strip them.
+        var data = SyntheticExtractMap(
+            new SyntheticExtract("Union Exit", "pmc", 0, 0, ["s1"]),
+            new SyntheticExtract("Union Exit", "scav", 0.2, 0.1, ["s2"]),
+            new SyntheticExtract("Other A", "pmc", 100, 0, []),
+            new SyntheticExtract("Other B", "scav", 200, 0, []));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+
+        var merged = pois.Single(p => p.Name == "Union Exit");
+        Assert.Equal(PoiKind.ExtractShared, merged.Kind);
+        Assert.True(merged.IsConditional);
+        Assert.Equal(2, merged.Details.Count(d => d.StartsWith("Activated by", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -105,19 +278,99 @@ public sealed class PoiTests
         Assert.Contains(flare.Details, d => d.Contains("green flare", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Upstream currently attaches one Reserve switch id to every Customs extract (28 of 28), which
+    /// is not real gating. The builder must drop it rather than label every exit "Activated by" and
+    /// mark the whole map conditional. Building with no notes at all is the sharpest check: ZB-1013
+    /// has no condition of its own here, so it must read as an ordinary extract. Its genuine gating
+    /// survives through its wiki note, which <c>ExtractNotesTests</c> covers separately.
+    /// </summary>
     [Fact]
-    public void AnExtractGatedByASwitch_SaysSo()
+    public void AMisassignedUpstreamSwitchIsNotReportedAsGating()
     {
         var store = LoadStore();
         var map = Catalog.Find("customs")!;
         var pois = PoiBuilder.Build(map, store.ForMap("customs")!, store);
 
-        var zb013 = pois.Single(p => p.Name == "ZB-013");
+        var zb = pois.Single(p => p.Name == "ZB-1013");
 
-        Assert.Contains(zb013.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal));
+        Assert.DoesNotContain(zb.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal));
 
         // The raw switch name is a scene path; it must not leak into the UI.
-        Assert.DoesNotContain(zb013.Details, d => d.Contains("DesignStuff", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(zb.Details, d => d.Contains("DesignStuff", StringComparison.OrdinalIgnoreCase));
+        Assert.False(zb.IsConditional);
+    }
+
+    /// <summary>
+    /// The defensive guard: a switch id most of a map references is an upstream mis-assignment, so
+    /// it must produce neither an "Activated by" line nor a conditional flag on any extract.
+    /// </summary>
+    [Fact]
+    public void ASwitchReferencedByEveryExtractIsIgnoredAsMisassigned()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticMap(
+            ("Extract A", ["bogus"]),
+            ("Extract B", ["bogus"]),
+            ("Extract C", ["bogus"]),
+            ("Extract D", ["bogus"]));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+        var extracts = pois.Where(p => p.IsExtract).ToArray();
+
+        Assert.Equal(4, extracts.Length);
+        Assert.All(extracts, e => Assert.False(e.IsConditional));
+        Assert.All(extracts, e => Assert.DoesNotContain(
+            e.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal)));
+    }
+
+    /// <summary>A single switch on a single extract is real gating and must be left alone.</summary>
+    [Fact]
+    public void AnExtractWithItsOwnSwitchIsStillGated()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticMap(
+            ("Gated Exit", ["only-one"]),
+            ("Extract B", []),
+            ("Extract C", []),
+            ("Extract D", []));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+
+        var gated = pois.Single(p => p.Name == "Gated Exit");
+        Assert.True(gated.IsConditional);
+        Assert.Contains(gated.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal));
+
+        var open = pois.Single(p => p.Name == "Extract B");
+        Assert.False(open.IsConditional);
+        Assert.Empty(open.Details);
+    }
+
+    /// <summary>
+    /// Pins the minimum-map-size floor deliberately: on a two-extract map "half the extracts" is not
+    /// meaningful, so a shared switch is still honoured rather than suppressed.
+    /// </summary>
+    [Fact]
+    public void ATwoExtractMapIsTooSmallToTripTheGuard()
+    {
+        var store = LoadStore();
+        var map = Catalog.Find("customs")!;
+
+        var data = SyntheticMap(
+            ("Extract A", ["shared"]),
+            ("Extract B", ["shared"]));
+
+        var pois = PoiBuilder.Build(map, data, store, notes: null);
+        var extracts = pois.Where(p => p.IsExtract).ToArray();
+
+        Assert.Equal(2, extracts.Length);
+        Assert.All(extracts, e => Assert.True(e.IsConditional));
+        Assert.All(extracts, e => Assert.Contains(
+            e.Details, d => d.StartsWith("Activated by", StringComparison.Ordinal)));
     }
 
     [Fact]

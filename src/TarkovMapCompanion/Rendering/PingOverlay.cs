@@ -1,4 +1,5 @@
 using SkiaSharp;
+using TarkovMapCompanion.Localization;
 using TarkovMapCompanion.Maps;
 
 namespace TarkovMapCompanion.Rendering;
@@ -51,10 +52,7 @@ public sealed class PingOverlay : IAnimatedOverlay
     /// </remarks>
     private const double RingPeriodSeconds = 1.6;
 
-    private static readonly SKTypeface Typeface =
-        SKTypeface.FromFamilyName("Cascadia Mono")
-        ?? SKTypeface.FromFamilyName("Consolas")
-        ?? SKTypeface.Default;
+    private static readonly SKTypeface Typeface = AppFonts.Label;
 
     private readonly object _gate = new();
     private readonly List<MapPing> _pings = [];
@@ -70,6 +68,16 @@ public sealed class PingOverlay : IAnimatedOverlay
     public bool Any
     {
         get { lock (_gate) return _pings.Count > 0; }
+    }
+
+    /// <summary>
+    /// Snapshot of the pings currently on screen, newest last, for read-only consumers such as
+    /// WebSync. Returns a copy; the overlay keeps mutating its own list as pings expire.
+    /// </summary>
+    public IReadOnlyList<MapPing> Snapshot()
+    {
+        lock (_gate)
+            return _pings.ToArray();
     }
 
     public void Add(MapPing ping)
@@ -186,7 +194,7 @@ public sealed class PingOverlay : IAnimatedOverlay
             canvas.DrawPath(path, fill);
         }
 
-        DrawLabel(canvas, x + 13, y + 4, $"{ping.Name} · {Math.Max(0, LifetimeSeconds - age):F0}s", alpha);
+        DrawLabel(canvas, x + 13, y + 4, Localizer.Loc("Poi.PingLabel", ping.Name, Math.Max(0, LifetimeSeconds - age)), alpha);
     }
 
     private static void DrawLabel(SKCanvas canvas, float x, float y, string text, byte alpha)

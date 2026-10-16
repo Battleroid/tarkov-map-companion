@@ -26,10 +26,19 @@ public sealed class TaskData
     /// <summary>Already resolved to English. The upstream field is a localization key.</summary>
     [JsonPropertyName("name")] public string Name { get; set; } = "";
 
+    /// <summary>Simplified-Chinese name, when the data has one. Null means English is shown.</summary>
+    [JsonPropertyName("nameZh")] public string? NameZh { get; set; }
+
     [JsonPropertyName("normalizedName")] public string NormalizedName { get; set; } = "";
 
     /// <summary>Trader's display name, e.g. <c>Prapor</c>. Resolved when the snapshot is built.</summary>
     [JsonPropertyName("trader")] public string Trader { get; set; } = "";
+
+    /// <summary>
+    /// Chinese trader name, fetched and embedded but deliberately not shown: trader names are on
+    /// the locked "stays English" list (there is no agreed Chinese glossary for them).
+    /// </summary>
+    [JsonPropertyName("traderZh")] public string? TraderZh { get; set; }
 
     [JsonPropertyName("minPlayerLevel")] public int MinPlayerLevel { get; set; }
 
@@ -59,6 +68,10 @@ public sealed class TaskData
     [JsonPropertyName("keys")] public List<TaskKeyData> Keys { get; set; } = [];
 
     [JsonPropertyName("objectives")] public List<TaskObjectiveData> Objectives { get; set; } = [];
+
+    /// <summary>The task name in the active language. English is the fallback.</summary>
+    [JsonIgnore]
+    public string DisplayName => Localization.Localizer.Pick(Name, NameZh);
 }
 
 public sealed class TaskObjectiveData
@@ -79,6 +92,9 @@ public sealed class TaskObjectiveData
     /// This is why the 16 MB item payload is not needed: the description already names the items.
     /// </remarks>
     [JsonPropertyName("description")] public string Description { get; set; } = "";
+
+    /// <summary>Simplified-Chinese wording, when the data has one.</summary>
+    [JsonPropertyName("descriptionZh")] public string? DescriptionZh { get; set; }
 
     [JsonPropertyName("optional")] public bool Optional { get; set; }
 
@@ -103,6 +119,10 @@ public sealed class TaskObjectiveData
 
     /// <summary>Beyond this many, an item list is a category rather than a list.</summary>
     public const int MaxNamedItems = 12;
+
+    /// <summary>The objective wording in the active language.</summary>
+    [JsonIgnore]
+    public string DisplayDescription => Localization.Localizer.Pick(Description, DescriptionZh);
 }
 
 /// <summary>Keys needed on one map.</summary>
@@ -130,6 +150,13 @@ public sealed class TaskItemData
 
     /// <summary>Already resolved to English.</summary>
     [JsonPropertyName("name")] public string Name { get; set; } = "";
+
+    /// <summary>Simplified-Chinese name, when the data has one.</summary>
+    [JsonPropertyName("nameZh")] public string? NameZh { get; set; }
+
+    /// <summary>The item name in the active language.</summary>
+    [JsonIgnore]
+    public string DisplayName => Localization.Localizer.Pick(Name, NameZh);
 
     public override string ToString() => Name;
 }
